@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SunAlgorithms Auction – Trust But Verify</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+  <video autoplay muted loop playsinline id="bg-video">
+    <source src="https://cdn.coverr.co/videos/coverr-neon-lights-1957/1080p.mp4" type="video/mp4">
+  </video>
+  <div class="video-overlay"></div>
+  <canvas id="auction-canvas"></canvas>
+
+  <div class="app-container">
+    <aside class="sidebar" id="sidebar">
+      <div class="logo"><i class="fas fa-calculator"></i> Sun<span>Algorithms</span></div>
+      <nav id="sidebarNav">
+        <a href="#" onclick="navigate('landing')" id="nav-home" class="active"><i class="fas fa-home"></i> Home</a>
+        <a href="#" onclick="navigate('search')" id="nav-search"><i class="fas fa-search"></i> Search</a>
+        <a href="#" onclick="navigate('favorites')" id="nav-favorites" style="display:none"><i class="fas fa-star"></i> Favorites</a>
+        <a href="#" onclick="navigate('live')" id="nav-live"><i class="fas fa-gavel"></i> Live Auctions</a>
+        <a href="#" onclick="navigate('seller')" id="nav-seller" style="display:none"><i class="fas fa-store"></i> Seller Dashboard</a>
+        <a href="#" onclick="navigate('profile')" id="nav-profile" style="display:none"><i class="fas fa-id-card"></i> Profile & KYC</a>
+        <a href="#" onclick="navigate('inbox')" id="nav-inbox" style="display:none"><i class="fas fa-envelope"></i> Inbox</a>
+        <a href="#" onclick="navigate('manager')" id="nav-manager"><i class="fas fa-broadcast-tower"></i> Manager</a>
+      </nav>
+    </aside>
+    <div class="main-wrapper">
+      <header class="app-bar">
+        <button class="hamburger" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+        <div class="brand">Sun<span>Algorithms</span> Auction</div>
+        <div class="auth-buttons" id="authButtons"></div>
+      </header>
+      <div class="main-content" id="mainContent"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="authModal"><div class="modal" id="authModalContent"></div></div>
+  <div class="modal-overlay" id="kycModal"><div class="modal" id="kycModalContent"></div></div>
+  <div class="modal-overlay" id="itemModal"><div class="modal" id="itemModalContent"></div></div>
+  <div class="modal-overlay" id="sellerProfileModal"><div class="modal" id="sellerProfileModalContent"></div></div>
+  <div class="modal-overlay" id="chatModal"><div class="modal" id="chatModalContent"></div></div>
+
+  <script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
+  <script>
+    // ======================== DATA ========================
+    const categories = ['Cars','Trucks','Machinery','Property','Liquidation','Livestock','Art'];
+    const provinces = ['Eastern Cape','Free State','Gauteng','KwaZulu-Natal','Limpopo','Mpumalanga','Northern Cape','North West','Western Cape'];
+    let auctions = [];
+    let favorites = [];
+
+    const API_URL = '';
+    const socket = io();
+
+    let app = {
+      page: 'landing',
+      user: null,
+      token: null,
+      activeAuction: null,
+      currentBid: 0,
+      bidStatus: 'idle',
+      categoryFilter: 'All',
+      sellerItems: [],
+      soldItems: [],
+      micActive: false,
+      cameraActive: false,
+      cameraFacingMode: 'user',
+      localStream: null,
+      peer: null,
+      peers: {},
+      currentChatId: null,
+      searchQuery: ''
+    };
+
+    window._idPhotoData = null;
+    window._selfieData = null;
+    window._bankStatementData = null;
+    window._proofOfAddressData = null;
+    window._titleDeedData = null;
+    window._auctionImages = [];
+    window._auctionVideo = null;
+
+    let countdownInterval = null;
+
+    // ======================== HELPERS ========================
+    function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+    function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+    function navigate(page) {
+      app.page = page;
+      document.querySelectorAll('.sidebar nav a').forEach(a => a.classList.remove('active'));
+      const navId = 'nav-' + page;
+      const el = document.getElementById(navId);
+      if (el) el.classList.add('active');
+      if (window.innerWidth <= 800) document.getElementById('sidebar').classList.remove('open');
+      render();
+    }
+    function formatTime(secs) { return Math.floor(secs/60)+':'+(secs%60).toString().padStart(2,'0'); }
+    function getBadge(level) {
+      if (level >= 5) return 'Million-Rand ✓✓';
+      if (level >= 4) return 'Bank Verified ✓';
+      return 'Small Scale';
+    }
+    function getKycClass(level) {
+      if (level >= 5) return 'kyc-5';
+      if (level >= 4) return 'kyc-4';
+      return 'kyc-1';
+    }
+
+    // ======================== API ========================
+    async function api(url, method = 'GET', body = null) {
+      const opts = { method, headers: { 'Content-Type': 'application/json' } };
+      if (app.token) opts.headers['Authorization'] = `Bearer ${app.token}`;
+      if (body) opts.body = JSON.stringify(body);
+      const res = await fetch(API_URL + url, opts);
+      return res.json();
+    }
+
+    // ======================== FILE HELPERS ========================
+    function readFileAsBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function setupFileDrop(containerId, inputId, callback) {
+      const container = document.getElementById(containerId);
+      const input = document.getElementById(inputId);
+      if (!container || !input) return;
+      container.addEventListener('click', () => input.click());
+      container.addEventListener('dragover', (e) => { e.preventDefault(); container.style.borderColor = 'var(--mint)'; });
+      container.addEventListener('dragleave', () => { container.style.borderColor = 'var(--glass-border)'; });
+      container.addEventListener('drop', (e) => { e.preventDefault(); container.style.borderColor = 'var(--glass-border)'; const file = e.dataTransfer.files[0]; if (file) callback(file); });
+      input.addEventListener('change', (e) => { const file = e.target.files[0]; if (file) callback(file); });
+    }
+
+    // ======================== AUTH ========================
+    function updateAuthButtons() {
+      const div = document.getElementById('authButtons');
+      if (app.user) {
+        div.innerHTML = `<span class="kyc-badge ${getKycClass(app.user.kycLevel)}">${getBadge(app.user.kycLevel)}</span>
+          <span style="font-size:0.8rem">${app.user.role==='seller'?'Seller':'Buyer'}</span>
+          <button class="btn btn-outline" onclick="logout()">Logout</button>`;
+        document.getElementById('nav-seller').style.display = app.user.role === 'seller' ? 'flex' : 'none';
+        document.getElementById('nav-profile').style.display = 'flex';
+        document.getElementById('nav-inbox').style.display = 'flex';
+        document.getElementById('nav-favorites').style.display = 'flex';
+      } else {
+        div.innerHTML = `<button class="btn btn-outline" onclick="openAuth('login')">Login</button>
+          <button class="btn btn-primary" onclick="openAuth('register')">Register</button>`;
+        document.getElementById('nav-seller').style.display = 'none';
+        document.getElementById('nav-profile').style.display = 'none';
+        document.getElementById('nav-inbox').style.display = 'none';
+        document.getElementById('nav-favorites').style.display = 'none';
+      }
+    }
+
+    function openAuth(mode) {
+      document.getElementById('authModalContent').innerHTML = `
+        <span class="close-modal" onclick="closeModal('authModal')">&times;</span>
+        <h3>${mode === 'login' ? 'Login' : 'Register'}</h3>
+        <div class="form-group"><label>Email</label><input id="authEmail" type="email" placeholder="your@email.com"></div>
+        <div class="form-group"><label>Password</label><input id="authPass" type="password" placeholder="••••••••"></div>
+        ${mode === 'register' ? `
+          <div class="form-group"><label>Full Name</label><input id="authName" placeholder="Your name"></div>
+          <div class="form-group"><label>SA ID Number</label><input id="authIdNumber" placeholder="ID number"></div>
+          <div class="form-group"><label>Account Type</label><select id="authRole" style="color:#fff;background:rgba(255,255,255,0.05)">
+            <option value="buyer">Buyer</option><option value="seller">Seller</option>
+          </select></div>
+          <div class="form-group">
+            <label>ID Photo</label>
+            <div class="drag-area" id="idPhotoDrop"><i class="fa fa-id-card"></i><p>Drag & drop or click to upload</p><input type="file" id="authIdPhoto" accept="image/*" hidden></div>
+            <div id="idPhotoPreview" style="margin-top:0.5rem"></div>
+          </div>
+          <div class="form-group">
+            <label>Selfie</label>
+            <div class="drag-area" id="selfieDrop"><i class="fa fa-camera"></i><p>Drag & drop or click to upload</p><input type="file" id="authSelfie" accept="image/*" hidden></div>
+            <div id="selfiePreview" style="margin-top:0.5rem"></div>
+          </div>
+        ` : ''}
+        <button class="btn btn-primary" style="width:100%" onclick="handleAuth('${mode}')">${mode === 'login' ? 'Login' : 'Register'}</button>`;
+      openModal('authModal');
+      if (mode === 'register') {
+        setupFileDrop('idPhotoDrop', 'authIdPhoto', (file) => {
+          readFileAsBase64(file).then(dataUrl => {
+            window._idPhotoData = dataUrl;
+            document.getElementById('idPhotoPreview').innerHTML = `<img src="${dataUrl}" style="width:60px;height:60px;object-fit:cover;border-radius:8px">`;
+          });
+        });
+        setupFileDrop('selfieDrop', 'authSelfie', (file) => {
+          readFileAsBase64(file).then(dataUrl => {
+            window._selfieData = dataUrl;
+            document.getElementById('selfiePreview').innerHTML = `<img src="${dataUrl}" style="width:60px;height:60px;object-fit:cover;border-radius:8px">`;
+          });
+        });
+      }
+    }
+
+    async function handleAuth(mode) {
+      const email = document.getElementById('authEmail').value;
+      const password = document.getElementById('authPass').value;
+      if (!email || !password) return alert('All fields required');
+
+      if (mode === 'register') {
+        const name = document.getElementById('authName').value;
+        const idNumber = document.getElementById('authIdNumber').value;
+        const role = document.getElementById('authRole').value;
+        if (!name || !idNumber) return alert('Name and ID number required');
+
+        const formData = new FormData();
+        formData.append('name', name);
+        formData.append('email', email);
+        formData.append('password', password);
+        formData.append('role', role);
+        formData.append('idNumber', idNumber);
+
+        const idPhotoInput = document.getElementById('authIdPhoto');
+        const selfieInput = document.getElementById('authSelfie');
+        if (idPhotoInput.files[0]) formData.append('idPhoto', idPhotoInput.files[0]);
+        if (selfieInput.files[0]) formData.append('selfie', selfieInput.files[0]);
+
+        const res = await fetch('/api/register', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.error) return alert(data.error);
+        app.token = data.token;
+        app.user = data.user;
+        alert(data.message);
+      } else {
+        const data = await api('/api/login', 'POST', { email, password });
+        if (data.error) return alert(data.error);
+        app.token = data.token;
+        app.user = data.user;
+      }
+      socket.emit('register', app.user.id);
+      closeModal('authModal');
+      await fetchAuctions();
+      await fetchFavorites();
+      navigate('landing');
+    }
+
+    function logout() { app.user = null; app.token = null; navigate('landing'); }
+
+    async function fetchAuctions() {
+      const list = await api('/api/auctions');
+      if (Array.isArray(list)) auctions = list;
+      render();
+    }
+
+    async function fetchFavorites() {
+      if (app.token) favorites = await api('/api/favorites');
+    }
+
+    // ======================== RENDER ========================
+    function render() {
+      updateAuthButtons();
+      const content = document.getElementById('mainContent');
+      if (!content) return;
+      switch (app.page) {
+        case 'landing': renderLanding(content); break;
+        case 'search': renderSearch(content); break;
+        case 'favorites': renderFavorites(content); break;
+        case 'live': renderLiveRoom(content); break;
+        case 'seller': renderSellerDashboard(content); break;
+        case 'profile': renderProfile(content); break;
+        case 'inbox': renderInbox(content); break;
+        case 'manager': renderManagerDashboard(content); break;
+        default: renderLanding(content);
+      }
+      if (app.page === 'landing' || app.page === 'favorites') startCountdown();
+      else clearInterval(countdownInterval);
+    }
+
+    // ======================== LANDING ========================
+    function renderLanding(container) {
+      const filtered = app.categoryFilter === 'All' ? auctions : auctions.filter(a => a.category === app.categoryFilter);
+      container.innerHTML = `
+        <div style="display:flex; gap:0.5rem; margin-bottom:1rem;">
+          <input type="text" id="searchInput" placeholder="Search sellers..." style="flex:1; padding:0.5rem; border-radius:20px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); color:white" onkeyup="quickSearch()">
+          <button class="btn btn-outline" onclick="navigate('search')"><i class="fas fa-search"></i></button>
+        </div>
+        <div style="display:flex;gap:0.5rem;overflow-x:auto;padding-bottom:1rem">
+          <div class="chip ${app.categoryFilter==='All'?'active':''}" onclick="setCategory('All')">All</div>
+          ${categories.map(cat => `<div class="chip ${cat===app.categoryFilter?'active':''}" onclick="setCategory('${cat}')">${cat}</div>`).join('')}
+        </div>
+        <div class="feed-grid">
+          ${filtered.map(a => {
+            const now = Date.now();
+            const start = new Date(a.startTime).getTime();
+            const isSeller = app.user && app.user.email === a.seller;
+            const isBuyer = app.user && app.user.role === 'buyer';
+            const isLive = a.status === 'LIVE';
+            const isUpcoming = a.status === 'UPCOMING';
+            const isEnded = ['ENDED','SOLD','AWAITING_PAYMENT'].includes(a.status);
+            let statusText = '';
+            let actionBtn = '';
+            if (isUpcoming) {
+              const diff = start - now;
+              statusText = diff <= 0
+                ? '<span style="color:var(--mint)">Starting now...</span>'
+                : `<span class="countdown-timer" data-start="${a.startTime}">${formatTime(Math.floor(diff/1000))}</span>`;
+              if (isSeller) {
+                actionBtn = `<button class="btn btn-primary" onclick="joinAuctionFlow('${a.id}')">Enter Setup Room</button>`;
+              } else if (isBuyer) {
+                const alreadyReserved = a.reservedBidders?.includes(app.user.id);
+                if (alreadyReserved) {
+                  actionBtn = `<button class="btn btn-outline" disabled>Reserved ✓</button>`;
+                } else {
+                  actionBtn = `<button class="btn btn-outline" onclick="reserveSpace('${a.id}')">Reserve Space</button>`;
+                }
+              } else {
+                actionBtn = `<button class="btn btn-outline" disabled>Starts in ...</button>`;
+              }
+            } else if (isLive) {
+              statusText = '<span class="live-badge">🔴 LIVE</span>';
+              actionBtn = `<button class="btn btn-primary" onclick="joinAuctionFlow('${a.id}')">Join Now</button>`;
+            } else if (isEnded) {
+              statusText = `<span class="chip">${a.status}</span>`;
+            }
+            const sellerNameHtml = app.user && app.user.email !== a.seller ? `<span style="cursor:pointer; color:var(--mint);" onclick="viewSellerProfile('${a.seller}')">${a.seller}</span>` : a.seller;
+            return `<div class="auction-card">
+              <div class="card-img" style="background-image:url('${a.images?.[0] || 'https://picsum.photos/id/1/400/200'}');">
+                ${isLive ? '<div class="live-badge">🔴 LIVE</div>' : ''}
+              </div>
+              <div class="card-content">
+                <div class="card-title">${a.title} <span class="kyc-badge ${getKycClass(a.requiredKycLevel)}">${getBadge(a.requiredKycLevel)} req.</span></div>
+                <div class="card-meta">${a.city||'Online'} · ${a.items||1} lots · by ${sellerNameHtml}</div>
+                <div class="card-footer">
+                  <span class="price">${a.currentBid ? 'R'+a.currentBid.toLocaleString() : 'Reserve R'+(a.reserve||0).toLocaleString()}</span>
+                  ${statusText}
+                </div>
+                ${actionBtn}
+              </div>
+            </div>`;
+          }).join('')}
+        </div>`;
+    }
+
+    function quickSearch() {
+      const q = document.getElementById('searchInput')?.value;
+      if (q) {
+        api(`/api/sellers?q=${encodeURIComponent(q)}`).then(results => {
+          if (results.length) navigate('search');
+        });
+      }
+    }
+
+    function setCategory(cat) { app.categoryFilter = cat; render(); }
+
+    async function reserveSpace(auctionId) {
+      const res = await api(`/api/auctions/${auctionId}/reserve`, 'POST');
+      if (res.error) return alert(res.error);
+      alert('Space reserved! You can join even after the auction starts.');
+      await fetchAuctions();
+    }
+
+    function startCountdown() {
+      clearInterval(countdownInterval);
+      countdownInterval = setInterval(() => {
+        document.querySelectorAll('.countdown-timer').forEach(el => {
+          const startTime = new Date(el.dataset.start).getTime();
+          if (isNaN(startTime)) {
+            el.textContent = 'Invalid time';
+            return;
+          }
+          const diff = Math.floor((startTime - Date.now()) / 1000);
+          el.textContent = diff > 0 ? formatTime(diff) : 'Starting...';
+        });
+      }, 1000);
+    }
+
+    // ======================== SEARCH ========================
+    function renderSearch(container) {
+      container.innerHTML = `
+        <h3>Search Sellers</h3>
+        <div class="form-group">
+          <input type="text" id="searchQuery" placeholder="Seller name..." style="color:#fff; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:14px; padding:0.8rem; width:100%">
+          <button class="btn btn-primary" onclick="performSearch()" style="margin-top:0.5rem;">Search</button>
+        </div>
+        <div id="searchResults" class="feed-grid"></div>`;
+    }
+
+    async function performSearch() {
+      const q = document.getElementById('searchQuery').value;
+      if (!q) return;
+      const results = await api(`/api/sellers?q=${encodeURIComponent(q)}`);
+      const container = document.getElementById('searchResults');
+      container.innerHTML = results.length ? results.map(s => `
+        <div class="auction-card" onclick="viewSellerProfile('${s.id}')">
+          <div class="card-content">
+            <div class="card-title">${s.name}</div>
+            <div class="card-meta">${s.badge}</div>
+          </div>
+        </div>`).join('') : '<p>No sellers found.</p>';
+    }
+
+    // ======================== FAVORITES ========================
+    async function renderFavorites(container) {
+      if (!app.token) return;
+      await fetchFavorites();
+      container.innerHTML = '<h3>Your Favorite Sellers</h3><div class="feed-grid">' +
+        (favorites.length ? favorites.map(id => `<div class="auction-card" onclick="viewSellerProfile('${id}')"><div class="card-content"><div class="card-title">Seller ID: ${id}</div></div></div>`).join('') : '<p>No favorites yet. Find sellers on Home or Search.</p>') +
+        '</div>';
+    }
+
+    // ======================== SELLER PROFILE ========================
+    async function viewSellerProfile(sellerId) {
+      const data = await api(`/api/sellers/${sellerId}`);
+      if (data.error) return alert(data.error);
+      document.getElementById('sellerProfileModalContent').innerHTML = `
+        <span class="close-modal" onclick="closeModal('sellerProfileModal')">&times;</span>
+        <h3>${data.name} <span class="kyc-badge ${getKycClass(data.kycLevel)}">${data.badge}</span></h3>
+        <p>Auctions: ${data.auctionsCount} · Sold: ${data.soldCount}</p>
+        <p>Upcoming:</p><ul>${data.upcoming.length ? data.upcoming.map(a => `<li>${a.title} - ${new Date(a.startTime).toLocaleString()}</li>`).join('') : '<li>None</li>'}</ul>
+        <p>Recently Sold:</p><ul>${data.sold && data.sold.length ? data.sold.map(s => `<li>${s.product} to ${s.winner} for R${s.price.toLocaleString()}</li>`).join('') : '<li>None</li>'}</ul>
+        <div style="display:flex;gap:0.5rem;margin-top:1rem;">
+          <button class="btn btn-primary" onclick="startChatWith('${sellerId}')">Message Seller</button>
+          <button class="btn btn-outline" onclick="toggleFavorite('${sellerId}')">${favorites.includes(sellerId) ? 'Remove Favorite' : 'Add to Favorites'}</button>
+        </div>`;
+      openModal('sellerProfileModal');
+    }
+
+    async function toggleFavorite(sellerId) {
+      if (favorites.includes(sellerId)) {
+        await api(`/api/favorites/${sellerId}`, 'DELETE');
+      } else {
+        await api(`/api/favorites/${sellerId}`, 'POST');
+      }
+      await fetchFavorites();
+      if (document.getElementById('sellerProfileModal').style.display === 'flex') {
+        viewSellerProfile(sellerId);
+      }
+    }
+
+    // ======================== INBOX ========================
+    async function renderInbox(container) {
+      const conversations = await api('/api/messages');
+      container.innerHTML = '<h3>Inbox</h3><div class="feed-grid">' +
+        conversations.map(c => `
+          <div class="auction-card" onclick="openPersistentChat('${c.partnerId}')">
+            <div class="card-content">
+              <div class="card-title">${c.lastMsg.text.substring(0,30)}</div>
+              <div class="card-meta">${new Date(c.lastMsg.ts).toLocaleString()}</div>
+            </div>
+          </div>`).join('') + '</div>';
+    }
+
+    function openPersistentChat(partnerId) {
+      app.currentChatId = partnerId;
+      document.getElementById('chatModalContent').innerHTML = `
+        <span class="close-modal" onclick="closeModal('chatModal')">&times;</span>
+        <h3>Chat</h3>
+        <div id="chatMessages" style="height:300px;overflow-y:auto;background:rgba(0,0,0,0.3);padding:1rem;border-radius:12px;margin:1rem 0"></div>
+        <div style="display:flex;gap:0.5rem">
+          <input id="chatInput" placeholder="Type..." style="flex:1;padding:0.8rem;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);color:#fff">
+          <button class="btn btn-primary" onclick="sendPersistentMessage()">Send</button>
+        </div>`;
+      openModal('chatModal');
+      loadPersistentMessages(partnerId);
+    }
+
+    async function loadPersistentMessages(partnerId) {
+      const msgs = await api(`/api/messages/${partnerId}`);
+      const div = document.getElementById('chatMessages');
+      if (div) div.innerHTML = msgs.map(m => `<div style="text-align:${m.from===app.user.id?'right':'left'};margin:0.3rem 0;"><b>${m.from===app.user.id?'Me':'Partner'}:</b> ${m.text}</div>`).join('');
+    }
+
+    function sendPersistentMessage() {
+      const input = document.getElementById('chatInput');
+      if (input && input.value.trim()) {
+        socket.emit('sendChatMessage', { to: app.currentChatId, text: input.value });
+        input.value = '';
+      }
+    }
+
+    socket.on('chatMessage', (msg) => {
+      if (app.currentChatId && (app.currentChatId === msg.from || app.currentChatId === msg.to)) {
+        const div = document.getElementById('chatMessages');
+        if (div) div.innerHTML += `<div style="text-align:${msg.from===app.user.id?'right':'left'};margin:0.3rem 0;"><b>${msg.from===app.user.id?'Me':'Partner'}:</b> ${msg.text}</div>`;
+      }
+    });
+
+    function startChatWith(partnerId) {
+      openPersistentChat(partnerId);
+    }
+    // ======================== AUCTION JOIN ========================
+    async function joinAuctionFlow(id) {
+      const auction = auctions.find(a => a.id === id);
+      if (!auction) return;
+      if (!app.user) return openAuth('register');
+      const res = await api(`/api/auctions/${id}/join`, 'POST');
+      if (res.error) {
+        alert(res.error);
+        return;
+      }
+      startLiveAuction(auction);
+    }
+
+    function startLiveAuction(auction) {
+      app.activeAuction = auction;
+      app.currentBid = auction.currentBid || auction.reserve || 1000;
+      app.bidStatus = 'idle';
+      socket.emit('joinAuctionRoom', auction.id);
+      if (auction.status === 'LIVE' && app.user?.role === 'buyer') socket.emit('viewerJoin', auction.id);
+      if (app.user?.role === 'seller') socket.emit('hostStartStream', auction.id);
+      navigate('live');
+    }
+
+    // ======================== LIVE ROOM (SETUP / LIVE / ENDED) ========================
+    function renderLiveRoom(container) {
+      const a = app.activeAuction;
+      if (!a) return (container.innerHTML = '<p>No active auction.</p>');
+      const isSeller = app.user && app.user.email === a.seller;
+      const isBuyer = app.user && app.user.role === 'buyer';
+      const isUpcoming = a.status === 'UPCOMING';
+      const isLive = a.status === 'LIVE';
+      const isEnded = ['SOLD','ENDED','AWAITING_PAYMENT'].includes(a.status);
+
+      // Seller setup room (upcoming)
+      if (isUpcoming && isSeller) {
+        container.innerHTML = `
+          <div class="card">
+            <h2>Setup Room – ${a.title}</h2>
+            <p>Your auction starts at ${new Date(a.startTime).toLocaleTimeString()}.<br>
+            <span class="countdown-timer" id="setupCountdown" data-start="${a.startTime}">${formatTime(Math.floor((new Date(a.startTime).getTime() - Date.now())/1000))}</span></p>
+            <div style="background:#111; border-radius:24px; height:40vh; display:flex; align-items:center; justify-content:center; margin:1rem 0;">
+              ${app.localStream ? `<video id="localVideo" autoplay muted style="width:100%;height:100%;object-fit:contain;"></video>` : '<i class="fas fa-video" style="font-size:4rem;opacity:0.3;"></i>'}
+            </div>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:center;">
+              <button class="btn btn-outline" onclick="toggleMic()"><i class="fas fa-microphone"></i> Mic</button>
+              <button class="btn btn-outline" onclick="toggleCamera()"><i class="fas fa-camera"></i> Camera</button>
+              <button class="btn btn-primary" onclick="goLive('${a.id}')"><i class="fas fa-play"></i> Go Live Now</button>
+              <button class="btn btn-outline" onclick="endAuction('${a.id}')"><i class="fas fa-times"></i> Cancel Auction</button>
+            </div>
+          </div>`;
+        if (app.localStream) {
+          const video = document.getElementById('localVideo');
+          if (video) video.srcObject = app.localStream;
+        }
+        clearInterval(countdownInterval);
+        countdownInterval = setInterval(() => {
+          const el = document.getElementById('setupCountdown');
+          if (el) {
+            const start = new Date(el.dataset.start).getTime();
+            const diff = Math.floor((start - Date.now())/1000);
+            el.textContent = diff > 0 ? formatTime(diff) : 'Starting...';
+          }
+        }, 1000);
+        return;
+      }
+
+      // Live / Ended room
+      container.innerHTML = `
+        <div class="grid2">
+          <div>
+            <div class="card" style="padding:0;background:#111;border-radius:24px;height:50vh;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;">
+              ${isSeller && app.localStream ? `<video id="localVideo" autoplay muted style="width:100%;height:100%;object-fit:contain;"></video>` :
+                isBuyer ? `<div id="remoteVideoContainer" style="width:100%;height:100%;"></div>` :
+                `<i class="fas fa-video" style="font-size:4rem;opacity:0.3;"></i>`}
+              <div style="position:absolute;top:1rem;left:1rem;" class="live-badge">🔴 LIVE</div>
+              <div style="position:absolute;bottom:1rem;right:1rem;font-size:2rem;font-weight:800;" id="timerDisplay">${formatTime(a.timeLeft||30)}</div>
+              ${isEnded ? `<div class="sold-overlay"><h2>🏆 SOLD! for R${(a.finalPrice||app.currentBid).toLocaleString()}</h2>${a.status==='AWAITING_PAYMENT'?'<p>Awaiting payment (24hr deadline)</p>':''}</div>` : ''}
+              ${isSeller && !isEnded ? `<div class="stream-indicators">
+                <div class="stream-ind" id="micIndicator"><i class="fas ${app.micActive?'fa-microphone':'fa-microphone-slash'}"></i> ${app.micActive?'On':'Off'}</div>
+                <div class="stream-ind" id="camIndicator"><i class="fas ${app.cameraActive?'fa-video':'fa-video-slash'}"></i> ${app.cameraActive?'On':'Off'}</div>
+              </div>` : ''}
+            </div>
+            ${isSeller && !isEnded ? `<div class="card" style="margin-top:0.5rem;padding:1rem;">
+              <div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:center;">
+                <button class="btn btn-outline" onclick="toggleMic()"><i class="fas fa-microphone"></i> Mic</button>
+                <button class="btn btn-outline" onclick="toggleCamera()"><i class="fas fa-camera"></i> Camera</button>
+                <button class="btn btn-outline" onclick="switchLot()"><i class="fas fa-exchange-alt"></i> Switch Lot</button>
+                <button class="btn btn-outline" onclick="extendTime()"><i class="fas fa-plus"></i> Add 30s</button>
+              </div>
+            </div>` : ''}
+            ${isSeller && a.status === 'AWAITING_PAYMENT' ? `<div class="card" style="margin-top:0.5rem;">
+              <button class="btn btn-primary" onclick="confirmPaymentReceived('${a.id}')">Confirm Payment Received</button>
+              <button class="btn btn-outline" style="color:var(--danger);border-color:var(--danger)" onclick="banNonPayer('${a.id}')">Ban Buyer (No Payment)</button>
+            </div>` : ''}
+            <div class="card" style="margin-top:0.8rem;">
+              <h4>Product Media</h4>
+              <div class="media-gallery">
+                ${a.images && a.images.length ? a.images.map(img => `<img src="${img}" style="width:80px;height:80px;object-fit:cover;border-radius:12px;cursor:pointer" onclick="window.open('${img}')">`).join('') : '<p style="color:var(--text-secondary)">No images</p>'}
+                ${a.videoUrl ? `<div class="media-video-thumb" style="background-image:url('${a.image}'); background-size:cover;" onclick="window.open('${a.videoUrl}')"></div>` : ''}
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <h3>${a.title}</h3>
+            <p style="color:var(--text-secondary)">Lot #${a.currentLot||1} · KYC Level ${a.requiredKycLevel||1} required</p>
+            <div style="font-size:2.5rem;font-weight:800;color:var(--mint);" id="currBid">R${app.currentBid.toLocaleString()}</div>
+            <div id="bidStatus"></div>
+            ${!isEnded && isBuyer ? `
+            <button class="hand-btn" id="handRaiseBtn" onclick="raiseHand()" style="width:100%;padding:1rem;border-radius:16px;font-weight:700;font-size:1.2rem;background:var(--mint);color:white;border:none;margin-top:1rem;">
+              <i class="fas fa-hand-paper"></i> Bid R${(app.currentBid+1000).toLocaleString()}
+            </button>` : ''}
+            ${!isEnded && isSeller ? `
+            <div style="display:flex;flex-direction:column;gap:0.6rem;margin-top:1rem;">
+              <button class="btn btn-outline" onclick="goingOnce()">Going Once</button>
+              <button class="btn btn-outline" onclick="goingTwice()">Going Twice</button>
+              <button class="btn btn-primary" onclick="sold()">SOLD</button>
+              <button class="btn btn-outline" onclick="passLot()">Pass Lot</button>
+              <button class="btn btn-outline" onclick="endAuction('${a.id}')"><i class="fas fa-stop"></i> End Stream</button>
+            </div>` : ''}
+            ${isBuyer && app.user ? `<button class="btn btn-outline" style="margin-top:0.5rem;width:100%" onclick="startChatWith('${a.seller}')"><i class="fas fa-comment"></i> Message Seller</button>` : ''}
+          </div>
+        </div>
+        ${isSeller && !isEnded ? `<div class="card" style="margin-top:1rem;"><h3>Online Bidders</h3><div class="bidder-list" id="bidderList">${renderBiddersList(a)}</div></div>` : ''}
+      `;
+      if (isSeller && app.localStream) {
+        const video = document.getElementById('localVideo');
+        if (video) video.srcObject = app.localStream;
+      }
+      updateBidUI();
+    }
+
+    function renderBiddersList(auction) {
+      if (!auction.bidders || auction.bidders.length === 0) return '<p style="color:var(--text-secondary)">No bidders yet</p>';
+      return auction.bidders.map(b => {
+        let cls = '';
+        if (b.status === 'raised') cls = 'status-raised';
+        else if (b.status === 'accepted') cls = 'status-accepted';
+        else if (b.status === 'rejected') cls = 'status-rejected';
+        return `<div class="bidder-item">
+          <span><b>${b.name}</b> <span class="kyc-badge ${getKycClass(b.kycLevel||1)}">${getBadge(b.kycLevel||1)}</span> <span class="status ${cls}">${b.status}</span></span>
+          <div style="display:flex;gap:0.4rem">
+            ${b.status === 'raised' ? `<button class="btn btn-primary" onclick="managerAck('${b.userId}')">ACK</button>
+            <button class="btn btn-outline" onclick="managerReject('${b.userId}')">Reject</button>` : ''}
+            <button class="btn btn-primary" onclick="startPrivateChat('${b.userId}')"><i class="fas fa-comment"></i> Chat</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function renderManagerDashboard(container) {
+      const a = app.activeAuction;
+      container.innerHTML = `
+        <div class="card">
+          <h3>Host Control</h3>
+          <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap">
+            <button class="btn ${app.micActive?'btn-primary':'btn-outline'}" onclick="toggleMic()"><i class="fas fa-microphone${app.micActive?'':'-slash'}"></i> Mic</button>
+            <button class="btn ${app.cameraActive?'btn-primary':'btn-outline'}" onclick="toggleCamera()"><i class="fas fa-video${app.cameraActive?'':'-slash'}"></i> Camera</button>
+            <button class="btn btn-outline" onclick="muteAllBidders()"><i class="fas fa-volume-mute"></i> Mute All</button>
+          </div>
+          <h3 style="margin-top:1rem;">Online Bidders</h3>
+          <div class="bidder-list" id="bidderList">${a ? renderBiddersList(a) : '<p>No active auction</p>'}</div>
+        </div>`;
+    }
+
+    // ======================== SELLER DASHBOARD (FIXED: uses global auctions) ========================
+    function renderSellerDashboard(container) {
+      if (!app.user || app.user.role !== 'seller') return (container.innerHTML = '<p>Access denied.</p>');
+
+      // Get seller's auctions from the global auctions array (server already filtered by favorite/soonest)
+      const myAuctions = auctions.filter(a => a.seller === app.user.email);
+
+      const mySold = app.soldItems.filter(s => auctions.find(a => a.id === s.auctionId && a.seller === app.user.email));
+
+      container.innerHTML = `
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <h3>My Auctions</h3>
+            <button class="btn btn-primary" onclick="addNewItem()"><i class="fas fa-plus"></i> Create Auction</button>
+          </div>
+          <div class="feed-grid" style="margin-top:1rem">
+            ${myAuctions.map(a => {
+              const isLive = a.status === 'LIVE';
+              return `<div class="auction-card">
+                <div class="card-img" style="background-image:url('${a.images?.[0] || 'https://picsum.photos/id/1/400/200'}');"></div>
+                <div class="card-content">
+                  <div class="card-title">${a.title}</div>
+                  <div class="card-meta">Reserve R${a.reserve} · ${a.status} · KYC Level ${a.requiredKycLevel||1}</div>
+                  <div style="display:flex;gap:0.5rem;margin-top:0.5rem;flex-wrap:wrap;">
+                    ${!isLive ? `<button class="btn btn-outline" onclick="goLive('${a.id}')"><i class="fas fa-play"></i> Go Live</button>` : ''}
+                    ${isLive ? `<button class="btn btn-outline" style="color:var(--danger);border-color:var(--danger)" onclick="endAuction('${a.id}')"><i class="fas fa-stop"></i> End Stream</button>` : ''}
+                    <button class="btn btn-outline" style="color:var(--danger);" onclick="deleteAuction('${a.id}')"><i class="fas fa-trash"></i> Delete</button>
+                  </div>
+                </div>
+              </div>`;
+            }).join('')}
+            ${myAuctions.length === 0 ? '<p>No auctions yet.</p>' : ''}
+          </div>
+        </div>
+        <div class="card">
+          <h3>Sold Items</h3>
+          ${mySold.length ? mySold.map(s => `<div class="bidder-item">
+            <span><strong>${s.product}</strong></span>
+            <span>Winner: ${s.winner}</span>
+            <span class="price">R${s.price.toLocaleString()}</span>
+          </div>`).join('') : '<p style="color:var(--text-secondary)">No items sold yet.</p>'}
+        </div>`;
+    }
+
+    async function deleteAuction(id) {
+      if (!confirm('Delete this auction?')) return;
+      const res = await api(`/api/auctions/${id}`, 'DELETE');
+      if (res.error) return alert(res.error);
+      await fetchAuctions();
+      navigate('landing');
+    }
+
+    function goLive(id) {
+      const a = auctions.find(x => x.id === id);
+      if (a) {
+        a.status = 'LIVE';
+        a.bidders = [];
+        app.activeAuction = a;
+        socket.emit('startAuction', a.id);
+        socket.emit('hostStartStream', a.id);
+        navigate('live');
+      }
+      render();
+    }
+
+    // ======================== PROFILE & KYC UPGRADE ========================
+    function renderProfile(container) {
+      if (!app.user) return (container.innerHTML = '<p>Please login first.</p>');
+      container.innerHTML = `
+        <div class="card">
+          <h3>Your KYC Status: <span class="kyc-badge ${getKycClass(app.user.kycLevel)}">${getBadge(app.user.kycLevel)}</span></h3>
+          <p style="margin-top:0.5rem">You can bid on lots up to: <strong>${app.user.kycLevel >=5 ? 'Unlimited' : app.user.kycLevel >=4 ? 'R2,000,000' : 'R100,000'}</strong></p>
+          <div style="margin-top:1.5rem; display:flex; gap:1rem; flex-wrap:wrap">
+            ${app.user.kycLevel < 4 ? `<button class="btn btn-outline" onclick="openKycUpgrade(4)">Upgrade to Bank Verified → Bid R2M</button>` : ''}
+            ${app.user.kycLevel < 5 ? `<button class="btn btn-outline" onclick="openKycUpgrade(5)">Upgrade to Million-Rand → Bid Unlimited</button>` : ''}
+            ${app.user.kycLevel >= 5 ? '<p style="color:var(--mint)">✓ You are fully verified for all auction tiers.</p>' : ''}
+          </div>
+        </div>`;
+    }
+
+    function openKycUpgrade(level, customMessage) {
+      document.getElementById('kycModalContent').innerHTML = `
+        <span class="close-modal" onclick="closeModal('kycModal')">&times;</span>
+        <h3>Upgrade KYC to ${getBadge(level)}</h3>
+        ${customMessage ? `<p style="color:var(--text-secondary);margin-bottom:1rem">${customMessage}</p>` : ''}
+        ${level >= 4 ? `
+          <div class="form-group">
+            <label>Bank Statement (PDF/Image)</label>
+            <div class="drag-area" id="bankStatementDrop"><i class="fa fa-file-pdf"></i><p>Drag & drop or click to upload</p><input type="file" id="bankStatement" accept=".pdf,image/*" hidden></div>
+            <div id="bankStatementPreview" style="margin-top:0.5rem"></div>
+          </div>
+          <div class="form-group">
+            <label>Proof of Address (PDF/Image)</label>
+            <div class="drag-area" id="proofOfAddressDrop"><i class="fa fa-file-invoice"></i><p>Drag & drop or click to upload</p><input type="file" id="proofOfAddress" accept=".pdf,image/*" hidden></div>
+            <div id="proofOfAddressPreview" style="margin-top:0.5rem"></div>
+          </div>
+          <div class="form-group"><label>SARS Tax Number</label><input id="taxNumber" placeholder="Tax number"></div>
+        ` : ''}
+        ${level === 5 ? `
+          <div class="form-group">
+            <label>Title Deed / Asset Proof (PDF/Image)</label>
+            <div class="drag-area" id="titleDeedDrop"><i class="fa fa-home"></i><p>Drag & drop or click to upload</p><input type="file" id="titleDeed" accept=".pdf,image/*" hidden></div>
+            <div id="titleDeedPreview" style="margin-top:0.5rem"></div>
+          </div>
+        ` : ''}
+        <button class="btn btn-primary" style="width:100%" onclick="submitKycUpgrade(${level})">Submit for AI Verification (60sec)</button>`;
+      openModal('kycModal');
+      if (level >= 4) {
+        setupFileDrop('bankStatementDrop', 'bankStatement', (file) => {
+          readFileAsBase64(file).then(dataUrl => {
+            window._bankStatementData = dataUrl;
+            document.getElementById('bankStatementPreview').innerHTML = `<p>✅ ${file.name}</p>`;
+          });
+        });
+        setupFileDrop('proofOfAddressDrop', 'proofOfAddress', (file) => {
+          readFileAsBase64(file).then(dataUrl => {
+            window._proofOfAddressData = dataUrl;
+            document.getElementById('proofOfAddressPreview').innerHTML = `<p>✅ ${file.name}</p>`;
+          });
+        });
+      }
+      if (level === 5) {
+        setupFileDrop('titleDeedDrop', 'titleDeed', (file) => {
+          readFileAsBase64(file).then(dataUrl => {
+            window._titleDeedData = dataUrl;
+            document.getElementById('titleDeedPreview').innerHTML = `<p>✅ ${file.name}</p>`;
+          });
+        });
+      }
+    }
+
+    async function submitKycUpgrade(level) {
+      const taxNumber = document.getElementById('taxNumber')?.value;
+      const bankStatement = window._bankStatementData || '';
+      const proofOfAddress = window._proofOfAddressData || '';
+      const titleDeed = window._titleDeedData || '';
+      const data = await api('/api/kyc/upgrade', 'POST', { targetLevel: level, bankStatement, proofOfAddress, taxNumber, titleDeed });
+      if (data.error) return alert(data.error);
+      app.token = data.token;
+      app.user.kycLevel = data.kycLevel;
+      closeModal('kycModal');
+      alert(`KYC upgraded to ${getBadge(data.kycLevel)}!`);
+      render();
+    }
+
+    // ======================== BIDDING ========================
+    function raiseHand() {
+      if (app.bidStatus !== 'idle' || !app.activeAuction) return;
+      const amount = app.currentBid + 1000;
+      app.bidStatus = 'waiting';
+      socket.emit('handRaise', { auctionId: app.activeAuction.id, userId: app.user.id, amount });
+      updateBidUI();
+    }
+    function managerAck(bidderId) {
+      socket.emit('managerAck', { auctionId: app.activeAuction.id, bidderId, amount: app.currentBid + 1000 });
+    }
+    function managerReject(bidderId) {
+      socket.emit('managerReject', { auctionId: app.activeAuction.id, bidderId });
+    }
+    function updateBidUI() {
+      const display = document.getElementById('currBid');
+      if (display) display.textContent = 'R' + app.currentBid.toLocaleString();
+      const btn = document.getElementById('handRaiseBtn');
+      if (btn) {
+        btn.textContent = `Bid R${(app.currentBid+1000).toLocaleString()}`;
+        btn.disabled = (app.bidStatus === 'waiting');
+      }
+      const status = document.getElementById('bidStatus');
+      if (status) {
+        if (app.bidStatus === 'waiting') status.innerHTML = '<div class="status-msg waiting">Hand Raised – waiting for floor...</div>';
+        else if (app.bidStatus === 'accepted') status.innerHTML = '<div class="status-msg accepted">Bid accepted! You lead.</div>';
+        else if (app.bidStatus === 'missed') status.innerHTML = '<div class="status-msg missed">Missed! Higher bid.</div>';
+        else status.innerHTML = '';
+      }
+    }
+    function goingOnce() { alert('Going Once!'); }
+    function goingTwice() { alert('Going Twice!'); }
+    function sold() {
+      if (!app.activeAuction) return;
+      const a = app.activeAuction;
+      const winner = a.bidders?.find(b => b.status === 'accepted') || a.bidders?.[0];
+      if (winner) {
+        a.winnerId = winner.userId;
+        a.finalPrice = app.currentBid;
+        app.soldItems.push({ product: a.title, winner: winner.name, winnerId: winner.userId, price: app.currentBid, date: new Date().toISOString(), auctionId: a.id });
+        socket.emit('markWinner', { auctionId: a.id, winnerId: winner.userId, finalPrice: app.currentBid });
+      }
+      a.status = 'AWAITING_PAYMENT';
+      render();
+    }
+    function passLot() { alert('Lot passed.'); }
+    function endAuction(id) {
+      const a = auctions.find(x => x.id === id);
+      if (a) a.status = 'ENDED';
+      render();
+    }
+    function confirmPaymentReceived(auctionId) {
+      const a = auctions.find(x => x.id === auctionId);
+      if (a) { a.status = 'SOLD'; alert('Payment confirmed!'); }
+      render();
+    }
+    function banNonPayer(auctionId) {
+      const a = auctions.find(x => x.id === auctionId);
+      if (a && a.winnerId) {
+        socket.emit('banUserForNonPayment', { userId: a.winnerId, auctionId, evidence: 'No payment after 24hrs' });
+        a.status = 'ENDED';
+        alert('Buyer banned. Their ID is now blacklisted across all auction houses on the platform.');
+      }
+      render();
+    }
+
+    // ======================== HOST CONTROLS ========================
+    async function toggleMic() {
+      app.micActive = !app.micActive;
+      if (app.localStream) app.localStream.getAudioTracks().forEach(t => t.enabled = app.micActive);
+      socket.emit('hostMediaToggle', { auctionId: app.activeAuction?.id, micActive: app.micActive, cameraActive: app.cameraActive });
+      updateStreamIndicators();
+    }
+    async function toggleCamera() {
+      app.cameraActive = !app.cameraActive;
+      if (app.cameraActive) {
+        try {
+          app.localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: app.cameraFacingMode }, audio: app.micActive });
+          app.micActive = true;
+          socket.emit('hostStartStream', app.activeAuction?.id);
+          socket.on('newViewer', (viewerId) => createPeer(viewerId, app.localStream, true));
+        } catch (e) { alert('Camera access denied: ' + e.message); app.cameraActive = false; }
+      } else {
+        if (app.localStream) { app.localStream.getTracks().forEach(t => t.stop()); app.localStream = null; }
+        socket.emit('hostStopStream', app.activeAuction?.id);
+        Object.values(app.peers).forEach(p => p.destroy());
+        app.peers = {};
+      }
+      socket.emit('hostMediaToggle', { auctionId: app.activeAuction?.id, micActive: app.micActive, cameraActive: app.cameraActive });
+      updateStreamIndicators();
+      render();
+    }
+    function muteAllBidders() { socket.emit('muteAllBidders', app.activeAuction?.id); }
+    function switchLot() { socket.emit('switchLot', { auctionId: app.activeAuction?.id, lotId: (app.activeAuction?.currentLot||1)+1 }); }
+    function extendTime() { socket.emit('extendTime', app.activeAuction.id); }
+    function updateStreamIndicators() {
+      const mic = document.getElementById('micIndicator');
+      if (mic) mic.innerHTML = `<i class="fas ${app.micActive?'fa-microphone':'fa-microphone-slash'}"></i> ${app.micActive?'On':'Off'}`;
+      const cam = document.getElementById('camIndicator');
+      if (cam) cam.innerHTML = `<i class="fas ${app.cameraActive?'fa-video':'fa-video-slash'}"></i> ${app.cameraActive?'On':'Off'}`;
+    }
+
+    // ======================== WEBRTC ========================
+    function createPeer(viewerId, stream, initiator) {
+      const Peer = window.SimplePeer;
+      if (!Peer) return console.error('SimplePeer not loaded');
+      const p = new Peer({ initiator, trickle: false, stream });
+      p.on('signal', signal => socket.emit('webrtcSignal', { to: viewerId, signal }));
+      p.on('error', err => console.error('Peer error:', err));
+      p.on('connect', () => console.log('Peer connected'));
+      app.peers[viewerId] = p;
+    }
+    socket.on('webrtcSignal', async (data) => {
+      const Peer = window.SimplePeer;
+      if (!Peer) return;
+      if (!app.peer) {
+        app.peer = new Peer({ initiator: false, trickle: false });
+        app.peer.on('signal', signal => socket.emit('webrtcSignal', { to: data.from, signal }));
+        app.peer.on('stream', stream => {
+          const container = document.getElementById('remoteVideoContainer');
+          if (container) {
+            container.innerHTML = '<video id="remoteVideo" autoplay playsinline style="width:100%;height:100%;object-fit:contain;border-radius:12px"></video>';
+            document.getElementById('remoteVideo').srcObject = stream;
+          }
+        });
+      }
+      app.peer.signal(data.signal);
+    });
+    socket.on('hostOffline', () => { if (app.peer) { app.peer.destroy(); app.peer = null; } });
+
+    // ======================== PRIVATE CHAT ========================
+    function startPrivateChat(bidderId) {
+      socket.emit('requestPrivateChat', { auctionId: app.activeAuction.id, bidderId, hostId: app.user.id });
+    }
+    socket.on('privateChatRequest', (data) => {
+      if (app.user && app.user.id === data.bidderId && confirm(`${data.hostName} wants to chat. Accept?`)) {
+        socket.emit('acceptPrivateChat', data.channelId);
+        openChatModal(data.channelId);
+      }
+    });
+    function openChatModal(channelId) {
+      app.currentChatId = channelId;
+      document.body.insertAdjacentHTML('beforeend', `
+        <div class="modal-overlay" id="chatModal" style="display:flex">
+          <div class="modal" style="max-width:500px">
+            <span class="close-modal" onclick="closeChatModal()">&times;</span>
+            <h3>Private Chat</h3>
+            <p style="color:var(--text-secondary);font-size:0.8rem">⚠️ Phone numbers & emails blocked until sold</p>
+            <div id="chatMessages" style="height:300px;overflow-y:auto;background:rgba(0,0,0,0.3);padding:1rem;border-radius:12px;margin:1rem 0"></div>
+            <div style="display:flex;gap:0.5rem">
+              <input id="chatInput" placeholder="Type message..." style="flex:1;padding:0.8rem;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);color:#fff">
+              <button class="btn btn-primary" onclick="sendChatMessage()">Send</button>
+            </div>
+            <button class="btn btn-outline" onclick="endChat('${channelId}')" style="margin-top:0.5rem;width:100%">End Chat</button>
+          </div>
+        </div>`);
+    }
+    function sendChatMessage() {
+      const input = document.getElementById('chatInput');
+      if (input && input.value.trim()) {
+        socket.emit('privateChatMessage', { channelId: app.currentChatId, senderId: app.user.id, text: input.value });
+        input.value = '';
+      }
+    }
+    socket.on('newPrivateMessage', (msg) => {
+      const div = document.getElementById('chatMessages');
+      if (div) {
+        const mine = msg.senderId === app.user?.id;
+        div.innerHTML += `<div style="text-align:${mine?'right':'left'};margin:0.5rem 0">
+          <div style="display:inline-block;background:${mine?'var(--mint)':'rgba(255,255,255,0.1)'};padding:0.5rem 0.8rem;border-radius:12px;max-width:70%">
+            ${msg.text} ${msg.originalBlocked?'<span style="color:var(--gold);font-size:0.7rem">[redacted]</span>':''}
+          </div></div>`;
+        div.scrollTop = div.scrollHeight;
+      }
+    });
+    function endChat(channelId) { socket.emit('endPrivateChat', channelId); closeChatModal(); }
+    function closeChatModal() { document.getElementById('chatModal')?.remove(); app.currentChatId = null; }
+
+    // ======================== CREATE AUCTION (FIXED) ========================
+    function addNewItem() {
+      window._auctionImages = [];
+      window._auctionVideo = null;
+
+      document.getElementById('itemModalContent').innerHTML = `
+        <span class="close-modal" onclick="closeModal('itemModal')">&times;</span>
+        <h3>Create Auction</h3>
+        <div class="form-group"><label>Title</label><input id="itemTitle" placeholder="e.g. Vintage Watch"></div>
+        <div class="form-group"><label>Category</label><select id="itemCat" style="color:#fff;background:rgba(255,255,255,0.05)">${categories.map(c=>`<option>${c}</option>`).join('')}</select></div>
+        <div class="form-group"><label>Reserve Price (R)</label><input type="number" id="itemReserve" placeholder="5000"></div>
+        <div class="form-group"><label>Start Time</label><input type="datetime-local" id="itemStartTime"></div>
+        <div class="grid2">
+          <div class="form-group"><label>Province</label><select id="itemProvince" style="color:#fff;background:rgba(255,255,255,0.05)">${provinces.map(p=>`<option>${p}</option>`).join('')}</select></div>
+          <div class="form-group"><label>Town</label><input id="itemTown" placeholder="Town name"></div>
+        </div>
+
+        <div class="form-group">
+          <label>Images (at least 2)</label>
+          <div class="drag-area" id="imageDropArea">
+            <i class="fa fa-images"></i>
+            <p>Drag & drop up to 8 images or click the button below</p>
+            <button class="btn btn-outline" type="button" id="browseImagesBtn">Browse Images</button>
+            <input type="file" id="itemImages" accept="image/*" multiple hidden>
+          </div>
+          <div id="imagePreview" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem"></div>
+        </div>
+
+        <div class="form-group">
+          <label>Video (required)</label>
+          <div class="drag-area" id="videoDropArea">
+            <i class="fa fa-video"></i>
+            <p>Drag & drop a video or click the button below</p>
+            <button class="btn btn-outline" type="button" id="browseVideoBtn">Browse Video</button>
+            <input type="file" id="itemVideo" accept="video/*" hidden>
+          </div>
+          <div id="videoPreview" style="margin-top:0.5rem"></div>
+        </div>
+
+        <p style="color:var(--text-secondary);font-size:0.8rem;margin-bottom:1rem">KYC requirement will be set automatically based on reserve price.</p>
+        <button class="btn btn-primary" style="width:100%" onclick="saveNewItem()">Save & List</button>`;
+
+      openModal('itemModal');
+
+      const imageInput = document.getElementById('itemImages');
+      const imagePreview = document.getElementById('imagePreview');
+      const browseImagesBtn = document.getElementById('browseImagesBtn');
+
+      browseImagesBtn.addEventListener('click', (e) => { e.stopPropagation(); imageInput.click(); });
+      imageInput.addEventListener('change', (e) => { addImages(Array.from(e.target.files)); });
+
+      const imageDrop = document.getElementById('imageDropArea');
+      imageDrop.addEventListener('dragover', (e) => e.preventDefault());
+      imageDrop.addEventListener('drop', (e) => { e.preventDefault(); if (e.dataTransfer.files) addImages(Array.from(e.dataTransfer.files)); });
+
+      function addImages(files) {
+        files.forEach(file => {
+          if (window._auctionImages.length >= 8) return alert('Max 8 images');
+          if (!file.type.startsWith('image/')) return;
+          window._auctionImages.push(file);
+          const reader = new FileReader();
+          reader.onload = (ev) => { imagePreview.innerHTML += `<img src="${ev.target.result}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;margin:0.2rem">`; };
+          reader.readAsDataURL(file);
+        });
+        imageInput.value = '';
+      }
+
+      const videoInput = document.getElementById('itemVideo');
+      const videoPreview = document.getElementById('videoPreview');
+      const browseVideoBtn = document.getElementById('browseVideoBtn');
+
+      browseVideoBtn.addEventListener('click', (e) => { e.stopPropagation(); videoInput.click(); });
+      videoInput.addEventListener('change', (e) => { const file = e.target.files[0]; if (file) { window._auctionVideo = file; videoPreview.innerHTML = `<p>✅ ${file.name}</p>`; } });
+
+      const videoDrop = document.getElementById('videoDropArea');
+      videoDrop.addEventListener('dragover', (e) => e.preventDefault());
+      videoDrop.addEventListener('drop', (e) => { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file && file.type.startsWith('video/')) { window._auctionVideo = file; videoPreview.innerHTML = `<p>✅ ${file.name}</p>`; } });
+    }
+
+    async function saveNewItem() {
+      const title = document.getElementById('itemTitle').value;
+      const category = document.getElementById('itemCat').value;
+      const reserve = parseInt(document.getElementById('itemReserve').value) || 0;
+      const startTime = document.getElementById('itemStartTime').value;
+      const province = document.getElementById('itemProvince').value;
+      const town = document.getElementById('itemTown').value;
+      if (!title || !startTime || !town) return alert('Title, start time, and town are required.');
+      if (window._auctionImages.length < 2) return alert('Upload at least 2 images.');
+      if (!window._auctionVideo) return alert('Upload a video.');
+
+      const formData = new FormData();
+      formData.append('title', title);
+      formData.append('category', category);
+      formData.append('reserve', reserve);
+      formData.append('startTime', new Date(startTime).toISOString());
+      formData.append('city', `${province}, ${town}`);
+      formData.append('items', '1');
+      window._auctionImages.forEach(img => formData.append('images', img));
+      formData.append('video', window._auctionVideo);
+
+      try {
+        const res = await fetch('/api/auctions', { method: 'POST', headers: { 'Authorization': `Bearer ${app.token}` }, body: formData });
+        const data = await res.json();
+        if (data.error) return alert(data.error);
+        closeModal('itemModal');
+        await fetchAuctions();
+        navigate('landing');
+      } catch (err) { alert('Failed to create auction. Check network/server.'); }
+    }
+
+    // ======================== SOCKET LISTENERS ========================
+    socket.on('timerUpdate', (time) => { const el = document.getElementById('timerDisplay'); if (el) el.textContent = formatTime(time); });
+    socket.on('bidAccepted', (data) => { app.currentBid = data.amount; if (app.bidStatus === 'waiting') app.bidStatus = 'accepted'; updateBidUI(); });
+    socket.on('handRejected', (data) => { if (data.bidderId === app.user?.id) { app.bidStatus = 'missed'; updateBidUI(); } });
+    socket.on('handRaised', (data) => {
+      if (app.activeAuction) {
+        const bidder = app.activeAuction.bidders?.find(b => b.userId === data.bidderId);
+        if (bidder) bidder.status = 'raised';
+        const list = document.getElementById('bidderList');
+        if (list) list.innerHTML = renderBiddersList(app.activeAuction);
+      }
+    });
+    socket.on('lotSwitched', (data) => { if (app.activeAuction) app.activeAuction.currentLot = data.lotId; const el = document.getElementById('timerDisplay'); if (el) el.textContent = formatTime(data.timeLeft); alert(`Switched to Lot #${data.lotId}`); });
+    socket.on('hostMediaUpdate', (data) => {
+      if (app.user?.role === 'buyer') {
+        const mic = document.getElementById('micIndicator'); const cam = document.getElementById('camIndicator');
+        if (mic) mic.innerHTML = `<i class="fas ${data.micActive?'fa-microphone':'fa-microphone-slash'}"></i> ${data.micActive?'On':'Off'}`;
+        if (cam) cam.innerHTML = `<i class="fas ${data.cameraActive?'fa-video':'fa-video-slash'}"></i> ${data.cameraActive?'On':'Off'}`;
+      }
+    });
+    socket.on('auctionEndedAwaitingPayment', (data) => { if (app.user?.id === data.winnerId) { alert(`You won! Final price: R${data.finalPrice.toLocaleString()}. Upload proof of payment within 24 hours.`); } });
+    socket.on('userBanned', (data) => { alert(`${data.name} has been permanently banned from the platform.`); });
+
+    // ======================== CANVAS ANIMATION ========================
+    (function(){
+      const canvas=document.getElementById('auction-canvas'),ctx=canvas.getContext('2d');
+      let W,H;
+      function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight}
+      resize();window.addEventListener('resize',resize);
+      const icons=[];
+      for(let i=0;i<30;i++)icons.push({x:Math.random()*W,y:Math.random()*H,size:Math.random()*20+12,sx:(Math.random()-0.5)*1,sy:(Math.random()-0.5)*1,rot:Math.random()*Math.PI*2,rs:(Math.random()-0.5)*0.03,hue:Math.random()>0.5?160:40,type:Math.floor(Math.random()*4)});
+      function draw(){
+        ctx.clearRect(0,0,W,H);ctx.fillStyle='rgba(10,12,20,0.2)';ctx.fillRect(0,0,W,H);
+        icons.forEach(ic=>{
+          ic.x+=ic.sx;ic.y+=ic.sy;ic.rot+=ic.rs;
+          if(ic.x<0)ic.x=W;if(ic.x>W)ic.x=0;if(ic.y<0)ic.y=H;if(ic.y>H)ic.y=0;
+          ctx.save();ctx.translate(ic.x,ic.y);ctx.rotate(ic.rot);
+          ctx.fillStyle=`hsla(${ic.hue},80%,70%,0.25)`;ctx.strokeStyle=`hsla(${ic.hue},90%,85%,0.4)`;ctx.lineWidth=1.2;
+          ctx.shadowBlur=12;ctx.shadowColor=`hsla(${ic.hue},100%,70%,0.3)`;const s=ic.size*0.6;
+          if(ic.type===0){ctx.beginPath();ctx.arc(0,0,s,0,Math.PI*2);ctx.fill();ctx.stroke();}
+          else if(ic.type===1){ctx.fillRect(-s*0.3,-s*0.7,s*0.6,s*1.4);ctx.fillRect(s*0.2,-s*0.5,s*0.6,s*1.1);}
+          else if(ic.type===2){ctx.beginPath();for(let i=0;i<5;i++){let a=i*Math.PI*2/5-Math.PI/2;ctx.lineTo(Math.cos(a)*s,Math.sin(a)*s)}ctx.closePath();ctx.fill();ctx.stroke();}
+          else{ctx.beginPath();ctx.moveTo(0,-s);ctx.lineTo(s*0.6,0);ctx.lineTo(0,s);ctx.lineTo(-s*0.6,0);ctx.closePath();ctx.fill();ctx.stroke();}
+          ctx.restore();
+        });
+        requestAnimationFrame(draw);
+      }
+      draw();
+    })();
+
+    // ======================== INITIALIZE ========================
+    (async () => {
+      socket.emit('register', app.user?.id);
+      await fetchAuctions();
+      await fetchFavorites();
+      render();
+    })();
+  </script>
+</body>
+</html>

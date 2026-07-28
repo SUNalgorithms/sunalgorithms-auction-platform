@@ -1,0 +1,38 @@
+{
+  "name": "sunalgos-auction",
+  "version": "1.0.0",
+  "description": "Hybrid auction platform backend",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1097.0",
+    "@aws-sdk/s3-request-presigner": "^3.1097.0",
+    "@prisma/client": "^6.19.3",
+    "@sendgrid/mail": "^8.1.6",
+    "@supabase/ssr": "^0.12.3",
+    "@supabase/supabase-js": "^2.110.7",
+    "axios": "^1.18.0",
+    "bcrypt": "^6.0.0",
+    "bcryptjs": "^2.4.3",
+    "chartjs-node-canvas": "^5.0.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^4.22.2",
+    "express-rate-limit": "^8.5.2",
+    "fs": "^0.0.1-security",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.2.0",
+    "multer-s3": "^3.0.1",
+    "pdfkit": "^0.19.1",
+    "socket.io": "^4.8.3",
+    "twilio": "^6.0.2"
+  },
+  "devDependencies": {
+    "prisma": "^6.19.3"
+  }
+}

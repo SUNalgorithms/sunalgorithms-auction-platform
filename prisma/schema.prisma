@@ -1,0 +1,172 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String          @id @default(cuid())
+  name                String
+  email               String          @unique
+  password            String
+  idNumber            String          @unique
+  phone               String?
+  deviceId            String?
+  ip                  String?
+  role                String          @default("buyer") // "buyer" | "seller" | "admin"
+  kycLevel            Int             @default(1)
+  kycData             Json?           // { verifiedAt, smileJobId, bankVerified, bankAccountLast4 }
+  status              String          @default("ACTIVE") // "ACTIVE" | "BANNED_FRAUD"
+  sellerRequirements  Json?           // { depositAmount, minKycLevel, requiredDocs, servicesOffered, ppraReg, bbbeeLevel, saiaMember }
+  sellerProfile       Json?           // { trustScore, totalRatings, ratingBreakdown, badges }
+  favorites           Json?           // Array of auction IDs
+
+  // ===== Relations =====
+  // Auctions created by this user (as seller)
+  auctions            Auction[]       @relation("SellerAuctions")
+  // Auctions won by this user (as winner)
+  wonAuctions         Auction[]       @relation("WinnerAuctions")
+  // Ratings given by this user (as buyer)
+  ratingsGiven        Rating[]        @relation("UserRatings")
+  // Ratings received by this user (as seller)
+  ratingsReceived     Rating[]        @relation("SellerRatings")
+  // Ghost leads where this user is the ghost bidder (buyer)
+  ghostLeadsAsBuyer   GhostLead[]     @relation("GhostLeadUser")
+  // Ghost leads where this user is the seller
+  ghostLeadsAsSeller  GhostLead[]     @relation("GhostLeadSeller")
+  // Reports submitted by this user (as seller reporting a buyer)
+  reportsGiven        Report[]        @relation("Reporter")
+  // Sold items where this user is the seller
+  soldItems           SoldItem[]      @relation("SellerSoldItems")
+
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+}
+
+model Auction {
+  id                  String          @id @default(cuid())
+  title               String
+  category            String          @default("General")
+  auctionType         String          // "LIVE" | "TIMED"
+  reserve             Float           @default(0)
+  currentBid          Float?
+  currentBidderId     String?
+  maxBid              Float?
+  startTime           DateTime
+  endTime             DateTime?
+  status              String          @default("UPCOMING") // "UPCOMING" | "LIVE" | "LIVE_LAST_10MIN" | "AWAITING_PAYMENT" | "PAID" | "ENDED"
+  sellerId            String
+  sellerRequirements  Json?           // Copy of seller's requirements at creation
+  items               Int             @default(1)
+  city                String          @default("Online")
+  viewerCount         Int             @default(0)
+  bidders             Json?           // Array of bid objects { userId, name, amount, kycLevel, kycBadge, timestamp }
+  maxBids             Json?           // { userId: maxAmount }
+  winnerId            String?
+  finalPrice          Float?
+  timeLeft            Int?            // 30 for LIVE, null for TIMED
+  extensionCount      Int             @default(0)
+  maxExtensions       Int             @default(3)
+  requiredKycLevel    Int             @default(1)
+  paymentDeadline     DateTime?
+  currentLot          Int             @default(1)
+  images              Json?           // Array of image URLs
+  videoUrl            String?
+  inspectionReport    String?
+  serviceHistory      Json?           // Array of image URLs
+  inventoryManifest   String?
+  engineHours         Int?
+  vinNumber           String?
+  bulkSaleTerms       String?
+  reservedBidders     Json?           // Array of user IDs
+  increment           Int             @default(1000)
+  analytics           Json?           // { viewers, peakViewers, bidHistory, handRaiseCount, avgBidTime, kycBreakdown }
+  ghostBidders        Json?           // Array of ghost bidder objects
+  proxyBids           Json?           // Array of proxy bid objects { userId, maxBid, currentBid, createdAt }
+  isLast10Min         Boolean         @default(false)
+  rated               Boolean         @default(false)
+
+  // ===== Relations =====
+  seller              User            @relation("SellerAuctions", fields: [sellerId], references: [id])
+  winner              User?           @relation("WinnerAuctions", fields: [winnerId], references: [id])
+  ratings             Rating[]        @relation("AuctionRatings")
+  ghostLeads          GhostLead[]
+  reports             Report[]        @relation("ReportedAuction")
+
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+}
+
+model Rating {
+  id                  String          @id @default(cuid())
+  buyerId             String
+  sellerId            String
+  auctionId           String
+  stars               Int             @default(5)
+  comment             String?
+  tags                String[]        // ["Fast Payment", "Accurate Description", etc.]
+  createdAt           DateTime        @default(now())
+
+  // ===== Relations =====
+  buyer               User            @relation("UserRatings", fields: [buyerId], references: [id])
+  seller              User            @relation("SellerRatings", fields: [sellerId], references: [id])
+  auction             Auction         @relation("AuctionRatings", fields: [auctionId], references: [id])
+}
+
+model Report {
+  id                  String          @id @default(cuid())
+  buyerId             String
+  sellerId            String
+  auctionId           String
+  buyerName           String
+  sellerName          String
+  auctionTitle        String
+  amount              Float?
+  evidence            String?
+  status              String          @default("PENDING") // "PENDING" | "RESOLVED" | "DISMISSED"
+  createdAt           DateTime        @default(now())
+
+  // ===== Relations =====
+  reporter            User            @relation("Reporter", fields: [sellerId], references: [id])
+  auction             Auction         @relation("ReportedAuction", fields: [auctionId], references: [id])
+}
+
+model GhostLead {
+  id                  String          @id @default(cuid())
+  auctionId           String
+  sellerId            String
+  userId              String
+  name                String
+  phone               String?
+  email               String?
+  maxBid              Float
+  bidCount            Int
+  category            String
+  title               String
+  finalPrice          Float
+  capturedAt          DateTime        @default(now())
+  contacted           Boolean         @default(false)
+  sentToSeller        Boolean         @default(false)
+  sentToBuyer         Boolean         @default(false)
+
+  // ===== Relations =====
+  auction             Auction         @relation(fields: [auctionId], references: [id])
+  user                User            @relation("GhostLeadUser", fields: [userId], references: [id])
+  seller              User            @relation("GhostLeadSeller", fields: [sellerId], references: [id])
+}
+
+model SoldItem {
+  id                  String          @id @default(cuid())
+  auctionId           String          @unique
+  sellerId            String
+  title               String
+  winnerName          String
+  finalPrice          Float
+  soldAt              DateTime        @default(now())
+
+  // ===== Relations =====
+  seller              User            @relation("SellerSoldItems", fields: [sellerId], references: [id])
+}
