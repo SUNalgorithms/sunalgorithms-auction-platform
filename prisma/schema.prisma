@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = "postgresql://postgres:RORqBdsVIEIVlSkxBSYEieMIixKATNiR@tokaido.proxy.rlwy.net:34295/railway?sslmode=disable"
 }
 
 model User {
@@ -24,22 +24,18 @@ model User {
   sellerProfile       Json?           // { trustScore, totalRatings, ratingBreakdown, badges }
   favorites           Json?           // Array of auction IDs
 
+  // ===== NEW FIELDS FOR SELLER STOREFRONT =====
+  avatar              String?         // Profile picture URL (from R2 or Gravatar)
+  bio                 String?         // Short seller bio / description
+
   // ===== Relations =====
-  // Auctions created by this user (as seller)
   auctions            Auction[]       @relation("SellerAuctions")
-  // Auctions won by this user (as winner)
   wonAuctions         Auction[]       @relation("WinnerAuctions")
-  // Ratings given by this user (as buyer)
   ratingsGiven        Rating[]        @relation("UserRatings")
-  // Ratings received by this user (as seller)
   ratingsReceived     Rating[]        @relation("SellerRatings")
-  // Ghost leads where this user is the ghost bidder (buyer)
   ghostLeadsAsBuyer   GhostLead[]     @relation("GhostLeadUser")
-  // Ghost leads where this user is the seller
   ghostLeadsAsSeller  GhostLead[]     @relation("GhostLeadSeller")
-  // Reports submitted by this user (as seller reporting a buyer)
   reportsGiven        Report[]        @relation("Reporter")
-  // Sold items where this user is the seller
   soldItems           SoldItem[]      @relation("SellerSoldItems")
 
   createdAt           DateTime        @default(now())
@@ -49,6 +45,7 @@ model User {
 model Auction {
   id                  String          @id @default(cuid())
   title               String
+  description         String?         // ===== NEW: Full description for detail page =====
   category            String          @default("General")
   auctionType         String          // "LIVE" | "TIMED"
   reserve             Float           @default(0)
@@ -88,6 +85,12 @@ model Auction {
   proxyBids           Json?           // Array of proxy bid objects { userId, maxBid, currentBid, createdAt }
   isLast10Min         Boolean         @default(false)
   rated               Boolean         @default(false)
+
+  // ===== NEW FIELDS FOR CAR SPECS (AutoTrader style) =====
+  year                Int?            // Vehicle year
+  kilometers          Int?            // Mileage / distance
+  condition           String?         // "Excellent" | "Good" | "Fair" | "Poor"
+  color               String?         // Vehicle color
 
   // ===== Relations =====
   seller              User            @relation("SellerAuctions", fields: [sellerId], references: [id])
