@@ -483,7 +483,9 @@ app.post('/api/listings',
             title, description, category, condition,
             listingType, // 'AUCTION' or 'FIXED_PRICE'
             startingPrice, reservePrice, duration,
-            price, stock, isNegotiable
+            price, stock, isNegotiable,
+            // NEW: Vehicle Specs for the cards
+            year, kilometers, color, engineSize, transmission, fuelType
         } = req.body;
 
         // Validation
@@ -509,7 +511,7 @@ app.post('/api/listings',
             endTime = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
         }
 
-        // Create listing
+        // Create listing (WITH NEW SPEC FIELDS)
         const newListing = await prisma.listing.create({
             data: {
                 sellerId: user.id,
@@ -526,7 +528,14 @@ app.post('/api/listings',
                 price: listingType === 'FIXED_PRICE' ? parseFloat(price) : null,
                 stock: parseInt(stock) || 1,
                 isNegotiable: isNegotiable === 'true' || isNegotiable === true,
-                status: 'ACTIVE'
+                status: 'ACTIVE',
+                // Save NEW SPEC FIELDS
+                year: year ? parseInt(year) : null,
+                kilometers: kilometers ? parseInt(kilometers) : null,
+                color: color || null,
+                engineSize: engineSize || null,
+                transmission: transmission || null,
+                fuelType: fuelType || null,
             }
         });
 
@@ -589,7 +598,7 @@ app.get('/api/marketplace', async (req, res) => {
         orderBy: { createdAt: 'desc' }
     });
 
-    // Format response
+    // Format response (INCLUDING NEW SPEC FIELDS FOR CARDS)
     const formatted = listings.map(l => ({
         id: l.id,
         title: l.title,
@@ -606,7 +615,14 @@ app.get('/api/marketplace', async (req, res) => {
         status: l.status,
         seller: l.seller,
         bidCount: l.bids ? l.bids.length : 0,
-        createdAt: l.createdAt
+        createdAt: l.createdAt,
+        // Include specs for the card
+        year: l.year,
+        kilometers: l.kilometers,
+        color: l.color,
+        engineSize: l.engineSize,
+        transmission: l.transmission,
+        fuelType: l.fuelType
     }));
 
     res.json(formatted);
@@ -711,7 +727,11 @@ app.get('/api/sellers/:sellerId', async (req, res) => {
             price: l.price,
             endTime: l.endTime,
             status: l.status,
-            createdAt: l.createdAt
+            createdAt: l.createdAt,
+            // Include specs for the seller's public profile
+            year: l.year,
+            kilometers: l.kilometers,
+            condition: l.condition
         }))
     });
 });
@@ -744,6 +764,7 @@ app.get('/api/seller/dashboard', authenticate, async (req, res) => {
 // ============================================================
 // PASTE PART 2 BELOW THIS LINE
 // ============================================================
+// ============================================================
 // ========== PART 2: EXISTING AUCTION CRUD (Keep for legacy) =
 // ============================================================
 
@@ -768,29 +789,120 @@ app.post('/api/auctions',
         { name: 'inventoryManifest', maxCount: 1 }
     ]),
     async (req, res) => {
-        // ... existing code (keep as is) ...
-        // (We'll reuse the original implementation from your file)
+        try {
+            const { title, description, category, auctionType, reserve, startTime, endTime, items, city, requiredKycLevel } = req.body;
+            if (!title || !auctionType || !reserve) return res.status(400).json({ error: 'Title, auction type, and reserve are required' });
+
+            const imageUrls = req.files?.images?.length ? await Promise.all(req.files.images.map(file => uploadToR2(file, 'auctions'))) : [];
+            const videoUrl = req.files?.video?.[0] ? await uploadToR2(req.files.video[0], 'videos') : null;
+            const inspectionReport = req.files?.inspectionReport?.[0] ? await uploadToR2(req.files.inspectionReport[0], 'reports') : null;
+            const serviceHistory = req.files?.serviceHistory?.length ? await Promise.all(req.files.serviceHistory.map(file => uploadToR2(file, 'history'))) : [];
+            const inventoryManifest = req.files?.inventoryManifest?.[0] ? await uploadToR2(req.files.inventoryManifest[0], 'inventory') : null;
+
+            const newAuction = await prisma.auction.create({
+                data: {
+                    title,
+                    description,
+                    category,
+                    auctionType,
+                    reserve: parseFloat(reserve),
+                    startTime: startTime ? new Date(startTime) : new Date(),
+                    endTime: endTime ? new Date(endTime) : null,
+                    sellerId: req.user.id,
+                    images: imageUrls,
+                    videoUrl,
+                    inspectionReport,
+                    serviceHistory,
+                    inventoryManifest,
+                    items: parseInt(items) || 1,
+                    city: city || 'Online',
+                    requiredKycLevel: parseInt(requiredKycLevel) || 1,
+                    status: auctionType === 'LIVE' ? 'LIVE' : 'UPCOMING'
+                }
+            });
+
+            res.status(201).json({ id: newAuction.id, message: 'Auction created successfully' });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
     }
 );
 
 // ---------- GET ALL AUCTIONS ----------
 app.get('/api/auctions', async (req, res) => {
-    // ... existing code ...
+    try {
+        const auctions = await prisma.auction.findMany({
+            orderBy: { startTime: 'desc' },
+            include: { seller: { select: { id: true, name: true, displayName: true } } }
+        });
+        res.json(auctions);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // ---------- GET SINGLE AUCTION ----------
 app.get('/api/auctions/:id', async (req, res) => {
-    // ... existing code ...
+    try {
+        const auction = await prisma.auction.findUnique({
+            where: { id: req.params.id },
+            include: { seller: true, ratings: true }
+        });
+        if (!auction) return res.status(404).json({ error: 'Auction not found' });
+        res.json(auction);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // ---------- GET SELLER'S AUCTIONS ----------
 app.get('/api/seller/auctions', authenticate, async (req, res) => {
-    // ... existing code ...
+    try {
+        const auctions = await prisma.auction.findMany({
+            where: { sellerId: req.user.id },
+            orderBy: { startTime: 'desc' }
+        });
+        res.json(auctions);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // ---------- TIMED AUCTION BIDDING (legacy) ----------
 app.post('/api/auctions/:id/bid', authenticate, async (req, res) => {
-    // ... existing code ...
+    const { amount } = req.body;
+    try {
+        const auction = await prisma.auction.findUnique({ where: { id: req.params.id } });
+        if (!auction) return res.status(404).json({ error: 'Auction not found' });
+        if (auction.status !== 'LIVE' && auction.status !== 'LIVE_LAST_10MIN') return res.status(400).json({ error: 'Auction is not live' });
+        if (!parseFloat(amount) || parseFloat(amount) <= (auction.currentBid || 0)) {
+            return res.status(400).json({ error: 'Bid must be higher than current bid' });
+        }
+
+        const bidder = await prisma.user.findUnique({ where: { id: req.user.id } });
+        if (!bidder) return res.status(404).json({ error: 'User not found' });
+
+        // Update the auction
+        await prisma.auction.update({
+            where: { id: auction.id },
+            data: {
+                currentBid: parseFloat(amount),
+                currentBidderId: req.user.id,
+                bidders: {
+                    push: {
+                        userId: req.user.id,
+                        name: bidder.displayName || bidder.name,
+                        amount: parseFloat(amount),
+                        kycBadge: getBadge(bidder.kycLevel)
+                    }
+                }
+            }
+        });
+
+        res.json({ message: 'Bid placed', currentBid: parseFloat(amount) });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // ---------- HELPER FUNCTIONS ----------
@@ -820,11 +932,50 @@ function getSellerBadges(seller) {
 // ============================================================
 
 app.post('/api/auctions/:id/proxy-bid', authenticate, async (req, res) => {
-    // ... existing code ...
+    const { maxBid } = req.body;
+    try {
+        const auction = await prisma.auction.findUnique({ where: { id: req.params.id } });
+        if (!auction) return res.status(404).json({ error: 'Auction not found' });
+        if (!auction.proxyBids) auction.proxyBids = [];
+
+        // Check if user already has a proxy bid
+        const existing = auction.proxyBids.find(p => p.userId === req.user.id);
+        if (existing) {
+            existing.maxBid = parseFloat(maxBid);
+        } else {
+            auction.proxyBids.push({
+                userId: req.user.id,
+                maxBid: parseFloat(maxBid),
+                name: req.user.name
+            });
+        }
+
+        // Recalculate current bid based on proxy bids
+        await updateProxyBids(auction.id, auction.proxyBids);
+
+        const updated = await prisma.auction.findUnique({ where: { id: auction.id } });
+        res.json({ message: 'Proxy bid updated', currentBid: updated.currentBid, youAreWinning: updated.currentBidderId === req.user.id });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 async function updateProxyBids(auctionId, proxyBids) {
-    // ... existing code ...
+    if (!proxyBids || proxyBids.length === 0) return;
+    // Sort by maxBid descending
+    const sorted = proxyBids.sort((a, b) => b.maxBid - a.maxBid);
+    const topBidder = sorted[0];
+    const secondBidder = sorted[1];
+
+    const currentBid = secondBidder ? secondBidder.maxBid + 1000 : topBidder.maxBid;
+    await prisma.auction.update({
+        where: { id: auctionId },
+        data: {
+            currentBid,
+            currentBidderId: topBidder.userId,
+            maxBids: proxyBids // store updated proxy
+        }
+    });
 }
 
 // ============================================================
@@ -951,36 +1102,128 @@ io.on('connection', (socket) => {
 
     // ---------- JOIN AUCTION ----------
     socket.on('joinAuction', async (auctionId) => {
-        // ... existing join logic ...
+        currentAuctionId = auctionId;
+        socket.join(`auction_${auctionId}`);
+        // Update viewer count
+        const auction = await prisma.auction.findUnique({ where: { id: auctionId } });
+        if (auction) {
+            await prisma.auction.update({
+                where: { id: auctionId },
+                data: { viewerCount: auction.viewerCount + 1 }
+            });
+            io.to(`auction_${auctionId}`).emit('viewerCount', { count: auction.viewerCount + 1 });
+        }
     });
 
     // ---------- LEAVE AUCTION ----------
     socket.on('leaveAuction', async () => {
-        // ... existing leave logic ...
+        if (currentAuctionId) {
+            socket.leave(`auction_${currentAuctionId}`);
+            const auction = await prisma.auction.findUnique({ where: { id: currentAuctionId } });
+            if (auction && auction.viewerCount > 0) {
+                await prisma.auction.update({
+                    where: { id: currentAuctionId },
+                    data: { viewerCount: auction.viewerCount - 1 }
+                });
+                io.to(`auction_${currentAuctionId}`).emit('viewerCount', { count: auction.viewerCount - 1 });
+            }
+            currentAuctionId = null;
+        }
     });
 
     // ---------- HAND RAISE ----------
     socket.on('handRaise', bidLimiter, async (data) => {
-        // ... existing handRaise logic ...
+        const { auctionId, amount } = data;
+        if (!auctionId || !amount) return;
+        const user = await prisma.user.findUnique({ where: { id: socket.user.id } });
+        if (!user) return;
+
+        const auction = await prisma.auction.findUnique({ where: { id: auctionId } });
+        if (!auction) return;
+
+        // Update auction currentBid and bidder queue
+        await prisma.auction.update({
+            where: { id: auctionId },
+            data: {
+                currentBid: parseFloat(amount),
+                currentBidderId: socket.user.id,
+                bidders: {
+                    push: {
+                        userId: socket.user.id,
+                        name: user.displayName || user.name,
+                        amount: parseFloat(amount),
+                        kycBadge: getBadge(user.kycLevel)
+                    }
+                }
+            }
+        });
+
+        io.to(`auction_${auctionId}`).emit('newBid', {
+            bidderName: user.displayName || user.name,
+            amount: parseFloat(amount),
+            bidderId: socket.user.id,
+            kycBadge: getBadge(user.kycLevel)
+        });
     });
 
     // ---------- MANAGER ACK ----------
     socket.on('managerAck', async (data) => {
-        // ... existing managerAck logic ...
+        const { auctionId, bidderId, amount } = data;
+        io.to(`auction_${auctionId}`).emit('bidAccepted', {
+            bidderId,
+            amount,
+            message: 'Bid accepted'
+        });
     });
 
     // ---------- MANAGER REJECT ----------
     socket.on('managerReject', async (data) => {
-        // ... existing managerReject logic ...
+        const { auctionId, bidderId, amount } = data;
+        io.to(`auction_${auctionId}`).emit('bidRejected', {
+            bidderId,
+            amount,
+            message: 'Bid rejected'
+        });
     });
 
     // ---------- SOLD ----------
     socket.on('soldLot', async (data) => {
-        // ... existing soldLot logic ...
+        const { auctionId, winnerId, finalPrice } = data;
+        try {
+            await prisma.auction.update({
+                where: { id: auctionId },
+                data: {
+                    status: 'PAID',
+                    winnerId,
+                    finalPrice: parseFloat(finalPrice),
+                    paymentDeadline: new Date()
+                }
+            });
+            await prisma.soldItem.create({
+                data: {
+                    auctionId,
+                    sellerId: socket.user.id, // assume socket user is seller
+                    title: 'Lot sold',
+                    winnerName: winnerId,
+                    finalPrice: parseFloat(finalPrice),
+                    soldAt: new Date()
+                }
+            });
+            io.to(`auction_${auctionId}`).emit('lotSold', { winnerId, finalPrice });
+        } catch (err) {
+            console.error(err);
+        }
     });
 
     // ---------- BAN, REPORT ----------
-    // ... existing ban/report handlers ...
+    socket.on('banUserForNonPayment', async (data) => {
+        const { userId, auctionId, evidence } = data;
+        await prisma.user.update({
+            where: { id: userId },
+            data: { status: 'BANNED_FRAUD' }
+        });
+        io.emit('userBanned', { userId, name: 'User', reason: 'Non-payment' });
+    });
 
     // ---------- WEBRTC SIGNALING ----------
     socket.on('video-offer', (data) => {
@@ -1002,7 +1245,18 @@ io.on('connection', (socket) => {
     // ---------- DISCONNECT ----------
     socket.on('disconnect', async () => {
         console.log(`Socket disconnected: ${socket.id}`);
-        // ... existing disconnect logic ...
+        if (currentAuctionId) {
+            socket.leave(`auction_${currentAuctionId}`);
+            const auction = await prisma.auction.findUnique({ where: { id: currentAuctionId } });
+            if (auction && auction.viewerCount > 0) {
+                await prisma.auction.update({
+                    where: { id: currentAuctionId },
+                    data: { viewerCount: auction.viewerCount - 1 }
+                });
+                io.to(`auction_${currentAuctionId}`).emit('viewerCount', { count: auction.viewerCount - 1 });
+            }
+            currentAuctionId = null;
+        }
     });
 });
 
@@ -1011,7 +1265,16 @@ io.on('connection', (socket) => {
 // ============================================================
 
 app.get('/api/admin/reports', authenticate, async (req, res) => {
-    // ... existing code ...
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+    try {
+        const reports = await prisma.report.findMany({
+            where: { status: 'PENDING' },
+            include: { reporter: true, auction: true }
+        });
+        res.json(reports);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // ============================================================
@@ -1019,7 +1282,21 @@ app.get('/api/admin/reports', authenticate, async (req, res) => {
 // ============================================================
 
 app.get('/api/seller/analytics/:auctionId', authenticate, async (req, res) => {
-    // ... existing code ...
+    try {
+        const auction = await prisma.auction.findUnique({ where: { id: req.params.auctionId } });
+        if (!auction || auction.sellerId !== req.user.id) return res.status(404).json({ error: 'Auction not found' });
+        // Basic analytics
+        res.json({
+            auctionId: auction.id,
+            title: auction.title,
+            views: auction.viewerCount,
+            bids: auction.bidders?.length || 0,
+            currentBid: auction.currentBid,
+            status: auction.status
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // ============================================================
@@ -1027,11 +1304,35 @@ app.get('/api/seller/analytics/:auctionId', authenticate, async (req, res) => {
 // ============================================================
 
 app.post('/api/rate-seller', authenticate, async (req, res) => {
-    // ... existing code ...
+    const { sellerId, auctionId, stars, comment, tags } = req.body;
+    try {
+        const rating = await prisma.rating.create({
+            data: {
+                buyerId: req.user.id,
+                sellerId,
+                auctionId,
+                stars: parseInt(stars) || 5,
+                comment: comment || null,
+                tags: tags || []
+            }
+        });
+        // Update seller rating aggregate (optional)
+        res.json({ message: 'Rating submitted', rating });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.get('/api/seller/ratings/:sellerId', async (req, res) => {
-    // ... existing code ...
+    try {
+        const ratings = await prisma.rating.findMany({
+            where: { sellerId: req.params.sellerId },
+            include: { buyer: { select: { name: true, displayName: true } } }
+        });
+        res.json(ratings);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // ============================================================
@@ -1039,15 +1340,73 @@ app.get('/api/seller/ratings/:sellerId', async (req, res) => {
 // ============================================================
 
 async function captureGhostBidders(auctionId) {
-    // ... existing code ...
+    const auction = await prisma.auction.findUnique({ where: { id: auctionId } });
+    if (!auction || !auction.bidders) return;
+    const finalPrice = auction.finalPrice || auction.currentBid || 0;
+
+    for (const bidder of auction.bidders) {
+        // If bidder was within 20% of final price
+        if (bidder.amount >= finalPrice * 0.8 && bidder.userId !== auction.winnerId) {
+            const user = await prisma.user.findUnique({ where: { id: bidder.userId } });
+            if (user) {
+                await prisma.ghostLead.create({
+                    data: {
+                        auctionId,
+                        sellerId: auction.sellerId,
+                        userId: user.id,
+                        name: user.displayName || user.name,
+                        phone: user.phone,
+                        email: user.email,
+                        maxBid: bidder.amount,
+                        bidCount: auction.bidders.filter(b => b.userId === user.id).length,
+                        category: auction.category,
+                        title: auction.title,
+                        finalPrice
+                    }
+                });
+            }
+        }
+    }
+
+    // Trigger email/SMS to seller and ghost bidders
+    await sendGhostRecovery(auctionId);
 }
 
 async function sendGhostRecovery(auctionId) {
-    // ... existing code ...
+    const auction = await prisma.auction.findUnique({ where: { id: auctionId }, include: { seller: true } });
+    if (!auction) return;
+    const ghosts = await prisma.ghostLead.findMany({ where: { auctionId } });
+    if (!ghosts.length) return;
+
+    // Send email to seller with ghost list
+    const seller = auction.seller;
+    if (seller?.email) {
+        const ghostListHtml = ghosts.map(g => `<li>${g.name} - Max Bid R${g.maxBid.toLocaleString()}</li>`).join('');
+        await sendEmail(seller.email, `Ghost Leads for ${auction.title}`, `<p>Here are the bidders who didn't win:</p><ul>${ghostListHtml}</ul>`);
+    }
+
+    // Send SMS/email to each ghost
+    for (const g of ghosts) {
+        if (g.phone) {
+            const msg = `You missed out on ${auction.title} (final R${auction.finalPrice?.toLocaleString()}). The seller may have similar items. Contact us!`;
+            await sendSms(formatPhone(g.phone), msg);
+        }
+        if (g.email) {
+            await sendEmail(g.email, `Another chance: ${auction.title}`, `Hi ${g.name}, you were a top bidder. The seller might have other deals. Check them out!`);
+        }
+    }
 }
 
 app.get('/api/seller/ghost-leads', authenticate, async (req, res) => {
-    // ... existing code ...
+    try {
+        const ghosts = await prisma.ghostLead.findMany({
+            where: { sellerId: req.user.id },
+            orderBy: { capturedAt: 'desc' }
+        });
+        res.json(ghosts);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // ============================================================
@@ -1055,15 +1414,76 @@ app.get('/api/seller/ghost-leads', authenticate, async (req, res) => {
 // ============================================================
 
 async function generateBidHeatmapChart(bidHistory, startTime, endTime) {
-    // ... existing code ...
+    const canvasRenderer = new ChartJSNodeCanvas({ width: 800, height: 300 });
+    const config = {
+        type: 'bar',
+        data: {
+            labels: bidHistory.map(b => new Date(b.time).toLocaleTimeString()),
+            datasets: [{
+                label: 'Bid Amount',
+                data: bidHistory.map(b => b.amount),
+                backgroundColor: 'rgba(227,6,19,0.6)'
+            }]
+        },
+        options: { scales: { y: { beginAtZero: true } } }
+    };
+    return await canvasRenderer.renderToBuffer(config);
 }
 
 async function generateAuctionDNA(auctionId) {
-    // ... existing code ...
+    try {
+        const auction = await prisma.auction.findUnique({ where: { id: auctionId }, include: { seller: true, bids: true } });
+        if (!auction) return;
+
+        const doc = new PDFDocument({ margin: 50 });
+        const filePath = `./public/auction-dna-${auctionId}.pdf`;
+        const stream = fs.createWriteStream(filePath);
+        doc.pipe(stream);
+
+        doc.fontSize(20).text(`Auction DNA Report: ${auction.title}`, { align: 'center' });
+        doc.moveDown();
+        doc.fontSize(12).text(`Seller: ${auction.seller?.displayName || auction.seller?.name}`);
+        doc.text(`Final Price: R${auction.finalPrice?.toLocaleString() || 'N/A'}`);
+        doc.text(`Total Bids: ${auction.bids?.length || 0}`);
+        doc.moveDown();
+
+        // Add chart
+        const bidHistory = (auction.bids || []).map(b => ({ time: b.createdAt, amount: b.amount }));
+        const chartBuffer = await generateBidHeatmapChart(bidHistory, auction.startTime, auction.endTime);
+        doc.image(chartBuffer, { fit: [700, 300], align: 'center' });
+
+        doc.moveDown();
+        doc.text('Top Bidders:');
+        const topBidders = [...(auction.bidders || [])].sort((a,b) => b.amount - a.amount).slice(0,5);
+        topBidders.forEach((b, i) => doc.text(`${i+1}. ${b.name} - R${b.amount.toLocaleString()}`));
+
+        doc.end();
+
+        stream.on('finish', async () => {
+            // Send email to seller with PDF attachment
+            if (auction.seller?.email) {
+                const attachment = {
+                    content: fs.readFileSync(filePath).toString('base64'),
+                    filename: `auction-dna-${auctionId}.pdf`,
+                    type: 'application/pdf'
+                };
+                await sendEmail(auction.seller.email, `Auction DNA Report: ${auction.title}`, 'Your report is attached.', [attachment]);
+            }
+        });
+    } catch (err) {
+        console.error('Error generating DNA report:', err);
+    }
 }
 
 app.get('/api/seller/dna/:auctionId', authenticate, async (req, res) => {
-    // ... existing code ...
+    try {
+        const auction = await prisma.auction.findUnique({ where: { id: req.params.auctionId } });
+        if (!auction || auction.sellerId !== req.user.id) return res.status(404).json({ error: 'Auction not found' });
+        const filePath = `./public/auction-dna-${auction.id}.pdf`;
+        res.download(filePath, `auction-dna-${auction.id}.pdf`);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // ============================================================
@@ -1071,7 +1491,19 @@ app.get('/api/seller/dna/:auctionId', authenticate, async (req, res) => {
 // ============================================================
 
 app.post('/api/auctions/:id/paid', authenticate, async (req, res) => {
-    // ... existing code ...
+    try {
+        const auction = await prisma.auction.findUnique({ where: { id: req.params.id } });
+        if (!auction) return res.status(404).json({ error: 'Auction not found' });
+        if (auction.winnerId !== req.user.id) return res.status(403).json({ error: 'Only winner can mark as paid' });
+
+        await prisma.auction.update({
+            where: { id: auction.id },
+            data: { status: 'PAID' }
+        });
+        res.json({ message: 'Auction marked as paid' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // ============================================================
