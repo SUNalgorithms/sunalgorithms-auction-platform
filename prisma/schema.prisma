@@ -10,27 +10,34 @@ datasource db {
 model User {
   id                  String          @id @default(cuid())
   name                String
+  displayName         String?
   email               String          @unique
   password            String
   idNumber            String          @unique
   phone               String?
   deviceId            String?
   ip                  String?
-  role                String          @default("buyer") // "buyer" | "seller" | "admin"
+  avatar              String?
+  bio                 String?
+
+  // ===== ROLE & KYC SYSTEM =====
+  role                String          @default("BUYER") // "BUYER" | "INDIVIDUAL_SELLER" | "AUCTIONEER" | "ADMIN"
+  isAuctioneerApproved Boolean        @default(false) // Auctioneers are invite-only
+  kycStatus           String          @default("NONE") // "NONE" | "PENDING" | "VERIFIED"
+  canSell             Boolean         @default(false)
+
+  // ===== EXISTING FIELDS =====
   kycLevel            Int             @default(1)
-  kycData             Json?           // { verifiedAt, smileJobId, bankVerified, bankAccountLast4 }
-  status              String          @default("ACTIVE") // "ACTIVE" | "BANNED_FRAUD"
-  sellerRequirements  Json?           // { depositAmount, minKycLevel, requiredDocs, servicesOffered, ppraReg, bbbeeLevel, saiaMember }
-  sellerProfile       Json?           // { trustScore, totalRatings, ratingBreakdown, badges }
-  favorites           Json?           // Array of auction IDs
+  kycData             Json?
+  status              String          @default("ACTIVE")
+  sellerRequirements  Json?
+  sellerProfile       Json?
+  favorites           Json?
 
-  // ===== NEW FIELDS FOR SELLER STOREFRONT =====
-  avatar              String?         // Profile picture URL (from R2 or Gravatar)
-  bio                 String?         // Short seller bio / description
-
-  // ===== Relations =====
-  auctions            Auction[]       @relation("SellerAuctions")
-  wonAuctions         Auction[]       @relation("WinnerAuctions")
+  // ===== RELATIONS (FIXED to prevent errors) =====
+  listings            Listing[]       @relation("UserListings")
+  bids                Bid[]           @relation("UserBids")
+  currentBids         Listing[]       @relation("CurrentBidder")
   ratingsGiven        Rating[]        @relation("UserRatings")
   ratingsReceived     Rating[]        @relation("SellerRatings")
   ghostLeadsAsBuyer   GhostLead[]     @relation("GhostLeadUser")
@@ -42,104 +49,130 @@ model User {
   updatedAt           DateTime        @updatedAt
 }
 
-model Auction {
+model Listing {
   id                  String          @id @default(cuid())
+  sellerId            String
+  sellerRole          String          @default("SELLER") // "SELLER" | "AUCTIONEER"
   title               String
-  description         String?         // ===== NEW: Full description for detail page =====
-  category            String          @default("General")
-  auctionType         String          // "LIVE" | "TIMED"
-  reserve             Float           @default(0)
+  description         String?
+  category            String          @default("Other") // "Motorcycles" | "Vehicles" | "TLB/Machinery" | "Electronics" | "Other"
+  condition           String          @default("USED") // "NEW" | "USED" | "FOR_PARTS"
+  images              Json?
+
+  listingType         String          // "AUCTION" | "FIXED_PRICE"
+  
+  // ===== AUCTION FIELDS =====
+  startingPrice       Float?
+  reservePrice        Float?
   currentBid          Float?
   currentBidderId     String?
-  maxBid              Float?
-  startTime           DateTime
   endTime             DateTime?
-  status              String          @default("UPCOMING") // "UPCOMING" | "LIVE" | "LIVE_LAST_10MIN" | "AWAITING_PAYMENT" | "PAID" | "ENDED"
-  sellerId            String
-  sellerRequirements  Json?           // Copy of seller's requirements at creation
-  items               Int             @default(1)
-  city                String          @default("Online")
-  viewerCount         Int             @default(0)
-  bidders             Json?           // Array of bid objects { userId, name, amount, kycLevel, kycBadge, timestamp }
-  maxBids             Json?           // { userId: maxAmount }
+  duration            String?
+  proxyBids           Json?          // Adapted from Auction
+  maxBids             Json?          // Adapted from Auction
+  isLast10Min         Boolean         @default(false)
+  increment           Int             @default(1000)
+
+  // ===== FIXED PRICE FIELDS =====
+  price               Float?
+  stock               Int             @default(1)
+  isNegotiable        Boolean         @default(false)
+
+  // ===== COMMON FIELDS =====
+  status              String          @default("ACTIVE") // "ACTIVE" | "SOLD" | "ENDED" | "AWAITING_PAYMENT" | "PAID"
+  views               Int             @default(0)
   winnerId            String?
   finalPrice          Float?
-  timeLeft            Int?            // 30 for LIVE, null for TIMED
-  extensionCount      Int             @default(0)
-  maxExtensions       Int             @default(3)
-  requiredKycLevel    Int             @default(1)
   paymentDeadline     DateTime?
-  currentLot          Int             @default(1)
-  images              Json?           // Array of image URLs
-  videoUrl            String?
-  inspectionReport    String?
-  serviceHistory      Json?           // Array of image URLs
-  inventoryManifest   String?
-  engineHours         Int?
+  requiredKycLevel    Int             @default(1)
+  
+  // ===== VEHICLE SPECS (AutoTrader Style) =====
+  year                Int?
+  kilometers          Int?
+  color               String?
+  engineSize          String?
+  transmission        String?
+  fuelType            String?
+
+  // ===== VERIFICATION FIELDS (Stolen Vehicle Prevention) =====
   vinNumber           String?
-  bulkSaleTerms       String?
-  reservedBidders     Json?           // Array of user IDs
-  increment           Int             @default(1000)
-  analytics           Json?           // { viewers, peakViewers, bidHistory, handRaiseCount, avgBidTime, kycBreakdown }
-  ghostBidders        Json?           // Array of ghost bidder objects
-  proxyBids           Json?           // Array of proxy bid objects { userId, maxBid, currentBid, createdAt }
-  isLast10Min         Boolean         @default(false)
-  rated               Boolean         @default(false)
+  engineNumber        String?
+  idDocumentUrl       String?
+  licenseDiskUrl      String?
+  odometerVideoUrl    String?
+  isVerified          Boolean         @default(false)
+  verificationStatus  String          @default("PENDING") // "PENDING" | "VERIFIED" | "REJECTED"
 
-  // ===== NEW FIELDS FOR CAR SPECS (AutoTrader style) =====
-  year                Int?            // Vehicle year
-  kilometers          Int?            // Mileage / distance
-  condition           String?         // "Excellent" | "Good" | "Fair" | "Poor"
-  color               String?         // Vehicle color
-
-  // ===== Relations =====
-  seller              User            @relation("SellerAuctions", fields: [sellerId], references: [id])
+  // ===== RELATIONS (Adapted to Listing) =====
+  seller              User            @relation("UserListings", fields: [sellerId], references: [id])
+  currentBidder       User?           @relation("CurrentBidder", fields: [currentBidderId], references: [id])
   winner              User?           @relation("WinnerAuctions", fields: [winnerId], references: [id])
-  ratings             Rating[]        @relation("AuctionRatings")
+  bids                Bid[]           @relation("ListingBids")
+  ratings             Rating[]        @relation("ListingRatings")
   ghostLeads          GhostLead[]
-  reports             Report[]        @relation("ReportedAuction")
+  reports             Report[]        @relation("ReportedListing")
 
+  // ===== INDEXES (For speed) =====
+  @@index([sellerId])
+  @@index([category])
+  @@index([listingType])
+  @@index([status])
+  @@index([createdAt])
+  @@map("listings")
+}
+
+model Bid {
+  id                  String          @id @default(cuid())
+  listingId           String
+  bidderId            String
+  amount              Float
   createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
+
+  // ===== RELATIONS =====
+  listing             Listing         @relation("ListingBids", fields: [listingId], references: [id])
+  bidder              User            @relation("UserBids", fields: [bidderId], references: [id])
+
+  @@index([listingId])
+  @@index([bidderId])
 }
 
 model Rating {
   id                  String          @id @default(cuid())
   buyerId             String
   sellerId            String
-  auctionId           String
+  listingId           String
   stars               Int             @default(5)
   comment             String?
-  tags                String[]        // ["Fast Payment", "Accurate Description", etc.]
+  tags                String[]
   createdAt           DateTime        @default(now())
 
-  // ===== Relations =====
+  // ===== RELATIONS (Adapted to Listing) =====
   buyer               User            @relation("UserRatings", fields: [buyerId], references: [id])
   seller              User            @relation("SellerRatings", fields: [sellerId], references: [id])
-  auction             Auction         @relation("AuctionRatings", fields: [auctionId], references: [id])
+  listing             Listing         @relation("ListingRatings", fields: [listingId], references: [id])
 }
 
 model Report {
   id                  String          @id @default(cuid())
   buyerId             String
   sellerId            String
-  auctionId           String
+  listingId           String
   buyerName           String
   sellerName          String
-  auctionTitle        String
+  listingTitle        String
   amount              Float?
   evidence            String?
   status              String          @default("PENDING") // "PENDING" | "RESOLVED" | "DISMISSED"
   createdAt           DateTime        @default(now())
 
-  // ===== Relations =====
+  // ===== RELATIONS (Adapted to Listing) =====
   reporter            User            @relation("Reporter", fields: [sellerId], references: [id])
-  auction             Auction         @relation("ReportedAuction", fields: [auctionId], references: [id])
+  listing             Listing         @relation("ReportedListing", fields: [listingId], references: [id])
 }
 
 model GhostLead {
   id                  String          @id @default(cuid())
-  auctionId           String
+  listingId           String
   sellerId            String
   userId              String
   name                String
@@ -155,21 +188,21 @@ model GhostLead {
   sentToSeller        Boolean         @default(false)
   sentToBuyer         Boolean         @default(false)
 
-  // ===== Relations =====
-  auction             Auction         @relation(fields: [auctionId], references: [id])
+  // ===== RELATIONS (Adapted to Listing) =====
+  listing             Listing         @relation(fields: [listingId], references: [id])
   user                User            @relation("GhostLeadUser", fields: [userId], references: [id])
   seller              User            @relation("GhostLeadSeller", fields: [sellerId], references: [id])
 }
 
 model SoldItem {
   id                  String          @id @default(cuid())
-  auctionId           String          @unique
+  listingId           String          @unique
   sellerId            String
   title               String
   winnerName          String
   finalPrice          Float
   soldAt              DateTime        @default(now())
 
-  // ===== Relations =====
+  // ===== RELATIONS (Adapted to Listing) =====
   seller              User            @relation("SellerSoldItems", fields: [sellerId], references: [id])
 }

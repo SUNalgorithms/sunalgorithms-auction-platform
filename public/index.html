@@ -3,69 +3,88 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SunAlgorithms – Auction Platform</title>
-    <!-- Font Awesome Icons -->
+    <title>CM - Central Market | Automotive Auctions</title>
+    
+    <!-- Favicon / Logo -->
+    <link rel="icon" type="image/jpeg" href="/logo.jpeg">
+    <link rel="apple-touch-icon" href="/logo.jpeg">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="/styles.css">
+    
+    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <!-- Socket.IO Client -->
+    
+    <!-- Socket.IO -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.1/socket.io.min.js"></script>
-    <!-- FingerprintJS2 (for device ban) -->
+    
+    <!-- FingerprintJS2 -->
     <script src="https://cdn.jsdelivr.net/npm/fingerprintjs2@2.1.4/dist/fingerprint2.min.js"></script>
-    <!-- Chart.js (for analytics) -->
+    
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- SimplePeer (for WebRTC) -->
+    
+    <!-- SimplePeer (WebRTC) -->
     <script src="https://cdn.jsdelivr.net/npm/simple-peer@9.11.1/simplepeer.min.js"></script>
-    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-    <!-- ========================================= -->
-    <!-- APP CONTAINER                             -->
-    <!-- ========================================= -->
-    <div id="app">
-        <!-- NAVIGATION BAR -->
-        <nav id="navbar" style="display:none;">
-            <div class="nav-left">
-                <h1 onclick="navigate('sellerFeed')" style="cursor:pointer;color:var(--green);">
-                    <i class="fas fa-gavel"></i> SunAlgorithms
-                </h1>
-            </div>
-            <div class="nav-center" id="navLinks">
-                <span onclick="navigate('sellerFeed')">Sellers</span>
-                <span onclick="openCreateAuction()" id="createAuctionBtn" style="display:none;">+ Create</span>
-                <span onclick="navigate('profile')" id="profileBtn">Profile</span>
-                <span onclick="navigate('sellerDashboard')" id="sellerDashBtn" style="display:none;">Dashboard</span>
-                <span onclick="navigate('adminDashboard')" id="adminDashBtn" style="display:none;">Admin</span>
-            </div>
-            <div class="nav-right">
-                <span id="userDisplay"></span>
-                <button class="btn btn-outline" onclick="logout()">Logout</button>
-            </div>
-        </nav>
-
-        <!-- MAIN CONTENT AREA -->
-        <main id="mainContent">
-            <!-- Pages will be rendered here by app.js -->
-        </main>
-    </div>
-
-    <!-- ========================================= -->
-    <!-- MODAL (Reusable)                         -->
-    <!-- ========================================= -->
-    <div id="modal" class="modal" style="display:none;">
-        <div class="modal-content" id="modalContent">
-            <!-- Dynamic content injected here -->
+    <!-- ===== CM LOADER (reveal animation) ===== -->
+    <div id="cm-loader" style="position:fixed; inset:0; background:#F5F5F7; z-index:99999; display:flex; align-items:center; justify-content:center; flex-direction:column; transition:opacity 0.6s ease;">
+        <img src="/logo.jpeg" style="width:96px; height:96px; object-fit:contain; border-radius:18px; animation: cmPulse 1.2s infinite;">
+        <div style="margin-top:18px; display:flex; gap:8px; align-items:baseline;">
+            <span style="font-weight:900; font-size:32px; letter-spacing:-1px; color:#101010;">CM</span>
+            <span style="font-weight:800; letter-spacing:3px; font-size:13px; color:#101010;">CENTRAL MARKET</span>
         </div>
+        <div style="margin-top:6px; font-weight:700; font-size:9px; letter-spacing:4px; color:#E30613;">AUTOMOTIVE AUCTIONS</div>
+    </div>
+    <style>@keyframes cmPulse{0%,100%{transform:scale(1)}50%{transform:scale(0.92)}}</style>
+
+    <!-- ===== NAVBAR ===== -->
+    <nav id="navbar" style="display:none; background:white; border-bottom:1px solid #EAEAEA; position:sticky; top:0; z-index:100; height:68px; padding:0 1.2rem; justify-content:space-between; align-items:center;">
+        <div style="display:flex; align-items:center; gap:12px; cursor:pointer;" onclick="navigate('marketplace')">
+            <img src="/logo.jpeg" alt="CM" style="height:42px; width:42px; object-fit:contain; border-radius:8px; background:white;">
+            <div style="line-height:1;">
+                <div style="display:flex; align-items:baseline; gap:6px;">
+                    <span style="font-weight:900; font-size:22px; color:#101010; letter-spacing:-0.8px;">CM</span>
+                    <span style="font-weight:800; font-size:13px; color:#101010; letter-spacing:2px;">CENTRAL MARKET</span>
+                </div>
+                <div style="font-weight:700; font-size:8.5px; color:#E30613; letter-spacing:3.8px; margin-top:2px;">AUTOMOTIVE AUCTIONS</div>
+            </div>
+        </div>
+        <div style="display:flex; gap:1.2rem; align-items:center;">
+            <span onclick="navigate('marketplace')" style="cursor:pointer; font-weight:700; font-size:0.9rem;">Marketplace</span>
+            <span onclick="navigate('dashboard')" id="dashboardBtn" style="display:none; cursor:pointer; font-weight:700; font-size:0.9rem;">Dashboard</span>
+            <span onclick="navigate('createListing')" id="createListingBtn" style="display:none; background:#E30613; color:white; padding:0.5rem 1rem; border-radius:8px; font-weight:800; cursor:pointer; font-size:0.85rem;">+ Sell</span>
+            <span onclick="navigate('profile')" id="profileBtn" style="display:none; cursor:pointer; font-weight:700; font-size:0.9rem;">Profile</span>
+            <span onclick="navigate('adminDashboard')" id="adminDashBtn" style="display:none; cursor:pointer; font-weight:700; font-size:0.9rem;">Admin</span>
+            <span id="userDisplay" style="font-weight:700; font-size:0.85rem;"></span>
+            <button onclick="logout()" style="border:1px solid #E30613; color:#E30613; background:white; border-radius:8px; padding:6px 12px; font-weight:800; cursor:pointer; font-size:0.8rem;">Logout</button>
+        </div>
+    </nav>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <main id="mainContent" class="content" style="padding:1.5rem; max-width:1400px; margin:0 auto;"></main>
+
+    <!-- ===== TOAST ===== -->
+    <div id="toast" style="display:none; position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#101010; color:white; padding:0.8rem 1.5rem; border-radius:9999px; font-weight:600; z-index:9999;"></div>
+
+    <!-- ===== MODAL ===== -->
+    <div id="modal" class="modal" style="display:none;">
+        <div class="modal-content" id="modalContent"></div>
     </div>
 
-    <!-- ========================================= -->
-    <!-- TOAST NOTIFICATION                        -->
-    <!-- ========================================= -->
-    <div id="toast" style="display:none;position:fixed;bottom:20px;right:20px;padding:16px 24px;border-radius:12px;background:rgba(0,0,0,0.9);border:1px solid var(--green);color:#fff;z-index:9999;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.6);">
-    </div>
+    <!-- ===== APP SCRIPT ===== -->
+    <script src="/app.js"></script>
 
-    <!-- ========================================= -->
-    <!-- JAVASCRIPT (app.js)                      -->
-    <!-- ========================================= -->
-    <script src="app.js"></script>
+    <!-- ===== AUTO-HIDE LOADER AFTER APP LOADS ===== -->
+    <script>
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                const l = document.getElementById('cm-loader');
+                if(l){ l.style.opacity='0'; setTimeout(()=>l.remove(),700); }
+            }, 900);
+        });
+    </script>
 </body>
 </html>

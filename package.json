@@ -1,13 +1,12 @@
 {
-  "name": "sunalgos-auction",
+  "name": "cm-central-market",
   "version": "1.0.0",
-  "description": "Hybrid auction platform backend",
+  "description": "CM Central Market - Automotive Auctions Marketplace",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
-  },
-  "prisma": {
-    "seed": "node prisma/seed.js"
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1097.0",
@@ -26,7 +25,7 @@
     "express-rate-limit": "^8.5.2",
     "fs": "^0.0.1-security",
     "jsonwebtoken": "^9.0.3",
-    "multer": "^2.2.0",
+    "multer": "^2.3.0",
     "multer-s3": "^3.0.1",
     "pdfkit": "^0.19.1",
     "socket.io": "^4.8.3",

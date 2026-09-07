@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CM Central Market - Admin HQ</title>
+    <link rel="icon" href="/logo.jpeg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <style>
+        body { font-family: Arial, sans-serif; background:#F5F5F7; padding:1rem; margin:0; }
+        .container { max-width:1200px; margin:0 auto; }
+        .header { background:white; padding:1.5rem; border-radius:12px; border:1px solid #EAEAEA; display:flex; align-items:center; gap:12px; margin-bottom:1rem; }
+        .header img { width:50px; height:50px; border-radius:10px; }
+        .header h1 { margin:0; font-size:1.5rem; }
+        .header p { margin:0; color:#666; font-size:0.9rem; }
+        .card { background:white; padding:1rem; border-radius:12px; margin-bottom:1rem; border:1px solid #EAEAEA; box-shadow:0 2px 8px rgba(0,0,0,0.05); }
+        .stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:1rem; margin-bottom:1.5rem; }
+        .stat { background:white; padding:1rem; border-radius:12px; text-align:center; border:1px solid #EAEAEA; }
+        .stat h2 { margin:0; font-size:2rem; }
+        .stat p { margin:0; color:#666; font-size:0.85rem; }
+        table { width:100%; border-collapse:collapse; }
+        th, td { padding:8px; text-align:left; border-bottom:1px solid #eee; font-size:0.85rem; }
+        .btn { padding:6px 10px; border:none; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.8rem; }
+        .btn-red { background:#E30613; color:white; }
+        .btn-black { background:#101010; color:white; }
+        .btn-green { background:#28a745; color:white; }
+        .btn-blue { background:#4dabf7; color:white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="/logo.jpeg" alt="CM">
+            <div>
+                <h1>CM Central Market - Admin HQ</h1>
+                <p>Control Center for Users, Listings & Auctioneers</p>
+            </div>
+        </div>
+
+        <div id="stats" class="stats">Loading...</div>
+
+        <div class="card">
+            <h3>Users</h3>
+            <table>
+                <thead><tr><th>Email</th><th>Role</th><th>Action</th></tr></thead>
+                <tbody id="usersTable"></tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h3>Listings</h3>
+            <table>
+                <thead><tr><th>Title</th><th>Price</th><th>Type</th><th>Verified</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody id="listingsTable"></tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h3>Recent Bids</h3>
+            <table>
+                <thead><tr><th>Bidder ID</th><th>Listing ID</th><th>Amount</th><th>Time</th></tr></thead>
+                <tbody id="bidsTable"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token');
+        if (!token) {
+            document.body.innerHTML = '<h2 style="text-align:center;margin-top:4rem;">Please login first.</h2>';
+        } else {
+            loadAdmin();
+        }
+
+        async function loadAdmin() {
+            try {
+                const res = await fetch('/api/admin/overview', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (data.error) {
+                    document.body.innerHTML = `<h2 style="text-align:center;margin-top:4rem;">${data.error}</h2>`;
+                    return;
+                }
+
+                // Stats
+                document.getElementById('stats').innerHTML = `
+                    <div class="stat"><h2>${data.users.length}</h2><p>Users</p></div>
+                    <div class="stat"><h2>${data.listings.length}</h2><p>Listings</p></div>
+                    <div class="stat"><h2>${data.bids.length}</h2><p>Bids</p></div>
+                    <div class="stat"><h2>${data.hqWhatsapp}</h2><p>HQ WhatsApp</p></div>
+                `;
+
+                // Users Table
+                document.getElementById('usersTable').innerHTML = data.users.map(u => `
+                    <tr>
+                        <td>${u.email}</td>
+                        <td>${u.role}</td>
+                        <td>
+                            ${u.role !== 'AUCTIONEER' ? 
+                                `<button class="btn btn-red" onclick="makeAuctioneer('${u.id}')">Make Auctioneer</button>` : 
+                                `<span style="color:#28a745;font-weight:bold;">✓ Auctioneer</span>`}
+                        </td>
+                    </tr>
+                `).join('');
+
+                // Listings Table
+                document.getElementById('listingsTable').innerHTML = data.listings.map(l => `
+                    <tr>
+                        <td>${l.title}</td>
+                        <td>R${l.price || l.currentBid || l.startingPrice || 0}</td>
+                        <td>${l.listingType || 'FIXED_PRICE'}</td>
+                        <td>${l.isVerified ? '<span style="color:#28a745;font-weight:bold;">✓ GREEN</span>' : '<span style="color:#666;">GREY</span>'}</td>
+                        <td>${l.status || 'ACTIVE'}</td>
+                        <td>
+                            ${!l.isVerified ? `<button class="btn btn-green" onclick="verifyListing('${l.id}')">Verify</button>` : ''}
+                            ${l.status === 'ACTIVE' ? `<button class="btn btn-black" onclick="endListing('${l.id}')">End</button>` : ''}
+                        </td>
+                    </tr>
+                `).join('');
+
+                // Bids Table
+                document.getElementById('bidsTable').innerHTML = data.bids.map(b => `
+                    <tr>
+                        <td>${b.bidderId}</td>
+                        <td>${b.listingId}</td>
+                        <td>R${b.amount}</td>
+                        <td>${new Date(b.createdAt).toLocaleString()}</td>
+                    </tr>
+                `).join('');
+
+            } catch (err) {
+                console.error(err);
+                document.body.innerHTML = '<h2 style="text-align:center;margin-top:4rem;">Error loading admin panel. Check console.</h2>';
+            }
+        }
+
+        async function makeAuctioneer(userId) {
+            if (!confirm('Make this user an AUCTIONEER?')) return;
+            try {
+                await fetch('/api/admin/make-auctioneer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ userId })
+                });
+                alert('User promoted to Auctioneer!');
+                loadAdmin();
+            } catch (err) {
+                alert('Failed to promote user.');
+            }
+        }
+
+        async function verifyListing(listingId) {
+            if (!confirm('Verify this listing as CM Verified?')) return;
+            try {
+                await fetch(`/api/admin/verify-listing/${listingId}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                alert('Listing Verified!');
+                loadAdmin();
+            } catch (err) {
+                alert('Failed to verify listing.');
+            }
+        }
+
+        async function endListing(listingId) {
+            if (!confirm('End this listing?')) return;
+            try {
+                await fetch(`/api/admin/end-listing/${listingId}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                alert('Listing Ended!');
+                loadAdmin();
+            } catch (err) {
+                alert('Failed to end listing.');
+            }
+        }
+    </script>
+</body>
+</html>
