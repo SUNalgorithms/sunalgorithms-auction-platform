@@ -19,7 +19,6 @@ deviceId String?
 ip String?
 avatar String?
 bio String?
-
 role String @default("BUYER")
 isAuctioneerApproved Boolean @default(false)
 kycStatus String @default("NONE")
@@ -30,7 +29,6 @@ status String @default("ACTIVE")
 sellerRequirements Json?
 sellerProfile Json?
 favorites Json?
-
 listings Listing[] @relation("UserListings")
 bids Bid[] @relation("UserBids")
 currentBids Listing[] @relation("CurrentBidder")
@@ -41,7 +39,6 @@ ghostLeadsAsBuyer GhostLead[] @relation("GhostLeadUser")
 ghostLeadsAsSeller GhostLead[] @relation("GhostLeadSeller")
 reportsGiven Report[] @relation("Reporter")
 soldItems SoldItem[] @relation("SellerSoldItems")
-
 createdAt DateTime @default(now())
 updatedAt DateTime @updatedAt
 }
@@ -56,7 +53,6 @@ category String @default("Other")
 condition String @default("USED")
 images Json?
 listingType String
-
 startingPrice Float?
 reservePrice Float?
 currentBid Float?
@@ -67,25 +63,21 @@ proxyBids Json?
 maxBids Json?
 isLast10Min Boolean @default(false)
 increment Int @default(1000)
-
 price Float?
 stock Int @default(1)
 isNegotiable Boolean @default(false)
-
 status String @default("ACTIVE")
 views Int @default(0)
 winnerId String?
 finalPrice Float?
 paymentDeadline DateTime?
 requiredKycLevel Int @default(1)
-
 year Int?
 kilometers Int?
 color String?
 engineSize String?
 transmission String?
 fuelType String?
-
 vinNumber String?
 engineNumber String?
 idDocumentUrl String?
@@ -93,7 +85,8 @@ licenseDiskUrl String?
 odometerVideoUrl String?
 isVerified Boolean @default(false)
 verificationStatus String @default("PENDING")
-
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
 seller User @relation("UserListings", fields: [sellerId], references: [id], onDelete: Cascade)
 currentBidder User? @relation("CurrentBidder", fields: [currentBidderId], references: [id])
 winner User? @relation("WinnerAuctions", fields: [winnerId], references: [id])
@@ -101,7 +94,6 @@ bids Bid[] @relation("ListingBids")
 ratings Rating[] @relation("ListingRatings")
 ghostLeads GhostLead[]
 reports Report[] @relation("ReportedListing")
-
 @@index([sellerId])
 @@index([category])
 @@index([listingType])
@@ -116,10 +108,8 @@ listingId String
 bidderId String
 amount Float
 createdAt DateTime @default(now())
-
 listing Listing @relation("ListingBids", fields: [listingId], references: [id], onDelete: Cascade)
 bidder User @relation("UserBids", fields: [bidderId], references: [id], onDelete: Cascade)
-
 @@index([listingId])
 @@index([bidderId])
 @@map("bids")
@@ -134,11 +124,9 @@ stars Int @default(5)
 comment String?
 tags String[]
 createdAt DateTime @default(now())
-
 buyer User @relation("UserRatings", fields: [buyerId], references: [id], onDelete: Cascade)
 seller User @relation("SellerRatings", fields: [sellerId], references: [id], onDelete: Cascade)
 listing Listing @relation("ListingRatings", fields: [listingId], references: [id], onDelete: Cascade)
-
 @@map("ratings")
 }
 
@@ -154,10 +142,8 @@ amount Float?
 evidence String?
 status String @default("PENDING")
 createdAt DateTime @default(now())
-
 reporter User @relation("Reporter", fields: [buyerId], references: [id], onDelete: Cascade)
 listing Listing @relation("ReportedListing", fields: [listingId], references: [id], onDelete: Cascade)
-
 @@map("reports")
 }
 
@@ -178,11 +164,9 @@ capturedAt DateTime @default(now())
 contacted Boolean @default(false)
 sentToSeller Boolean @default(false)
 sentToBuyer Boolean @default(false)
-
 listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
 user User @relation("GhostLeadUser", fields: [userId], references: [id], onDelete: Cascade)
 seller User @relation("GhostLeadSeller", fields: [sellerId], references: [id], onDelete: Cascade)
-
 @@map("ghost_leads")
 }
 
@@ -194,8 +178,6 @@ title String
 winnerName String
 finalPrice Float
 soldAt DateTime @default(now())
-
 seller User @relation("SellerSoldItems", fields: [sellerId], references: [id], onDelete: Cascade)
-
 @@map("sold_items")
 }
