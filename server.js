@@ -10,7 +10,7 @@ const { execSync } = require('child_process');
 // Auto-migrate on startup
 try {
     console.log('📦 Running database migrations...');
-    execSync('npx prisma db push', { stdio: 'inherit' });
+    execSync('npx prisma db push --accept-data-loss', { stdio: 'inherit' });
     console.log('✅ Database migrations completed.');
 } catch (err) {
     console.error('❌ Migration failed:', err.message);
