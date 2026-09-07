@@ -20,13 +20,11 @@ model User {
   avatar              String?
   bio                 String?
 
-  // ===== ROLE & KYC SYSTEM =====
+  // ===== ROLE & KYC =====
   role                String          @default("BUYER") // "BUYER" | "INDIVIDUAL_SELLER" | "AUCTIONEER" | "ADMIN"
-  isAuctioneerApproved Boolean        @default(false) // Auctioneers are invite-only
-  kycStatus           String          @default("NONE") // "NONE" | "PENDING" | "VERIFIED"
+  isAuctioneerApproved Boolean        @default(false)
+  kycStatus           String          @default("NONE")
   canSell             Boolean         @default(false)
-
-  // ===== EXISTING FIELDS =====
   kycLevel            Int             @default(1)
   kycData             Json?
   status              String          @default("ACTIVE")
@@ -34,10 +32,11 @@ model User {
   sellerProfile       Json?
   favorites           Json?
 
-  // ===== RELATIONS (FIXED to prevent errors) =====
+  // ===== RELATIONS =====
   listings            Listing[]       @relation("UserListings")
   bids                Bid[]           @relation("UserBids")
   currentBids         Listing[]       @relation("CurrentBidder")
+  wonListings         Listing[]       @relation("WinnerAuctions")   // ADDED BACK-RELATION
   ratingsGiven        Rating[]        @relation("UserRatings")
   ratingsReceived     Rating[]        @relation("SellerRatings")
   ghostLeadsAsBuyer   GhostLead[]     @relation("GhostLeadUser")
@@ -52,41 +51,40 @@ model User {
 model Listing {
   id                  String          @id @default(cuid())
   sellerId            String
-  sellerRole          String          @default("SELLER") // "SELLER" | "AUCTIONEER"
+  sellerRole          String          @default("SELLER")
   title               String
   description         String?
-  category            String          @default("Other") // "Motorcycles" | "Vehicles" | "TLB/Machinery" | "Electronics" | "Other"
-  condition           String          @default("USED") // "NEW" | "USED" | "FOR_PARTS"
+  category            String          @default("Other")
+  condition           String          @default("USED")
   images              Json?
-
   listingType         String          // "AUCTION" | "FIXED_PRICE"
   
-  // ===== AUCTION FIELDS =====
+  // Auction fields
   startingPrice       Float?
   reservePrice        Float?
   currentBid          Float?
   currentBidderId     String?
   endTime             DateTime?
   duration            String?
-  proxyBids           Json?          // Adapted from Auction
-  maxBids             Json?          // Adapted from Auction
+  proxyBids           Json?
+  maxBids             Json?
   isLast10Min         Boolean         @default(false)
   increment           Int             @default(1000)
 
-  // ===== FIXED PRICE FIELDS =====
+  // Fixed price fields
   price               Float?
   stock               Int             @default(1)
   isNegotiable        Boolean         @default(false)
 
-  // ===== COMMON FIELDS =====
-  status              String          @default("ACTIVE") // "ACTIVE" | "SOLD" | "ENDED" | "AWAITING_PAYMENT" | "PAID"
+  // Common fields
+  status              String          @default("ACTIVE")
   views               Int             @default(0)
   winnerId            String?
   finalPrice          Float?
   paymentDeadline     DateTime?
   requiredKycLevel    Int             @default(1)
-  
-  // ===== VEHICLE SPECS (AutoTrader Style) =====
+
+  // Vehicle specs
   year                Int?
   kilometers          Int?
   color               String?
@@ -94,16 +92,16 @@ model Listing {
   transmission        String?
   fuelType            String?
 
-  // ===== VERIFICATION FIELDS (Stolen Vehicle Prevention) =====
+  // Verification
   vinNumber           String?
   engineNumber        String?
   idDocumentUrl       String?
   licenseDiskUrl      String?
   odometerVideoUrl    String?
   isVerified          Boolean         @default(false)
-  verificationStatus  String          @default("PENDING") // "PENDING" | "VERIFIED" | "REJECTED"
+  verificationStatus  String          @default("PENDING")
 
-  // ===== RELATIONS (Adapted to Listing) =====
+  // Relations
   seller              User            @relation("UserListings", fields: [sellerId], references: [id])
   currentBidder       User?           @relation("CurrentBidder", fields: [currentBidderId], references: [id])
   winner              User?           @relation("WinnerAuctions", fields: [winnerId], references: [id])
@@ -112,7 +110,7 @@ model Listing {
   ghostLeads          GhostLead[]
   reports             Report[]        @relation("ReportedListing")
 
-  // ===== INDEXES (For speed) =====
+  // Indexes
   @@index([sellerId])
   @@index([category])
   @@index([listingType])
@@ -128,7 +126,6 @@ model Bid {
   amount              Float
   createdAt           DateTime        @default(now())
 
-  // ===== RELATIONS =====
   listing             Listing         @relation("ListingBids", fields: [listingId], references: [id])
   bidder              User            @relation("UserBids", fields: [bidderId], references: [id])
 
@@ -146,7 +143,6 @@ model Rating {
   tags                String[]
   createdAt           DateTime        @default(now())
 
-  // ===== RELATIONS (Adapted to Listing) =====
   buyer               User            @relation("UserRatings", fields: [buyerId], references: [id])
   seller              User            @relation("SellerRatings", fields: [sellerId], references: [id])
   listing             Listing         @relation("ListingRatings", fields: [listingId], references: [id])
@@ -162,10 +158,9 @@ model Report {
   listingTitle        String
   amount              Float?
   evidence            String?
-  status              String          @default("PENDING") // "PENDING" | "RESOLVED" | "DISMISSED"
+  status              String          @default("PENDING")
   createdAt           DateTime        @default(now())
 
-  // ===== RELATIONS (Adapted to Listing) =====
   reporter            User            @relation("Reporter", fields: [sellerId], references: [id])
   listing             Listing         @relation("ReportedListing", fields: [listingId], references: [id])
 }
@@ -188,7 +183,6 @@ model GhostLead {
   sentToSeller        Boolean         @default(false)
   sentToBuyer         Boolean         @default(false)
 
-  // ===== RELATIONS (Adapted to Listing) =====
   listing             Listing         @relation(fields: [listingId], references: [id])
   user                User            @relation("GhostLeadUser", fields: [userId], references: [id])
   seller              User            @relation("GhostLeadSeller", fields: [sellerId], references: [id])
@@ -203,6 +197,5 @@ model SoldItem {
   finalPrice          Float
   soldAt              DateTime        @default(now())
 
-  // ===== RELATIONS (Adapted to Listing) =====
   seller              User            @relation("SellerSoldItems", fields: [sellerId], references: [id])
 }
