@@ -7,10 +7,10 @@
 require('dotenv').config();
 const { execSync } = require('child_process');
 
-// Auto-migrate on startup
+// Auto-migrate on startup (safe)
 try {
     console.log('📦 Running database migrations...');
-    execSync('npx prisma db push --accept-data-loss', { stdio: 'inherit' });
+    execSync('npx prisma migrate deploy', { stdio: 'inherit' });
     console.log('✅ Database migrations completed.');
 } catch (err) {
     console.error('❌ Migration failed:', err.message);
@@ -130,27 +130,10 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
-// ========== TEMPORARY ADMIN PROMOTION - DELETE AFTER USE ==========
-app.post('/api/make-admin', async (req, res) => {
-  const { email } = req.body;
-  if (email !== 'ndoumukonazwothe11@gmail.com') {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-  try {
-    const user = await prisma.user.update({
-      where: { email },
-      data: { role: 'ADMIN' }
-    });
-    res.json({ message: 'User promoted to ADMIN', user });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-// ========== END TEMPORARY ENDPOINT ==========
 
 const bidLimiter = rateLimit({ windowMs: 1000, max: 5, message: 'Too many bids, slow down' });
 
-// Multer for file uploads (verification images)
+// Multer for verification file uploads (stored locally - later we can move to R2)
 const diskUpload = multer({
     storage: multer.diskStorage({
         destination: (req, file, cb) => {
@@ -163,6 +146,7 @@ const diskUpload = multer({
     limits: { fileSize: 15 * 1024 * 1024 }
 });
 
+// Memory upload for registering KYC (we'll also save to R2 eventually)
 const memoryUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 // Auth middleware
@@ -200,6 +184,9 @@ app.post('/api/register', memoryUpload.fields([{ name: 'idPhoto', maxCount: 1 },
     if (!name || !idNumber || !email || !password) return res.status(400).json({ error: 'All fields required' });
     if (!req.files?.idPhoto?.[0] || !req.files?.selfie?.[0]) return res.status(400).json({ error: 'ID photo and selfie required' });
 
+    const idPhotoUrl = await uploadToR2(req.files.idPhoto[0], 'kyc');
+    const selfieUrl = await uploadToR2(req.files.selfie[0], 'kyc');
+
     const hashed = await bcrypt.hash(password, 10);
     const newUser = await prisma.user.create({
         data: {
@@ -215,6 +202,8 @@ app.post('/api/register', memoryUpload.fields([{ name: 'idPhoto', maxCount: 1 },
             kycLevel: 1,
             kycStatus: 'NONE',
             canSell: false,
+            idPhotoUrl,
+            selfieUrl,
             kycData: { verifiedAt: new Date() },
             status: 'ACTIVE',
             sellerRequirements: { depositAmount: 0, minKycLevel: 1 },
@@ -240,7 +229,7 @@ app.post('/api/login', async (req, res) => {
 app.get('/api/me', authenticate, async (req, res) => {
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!user) return res.status(404).json({ error: 'User not found' });
-    res.json({ id: user.id, name: user.name, displayName: user.displayName, email: user.email, role: user.role, kycStatus: user.kycStatus, canSell: user.canSell, isAuctioneerApproved: user.isAuctioneerApproved, avatar: user.avatar, bio: user.bio });
+    res.json({ id: user.id, name: user.name, displayName: user.displayName, email: user.email, role: user.role, kycStatus: user.kycStatus, canSell: user.canSell, isAuctioneerApproved: user.isAuctioneerApproved, avatar: user.avatar, bio: user.bio, idPhotoUrl: user.idPhotoUrl, selfieUrl: user.selfieUrl });
 });
 
 app.put('/api/users/me', authenticate, async (req, res) => {
@@ -291,7 +280,7 @@ app.get('/api/marketplace', async (req, res) => {
     if (search) where.title = { contains: search, mode: 'insensitive' };
     if (verifiedOnly === 'true') where.isVerified = true;
 
-    const listings = await prisma.listing.findMany({ where, include: { bids: true }, orderBy: { createdAt: 'desc' } });
+    const listings = await prisma.listing.findMany({ where, include: { bids: true, seller: { select: { id: true, name: true, displayName: true } } }, orderBy: { createdAt: 'desc' } });
     const safe = listings.map(l => ({
         id: l.id,
         title: l.title,
@@ -308,14 +297,15 @@ app.get('/api/marketplace', async (req, res) => {
         bidCount: l.bids.length,
         isVerified: l.isVerified,
         endsIn: l.endTime || null,
-        views: l.views
+        views: l.views,
+        seller: l.seller ? { id: l.seller.id, name: l.seller.displayName || l.seller.name } : null
     }));
     res.json(safe);
 });
 
 // GET single listing (safe, no contacts)
 app.get('/api/listings/:id', async (req, res) => {
-    const l = await prisma.listing.findUnique({ where: { id: req.params.id }, include: { bids: true, seller: { select: { displayName: true } } } });
+    const l = await prisma.listing.findUnique({ where: { id: req.params.id }, include: { bids: true, seller: { select: { id: true, name: true, displayName: true } } } });
     if (!l) return res.status(404).json({ error: 'Listing not found' });
     const cleanDesc = (l.description || '').replace(/\d{10,}/g, '[contact hidden]');
     res.json({
@@ -335,21 +325,21 @@ app.get('/api/listings/:id', async (req, res) => {
         bidCount: l.bids.length,
         isVerified: l.isVerified,
         location: 'Tokoza',
-        seller: { name: l.seller.displayName || 'CM Agent' },
+        seller: { id: l.seller.id, name: l.seller.displayName || l.seller.name || 'CM Agent' },
         hqWhatsapp: HQ_WHATSAPP,
         waMessage: `Hi CM Agent, I'm interested in ${l.title} (ID: ${l.id}). Is viewing available?`
     });
 });
 
-// CREATE LISTING (seller)
-app.post('/api/listings', authenticate, memoryUpload.array('images', 20), async (req, res) => {
+// CREATE LISTING (seller) - JSON only
+app.post('/api/listings', authenticate, async (req, res) => {
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!user || !user.canSell) return res.status(403).json({ error: 'You must be KYC verified to sell' });
 
     const data = req.body;
     if (/\d{10,}/.test(data.title + (data.description || ''))) return res.status(400).json({ error: 'Remove phone number. Buyers contact via CM Agent only.' });
 
-    const imageUrls = req.files.length ? await Promise.all(req.files.map(f => uploadToR2(f, 'listings'))) : (data.images ? data.images.split(',').map(s => s.trim()).filter(Boolean) : []);
+    const imageUrls = data.images || [];
 
     let endTime = null;
     if (data.listingType === 'AUCTION') {
@@ -408,15 +398,10 @@ app.post('/api/listings/:id/view', async (req, res) => {
     await prisma.listing.update({ where: { id: req.params.id }, data: { views: { increment: 1 } } });
     res.json({ ok: true });
 });
-
 // ============================================================
-// ========== END OF PART 1 ====================================
-// ============================================================
-// ============================================================
-// ========== PART 2: SELLER, GHOST, DNA, RATINGS, ADMIN, UPLOAD, CRON, SOCKET
+// ========== SELLER PROFILE & DASHBOARD ======================
 // ============================================================
 
-// ---------- SELLER PUBLIC PROFILE ----------
 app.get('/api/sellers/:sellerId', async (req, res) => {
     const seller = await prisma.user.findUnique({
         where: { id: req.params.sellerId },
@@ -458,7 +443,6 @@ app.get('/api/sellers/:sellerId', async (req, res) => {
     });
 });
 
-// ---------- SELLER DASHBOARD STATS ----------
 app.get('/api/seller/dashboard', authenticate, async (req, res) => {
     const listings = await prisma.listing.findMany({ where: { sellerId: req.user.id } });
     res.json({
@@ -470,7 +454,6 @@ app.get('/api/seller/dashboard', authenticate, async (req, res) => {
     });
 });
 
-// ---------- MY LISTINGS ----------
 app.get('/api/my-listings', authenticate, async (req, res) => {
     const listings = await prisma.listing.findMany({
         where: { sellerId: req.user.id },
@@ -481,7 +464,7 @@ app.get('/api/my-listings', authenticate, async (req, res) => {
 });
 
 // ============================================================
-// ========== GHOST BIDDER RECOVERY (Adapted to Listing) ======
+// ========== GHOST BIDDER RECOVERY ===========================
 // ============================================================
 
 async function captureGhostBidders(listingId) {
@@ -539,7 +522,7 @@ app.get('/api/seller/ghost-leads', authenticate, async (req, res) => {
 });
 
 // ============================================================
-// ========== DNA REPORT (Adapted to Listing) =================
+// ========== DNA REPORT ======================================
 // ============================================================
 
 async function generateAuctionDNA(listingId) {
@@ -577,7 +560,7 @@ app.get('/api/seller/dna/:listingId', authenticate, async (req, res) => {
 });
 
 // ============================================================
-// ========== RATINGS (Adapted to Listing) ====================
+// ========== RATINGS =========================================
 // ============================================================
 
 app.post('/api/rate-seller', authenticate, async (req, res) => {
@@ -596,7 +579,7 @@ app.get('/api/seller/ratings/:sellerId', async (req, res) => {
 // ============================================================
 
 app.get('/api/admin/overview', authenticate, adminOnly, async (req, res) => {
-    const users = await prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
+    const users = await prisma.user.findMany({ orderBy: { createdAt: 'desc' }, select: { id: true, email: true, role: true, kycStatus: true, canSell: true, idPhotoUrl: true, selfieUrl: true, createdAt: true } });
     const listings = await prisma.listing.findMany({ orderBy: { createdAt: 'desc' } });
     const bids = await prisma.bid.findMany({ orderBy: { createdAt: 'desc' }, take: 50 });
     res.json({ users, listings, bids, hqWhatsapp: HQ_WHATSAPP });
@@ -605,6 +588,26 @@ app.get('/api/admin/overview', authenticate, adminOnly, async (req, res) => {
 app.post('/api/admin/make-auctioneer', authenticate, adminOnly, async (req, res) => {
     const { userId } = req.body;
     const user = await prisma.user.update({ where: { id: userId }, data: { role: 'AUCTIONEER', isAuctioneerApproved: true } });
+    res.json(user);
+});
+// ========== ADMIN: KYC APPROVAL & USER BLOCK ==========
+app.post('/api/admin/approve-kyc/:id', authenticate, adminOnly, async (req, res) => {
+    const user = await prisma.user.update({ where: { id: req.params.id }, data: { kycStatus: 'VERIFIED', canSell: true } });
+    res.json(user);
+});
+
+app.post('/api/admin/reject-kyc/:id', authenticate, adminOnly, async (req, res) => {
+    const user = await prisma.user.update({ where: { id: req.params.id }, data: { kycStatus: 'REJECTED', canSell: false } });
+    res.json(user);
+});
+
+app.post('/api/admin/block-user/:id', authenticate, adminOnly, async (req, res) => {
+    const user = await prisma.user.update({ where: { id: req.params.id }, data: { status: 'BANNED_FRAUD' } });
+    res.json(user);
+});
+
+app.post('/api/admin/unblock-user/:id', authenticate, adminOnly, async (req, res) => {
+    const user = await prisma.user.update({ where: { id: req.params.id }, data: { status: 'ACTIVE' } });
     res.json(user);
 });
 
@@ -727,10 +730,7 @@ io.on('connection', (socket) => {
 });
 
 // ============================================================
-// ========== END OF PART 2 ====================================
-// ============================================================
-// ============================================================
-// ========== PART 3: SELLER REQUIREMENTS, PAID, REPORTS, BAN, ANALYTICS, START
+// ========== SELLER REQUIREMENTS, PAID, REPORTS, BAN, ANALYTICS, START
 // ============================================================
 
 // ---------- SELLER REQUIREMENTS ----------
@@ -764,42 +764,27 @@ app.post('/api/listings/:id/paid', authenticate, async (req, res) => {
 
 // ---------- ADMIN: GET ALL REPORTS ----------
 app.get('/api/admin/reports', authenticate, adminOnly, async (req, res) => {
-    const reports = await prisma.report.findMany({
-        where: { status: 'PENDING' },
-        include: { reporter: true, listing: true }
-    });
+    const reports = await prisma.report.findMany({ where: { status: 'PENDING' }, include: { reporter: true, listing: true } });
     res.json(reports);
 });
 
 // ---------- ADMIN: RESOLVE REPORT ----------
 app.post('/api/admin/report/:id/resolve', authenticate, adminOnly, async (req, res) => {
-    const report = await prisma.report.update({
-        where: { id: req.params.id },
-        data: { status: 'RESOLVED' }
-    });
+    const report = await prisma.report.update({ where: { id: req.params.id }, data: { status: 'RESOLVED' } });
     res.json({ message: 'Report resolved', report });
 });
 
 // ---------- ADMIN: DISMISS REPORT ----------
 app.post('/api/admin/report/:id/dismiss', authenticate, adminOnly, async (req, res) => {
-    const report = await prisma.report.update({
-        where: { id: req.params.id },
-        data: { status: 'DISMISSED' }
-    });
+    const report = await prisma.report.update({ where: { id: req.params.id }, data: { status: 'DISMISSED' } });
     res.json({ message: 'Report dismissed', report });
 });
 
 // ---------- ADMIN: BAN USER ----------
 app.post('/api/admin/ban-user', authenticate, adminOnly, async (req, res) => {
     const { userId, reason } = req.body;
-    await prisma.user.update({
-        where: { id: userId },
-        data: { status: 'BANNED_FRAUD' }
-    });
-    await prisma.report.updateMany({
-        where: { buyerId: userId, status: 'PENDING' },
-        data: { status: 'RESOLVED' }
-    });
+    await prisma.user.update({ where: { id: userId }, data: { status: 'BANNED_FRAUD' } });
+    await prisma.report.updateMany({ where: { buyerId: userId, status: 'PENDING' }, data: { status: 'RESOLVED' } });
     res.json({ message: 'User banned', reason });
 });
 
@@ -807,14 +792,7 @@ app.post('/api/admin/ban-user', authenticate, adminOnly, async (req, res) => {
 app.get('/api/seller/analytics/:listingId', authenticate, async (req, res) => {
     const listing = await prisma.listing.findUnique({ where: { id: req.params.listingId } });
     if (!listing || listing.sellerId !== req.user.id) return res.status(404).json({ error: 'Listing not found' });
-    res.json({
-        listingId: listing.id,
-        title: listing.title,
-        views: listing.views,
-        bids: await prisma.bid.count({ where: { listingId: listing.id } }),
-        currentBid: listing.currentBid,
-        status: listing.status
-    });
+    res.json({ listingId: listing.id, title: listing.title, views: listing.views, bids: await prisma.bid.count({ where: { listingId: listing.id } }), currentBid: listing.currentBid, status: listing.status });
 });
 
 // ============================================================
@@ -828,6 +806,6 @@ app.get('*', (req, res) => {
 server.listen(PORT, () => {
     console.log(`✅ CM Central Market running on port ${PORT}`);
 });
-
+startTimedListingCron();
 process.on('uncaughtException', (err) => console.error('Uncaught Exception:', err));
 process.on('unhandledRejection', (reason) => console.error('Unhandled Rejection:', reason));

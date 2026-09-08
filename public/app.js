@@ -350,6 +350,10 @@ function logout() {
 
 // ---------- INIT APP ----------
 async function initApp() {
+    // 🟢 FIX: Set deviceId if not set
+    app.deviceId = localStorage.getItem('deviceId') || Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem('deviceId', app.deviceId);
+
     const token = localStorage.getItem('token');
     const userData = localStorage.getItem('user');
 
@@ -432,12 +436,6 @@ async function fetchMarketplace(filters = {}) {
         return [];
     }
 }
-
-// ============================================================
-// ========== END OF PART 1 ====================================
-// ============================================================
-// PASTE PART 2 BELOW THIS LINE
-// ============================================================
 // ============================================================
 // ========== PART 2: MARKETPLACE, CARDS, LISTING DETAIL =====
 // ============================================================
@@ -476,7 +474,7 @@ async function renderMarketplace() {
         <div style="max-width:1400px;margin:0 auto;padding:0 1rem;background:#F5F5F7;min-height:100vh;">
             <!-- Search Bar -->
             <div style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:1rem;display:flex;gap:0.75rem;margin-bottom:1rem;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
-                <input id="marketplaceSearch" value="${filters.search || ''}" placeholder="Search bike, car, TLB..." style="flex:1;padding:0.75rem 1rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;font-size:1rem;outline:none;">
+                <input id="marketplaceSearch" value="${filters.search || ''}" placeholder="Search bike, car, TLB..." style="flex:1;min-width:0;padding:0.75rem 1rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;font-size:1rem;outline:none;">
                 <button onclick="applyMarketplaceFilters()" style="background:#E30613;color:#fff;padding:0.75rem 1.5rem;border:none;border-radius:8px;font-weight:700;cursor:pointer;transition:0.2s;">
                     Search
                 </button>
@@ -519,7 +517,7 @@ async function renderMarketplace() {
             </div>
 
             <!-- Grid (White Cards) -->
-            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.25rem;">
+            <div class="marketplace-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.25rem;">
                 ${filtered.length > 0 ? filtered.map(item => renderAuctionCard(item)).join('') : `
                     <div style="grid-column:1/-1;text-align:center;padding:3rem 0;">
                         <p style="font-size:1.2rem;font-weight:600;color:#666;">No listings found</p>
@@ -1033,7 +1031,7 @@ function setupKycFileDrop(dropId, inputId, previewId) {
     });
 }
 
-// ---------- RENDER CREATE LISTING (with Verification) ----------
+// ---------- RENDER CREATE LISTING (JSON submission) ----------
 function renderCreateListing() {
     const main = document.getElementById('mainContent');
     if (!app.user || !app.user.canSell) {
@@ -1082,20 +1080,15 @@ function renderCreateListing() {
                 </div>
                 <div class="form-group"><label style="color:#666;">Description</label><textarea id="listingDescription" rows="4" placeholder="Condition, extras, reason for selling..." style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;resize:vertical;"></textarea></div>
                 
-                <!-- CM Verification Section -->
+                <!-- CM Verification Section (inputs only; photo upload removed for now) -->
                 <div style="background:#FFF3F3;border:1px solid #FFCFCF;padding:1rem;border-radius:12px;margin-bottom:1rem;">
                     <h4 style="margin:0 0 0.8rem 0;color:#E30613;">CM Verification (Required for GREEN badge)</h4>
                     <div class="form-group"><label style="color:#666;">VIN Number</label><input id="listingVin" placeholder="17 characters on windshield" style="width:100%;padding:0.6rem;border-radius:8px;background:#fff;border:1px solid #EAEAEA;color:#101010;"></div>
                     <div class="form-group"><label style="color:#666;">Engine Number</label><input id="listingEngineNo" placeholder="e.g. 2GD-123456" style="width:100%;padding:0.6rem;border-radius:8px;background:#fff;border:1px solid #EAEAEA;color:#101010;"></div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-                        <div class="form-group"><label style="color:#666;">Seller SA ID (photo)</label><input type="file" id="listingIdFile" accept="image/*" style="width:100%;padding:0.6rem;background:#fff;border:1px solid #EAEAEA;border-radius:8px;"></div>
-                        <div class="form-group"><label style="color:#666;">License Disk (photo)</label><input type="file" id="listingDiskFile" accept="image/*" style="width:100%;padding:0.6rem;background:#fff;border:1px solid #EAEAEA;border-radius:8px;"></div>
-                    </div>
-                    <div class="form-group"><label style="color:#666;">Odometer Video (10 sec)</label><input type="file" id="listingOdoVideo" accept="video/*" style="width:100%;padding:0.6rem;background:#fff;border:1px solid #EAEAEA;border-radius:8px;"></div>
                     <label style="font-size:0.8rem;display:flex;gap:8px;margin-top:8px;color:#101010;"><input type="checkbox" id="listingDeclare"> I declare this car is not stolen, not under finance, and km is true. False = banned.</label>
                 </div>
 
-                <div class="form-group"><label style="color:#666;">Images (Comma separated URLs or upload up to 10)</label><input id="listingImages" placeholder="https://..., https://..." style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
+                <div class="form-group"><label style="color:#666;">Images (URLs, comma separated)</label><input id="listingImages" placeholder="https://..., https://..." style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
                 
                 <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;background:#E30613;border:none;color:#fff;">Publish to CM Central Market</button>
             </form>
@@ -1118,68 +1111,29 @@ function renderCreateListing() {
         if (!document.getElementById('listingDeclare').checked) {
             return showToast('You must declare the vehicle is not stolen and km is true.', 'error');
         }
-        const formData = new FormData();
-        // Add main fields
-        formData.append('title', document.getElementById('listingTitle').value);
-        formData.append('category', document.getElementById('listingCategory').value);
-        formData.append('condition', document.getElementById('listingCondition').value);
-        formData.append('year', document.getElementById('listingYear').value);
-        formData.append('kilometers', document.getElementById('listingKm').value);
-        formData.append('color', document.getElementById('listingColor').value);
-        formData.append('engineSize', document.getElementById('listingEngine').value);
-        formData.append('transmission', document.getElementById('listingTrans').value);
-        formData.append('listingType', document.getElementById('listingType').value);
-        formData.append('description', document.getElementById('listingDescription').value);
-        formData.append('vinNumber', document.getElementById('listingVin').value);
-        formData.append('engineNumber', document.getElementById('listingEngineNo').value);
-        
-        // Add auction/fixed fields
-        if (document.getElementById('listingType').value === 'AUCTION') {
-            formData.append('startingPrice', document.getElementById('listingStartPrice').value);
-            formData.append('reservePrice', document.getElementById('listingReservePrice').value);
-            formData.append('duration', document.getElementById('listingDuration').value);
-        } else {
-            formData.append('price', document.getElementById('listingPrice').value);
-        }
 
-        // Add verification files
-        if (document.getElementById('listingIdFile').files[0]) formData.append('idDocument', document.getElementById('listingIdFile').files[0]);
-        if (document.getElementById('listingDiskFile').files[0]) formData.append('licenseDisk', document.getElementById('listingDiskFile').files[0]);
-        if (document.getElementById('listingOdoVideo').files[0]) formData.append('odometerVideo', document.getElementById('listingOdoVideo').files[0]);
-
-        // Upload verification first
-        let verificationUrls = {};
-        if (formData.has('idDocument') || formData.has('licenseDisk') || formData.has('odometerVideo')) {
-            const uploadRes = await api('/api/upload/verification', 'POST', formData);
-            verificationUrls = uploadRes;
-        }
-
-        // Now post listing
-        const data = {
-            title: formData.get('title'),
-            category: formData.get('category'),
-            condition: formData.get('condition'),
-            year: parseInt(formData.get('year')) || null,
-            kilometers: parseInt(formData.get('kilometers')) || null,
-            color: formData.get('color'),
-            engineSize: formData.get('engineSize'),
-            transmission: formData.get('transmission'),
-            listingType: formData.get('listingType'),
-            description: formData.get('description'),
-            vinNumber: formData.get('vinNumber'),
-            engineNumber: formData.get('engineNumber'),
-            startingPrice: formData.get('startingPrice') ? parseFloat(formData.get('startingPrice')) : null,
-            reservePrice: formData.get('reservePrice') ? parseFloat(formData.get('reservePrice')) : null,
-            price: formData.get('price') ? parseFloat(formData.get('price')) : null,
-            duration: formData.get('duration'),
-            images: verificationUrls.images || [],
-            idDocumentUrl: verificationUrls.idDocumentUrl,
-            licenseDiskUrl: verificationUrls.licenseDiskUrl,
-            odometerVideoUrl: verificationUrls.odometerVideoUrl
+        const listingData = {
+            title: document.getElementById('listingTitle').value,
+            category: document.getElementById('listingCategory').value,
+            condition: document.getElementById('listingCondition').value,
+            year: parseInt(document.getElementById('listingYear').value) || null,
+            kilometers: parseInt(document.getElementById('listingKm').value) || null,
+            color: document.getElementById('listingColor').value,
+            engineSize: document.getElementById('listingEngine').value,
+            transmission: document.getElementById('listingTrans').value,
+            listingType: document.getElementById('listingType').value,
+            description: document.getElementById('listingDescription').value,
+            vinNumber: document.getElementById('listingVin').value,
+            engineNumber: document.getElementById('listingEngineNo').value,
+            startingPrice: document.getElementById('listingStartPrice')?.value ? parseFloat(document.getElementById('listingStartPrice').value) : null,
+            reservePrice: document.getElementById('listingReservePrice')?.value ? parseFloat(document.getElementById('listingReservePrice').value) : null,
+            price: document.getElementById('listingPrice')?.value ? parseFloat(document.getElementById('listingPrice').value) : null,
+            duration: document.getElementById('listingDuration')?.value || null,
+            images: document.getElementById('listingImages').value.split(',').map(s => s.trim()).filter(Boolean)
         };
 
         try {
-            const result = await api('/api/listings', 'POST', data);
+            const result = await api('/api/listings', 'POST', listingData);
             showToast('Listing published to CM!', 'info');
             navigate('dashboard');
             fetchMarketplace();

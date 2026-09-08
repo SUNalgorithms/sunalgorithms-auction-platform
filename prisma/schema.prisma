@@ -1,183 +1,208 @@
 generator client {
-provider = "prisma-client-js"
+  provider = "prisma-client-js"
 }
 
 datasource db {
-provider = "postgresql"
-url = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
-id String @id @default(cuid())
-name String
-displayName String?
-email String @unique
-password String
-idNumber String @unique
-phone String?
-deviceId String?
-ip String?
-avatar String?
-bio String?
-role String @default("BUYER")
-isAuctioneerApproved Boolean @default(false)
-kycStatus String @default("NONE")
-canSell Boolean @default(false)
-kycLevel Int @default(1)
-kycData Json?
-status String @default("ACTIVE")
-sellerRequirements Json?
-sellerProfile Json?
-favorites Json?
-listings Listing[] @relation("UserListings")
-bids Bid[] @relation("UserBids")
-currentBids Listing[] @relation("CurrentBidder")
-wonListings Listing[] @relation("WinnerAuctions")
-ratingsGiven Rating[] @relation("UserRatings")
-ratingsReceived Rating[] @relation("SellerRatings")
-ghostLeadsAsBuyer GhostLead[] @relation("GhostLeadUser")
-ghostLeadsAsSeller GhostLead[] @relation("GhostLeadSeller")
-reportsGiven Report[] @relation("Reporter")
-soldItems SoldItem[] @relation("SellerSoldItems")
-createdAt DateTime @default(now())
-updatedAt DateTime @updatedAt
+  id                    String          @id @default(cuid())
+  name                  String
+  displayName           String?
+  email                 String          @unique
+  password              String
+  idNumber              String          @unique
+  phone                 String?
+  deviceId              String?
+  ip                    String?
+  avatar                String?
+  bio                   String?
+  
+  // 👇 NEW FIELDS FOR KYC PHOTOS
+  idPhotoUrl            String?
+  selfieUrl             String?
+  
+  role                  String          @default("BUYER")
+  isAuctioneerApproved  Boolean         @default(false)
+  kycStatus             String          @default("NONE")
+  canSell               Boolean         @default(false)
+  kycLevel              Int             @default(1)
+  kycData               Json?
+  status                String          @default("ACTIVE")
+  sellerRequirements    Json?
+  sellerProfile         Json?
+  favorites             Json?
+
+  listings              Listing[]       @relation("UserListings")
+  bids                  Bid[]           @relation("UserBids")
+  currentBids           Listing[]       @relation("CurrentBidder")
+  wonListings           Listing[]       @relation("WinnerAuctions")
+  ratingsGiven          Rating[]        @relation("UserRatings")
+  ratingsReceived       Rating[]        @relation("SellerRatings")
+  ghostLeadsAsBuyer     GhostLead[]     @relation("GhostLeadUser")
+  ghostLeadsAsSeller    GhostLead[]     @relation("GhostLeadSeller")
+  reportsGiven          Report[]        @relation("Reporter")
+  soldItems             SoldItem[]      @relation("SellerSoldItems")
+
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
 }
 
 model Listing {
-id String @id @default(cuid())
-sellerId String
-sellerRole String @default("SELLER")
-title String
-description String?
-category String @default("Other")
-condition String @default("USED")
-images Json?
-listingType String
-startingPrice Float?
-reservePrice Float?
-currentBid Float?
-currentBidderId String?
-endTime DateTime?
-duration String?
-proxyBids Json?
-maxBids Json?
-isLast10Min Boolean @default(false)
-increment Int @default(1000)
-price Float?
-stock Int @default(1)
-isNegotiable Boolean @default(false)
-status String @default("ACTIVE")
-views Int @default(0)
-winnerId String?
-finalPrice Float?
-paymentDeadline DateTime?
-requiredKycLevel Int @default(1)
-year Int?
-kilometers Int?
-color String?
-engineSize String?
-transmission String?
-fuelType String?
-vinNumber String?
-engineNumber String?
-idDocumentUrl String?
-licenseDiskUrl String?
-odometerVideoUrl String?
-isVerified Boolean @default(false)
-verificationStatus String @default("PENDING")
-createdAt DateTime @default(now())
-updatedAt DateTime @updatedAt
-seller User @relation("UserListings", fields: [sellerId], references: [id], onDelete: Cascade)
-currentBidder User? @relation("CurrentBidder", fields: [currentBidderId], references: [id])
-winner User? @relation("WinnerAuctions", fields: [winnerId], references: [id])
-bids Bid[] @relation("ListingBids")
-ratings Rating[] @relation("ListingRatings")
-ghostLeads GhostLead[]
-reports Report[] @relation("ReportedListing")
-@@index([sellerId])
-@@index([category])
-@@index([listingType])
-@@index([status])
-@@index([createdAt])
-@@map("listings")
+  id                    String          @id @default(cuid())
+  sellerId              String
+  sellerRole            String          @default("SELLER")
+  title                 String
+  description           String?
+  category              String          @default("Other")
+  condition             String          @default("USED")
+  images                Json?
+  listingType           String
+
+  startingPrice         Float?
+  reservePrice          Float?
+  currentBid            Float?
+  currentBidderId       String?
+  endTime               DateTime?
+  duration              String?
+  proxyBids             Json?
+  maxBids               Json?
+  isLast10Min           Boolean         @default(false)
+  increment             Int             @default(1000)
+
+  price                 Float?
+  stock                 Int             @default(1)
+  isNegotiable          Boolean         @default(false)
+
+  status                String          @default("ACTIVE")
+  views                 Int             @default(0)
+  winnerId              String?
+  finalPrice            Float?
+  paymentDeadline       DateTime?
+  requiredKycLevel      Int             @default(1)
+
+  year                  Int?
+  kilometers            Int?
+  color                 String?
+  engineSize            String?
+  transmission          String?
+  fuelType              String?
+
+  vinNumber             String?
+  engineNumber          String?
+  idDocumentUrl         String?
+  licenseDiskUrl        String?
+  odometerVideoUrl      String?
+  isVerified            Boolean         @default(false)
+  verificationStatus    String          @default("PENDING")
+
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  seller                User            @relation("UserListings", fields: [sellerId], references: [id], onDelete: Cascade)
+  currentBidder         User?           @relation("CurrentBidder", fields: [currentBidderId], references: [id])
+  winner                User?           @relation("WinnerAuctions", fields: [winnerId], references: [id])
+  bids                  Bid[]           @relation("ListingBids")
+  ratings               Rating[]        @relation("ListingRatings")
+  ghostLeads            GhostLead[]
+  reports               Report[]        @relation("ReportedListing")
+
+  @@index([sellerId])
+  @@index([category])
+  @@index([listingType])
+  @@index([status])
+  @@index([createdAt])
+  @@map("listings")
 }
 
 model Bid {
-id String @id @default(cuid())
-listingId String
-bidderId String
-amount Float
-createdAt DateTime @default(now())
-listing Listing @relation("ListingBids", fields: [listingId], references: [id], onDelete: Cascade)
-bidder User @relation("UserBids", fields: [bidderId], references: [id], onDelete: Cascade)
-@@index([listingId])
-@@index([bidderId])
-@@map("bids")
+  id                    String          @id @default(cuid())
+  listingId             String
+  bidderId              String
+  amount                Float
+  createdAt             DateTime        @default(now())
+
+  listing               Listing         @relation("ListingBids", fields: [listingId], references: [id], onDelete: Cascade)
+  bidder                User            @relation("UserBids", fields: [bidderId], references: [id], onDelete: Cascade)
+
+  @@index([listingId])
+  @@index([bidderId])
+  @@map("bids")
 }
 
 model Rating {
-id String @id @default(cuid())
-buyerId String
-sellerId String
-listingId String
-stars Int @default(5)
-comment String?
-tags String[]
-createdAt DateTime @default(now())
-buyer User @relation("UserRatings", fields: [buyerId], references: [id], onDelete: Cascade)
-seller User @relation("SellerRatings", fields: [sellerId], references: [id], onDelete: Cascade)
-listing Listing @relation("ListingRatings", fields: [listingId], references: [id], onDelete: Cascade)
-@@map("ratings")
+  id                    String          @id @default(cuid())
+  buyerId               String
+  sellerId              String
+  listingId             String
+  stars                 Int             @default(5)
+  comment               String?
+  tags                  String[]
+  createdAt             DateTime        @default(now())
+
+  buyer                 User            @relation("UserRatings", fields: [buyerId], references: [id], onDelete: Cascade)
+  seller                User            @relation("SellerRatings", fields: [sellerId], references: [id], onDelete: Cascade)
+  listing               Listing         @relation("ListingRatings", fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@map("ratings")
 }
 
 model Report {
-id String @id @default(cuid())
-buyerId String
-sellerId String
-listingId String
-buyerName String
-sellerName String
-listingTitle String
-amount Float?
-evidence String?
-status String @default("PENDING")
-createdAt DateTime @default(now())
-reporter User @relation("Reporter", fields: [buyerId], references: [id], onDelete: Cascade)
-listing Listing @relation("ReportedListing", fields: [listingId], references: [id], onDelete: Cascade)
-@@map("reports")
+  id                    String          @id @default(cuid())
+  buyerId               String
+  sellerId              String
+  listingId             String
+  buyerName             String
+  sellerName            String
+  listingTitle          String
+  amount                Float?
+  evidence              String?
+  status                String          @default("PENDING")
+  createdAt             DateTime        @default(now())
+
+  reporter              User            @relation("Reporter", fields: [buyerId], references: [id], onDelete: Cascade)
+  listing               Listing         @relation("ReportedListing", fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@map("reports")
 }
 
 model GhostLead {
-id String @id @default(cuid())
-listingId String
-sellerId String
-userId String
-name String
-phone String?
-email String?
-maxBid Float
-bidCount Int
-category String
-title String
-finalPrice Float
-capturedAt DateTime @default(now())
-contacted Boolean @default(false)
-sentToSeller Boolean @default(false)
-sentToBuyer Boolean @default(false)
-listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
-user User @relation("GhostLeadUser", fields: [userId], references: [id], onDelete: Cascade)
-seller User @relation("GhostLeadSeller", fields: [sellerId], references: [id], onDelete: Cascade)
-@@map("ghost_leads")
+  id                    String          @id @default(cuid())
+  listingId             String
+  sellerId              String
+  userId                String
+  name                  String
+  phone                 String?
+  email                 String?
+  maxBid                Float
+  bidCount              Int
+  category              String
+  title                 String
+  finalPrice            Float
+  capturedAt            DateTime        @default(now())
+  contacted             Boolean         @default(false)
+  sentToSeller          Boolean         @default(false)
+  sentToBuyer           Boolean         @default(false)
+
+  listing               Listing         @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  user                  User            @relation("GhostLeadUser", fields: [userId], references: [id], onDelete: Cascade)
+  seller                User            @relation("GhostLeadSeller", fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@map("ghost_leads")
 }
 
 model SoldItem {
-id String @id @default(cuid())
-listingId String @unique
-sellerId String
-title String
-winnerName String
-finalPrice Float
-soldAt DateTime @default(now())
-seller User @relation("SellerSoldItems", fields: [sellerId], references: [id], onDelete: Cascade)
-@@map("sold_items")
+  id                    String          @id @default(cuid())
+  listingId             String          @unique
+  sellerId              String
+  title                 String
+  winnerName            String
+  finalPrice            Float
+  soldAt                DateTime        @default(now())
+
+  seller                User            @relation("SellerSoldItems", fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@map("sold_items")
 }

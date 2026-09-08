@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
         body { font-family: Arial, sans-serif; background:#F5F5F7; padding:1rem; margin:0; }
-        .container { max-width:1200px; margin:0 auto; }
+        .container { max-width:1300px; margin:0 auto; }
         .header { background:white; padding:1.5rem; border-radius:12px; border:1px solid #EAEAEA; display:flex; align-items:center; gap:12px; margin-bottom:1rem; }
         .header img { width:50px; height:50px; border-radius:10px; }
         .header h1 { margin:0; font-size:1.5rem; }
@@ -25,6 +25,15 @@
         .btn-black { background:#101010; color:white; }
         .btn-green { background:#28a745; color:white; }
         .btn-blue { background:#4dabf7; color:white; }
+        .btn-orange { background:#ff9800; color:white; }
+        .btn-yellow { background:#ffc107; color:black; }
+        .btn-small { padding:4px 8px; font-size:0.7rem; }
+        .photo-box { display:flex; gap:8px; align-items:center; }
+        .photo-box img { width:60px; height:60px; object-fit:cover; border-radius:8px; border:1px solid #ddd; }
+        .tab { display:flex; gap:0.5rem; margin-bottom:1rem; flex-wrap:wrap; }
+        .tab button { padding:0.6rem 1.2rem; border:none; border-radius:8px; font-weight:700; cursor:pointer; background:#101010; color:white; }
+        .tab button.active { background:#E30613; }
+        .hidden { display:none; }
     </style>
 </head>
 <body>
@@ -33,34 +42,60 @@
             <img src="/logo.jpeg" alt="CM">
             <div>
                 <h1>CM Central Market - Admin HQ</h1>
-                <p>Control Center for Users, Listings & Auctioneers</p>
+                <p>Control Center for Users, KYC, Listings & Auctioneers</p>
             </div>
         </div>
 
-        <div id="stats" class="stats">Loading...</div>
-
-        <div class="card">
-            <h3>Users</h3>
-            <table>
-                <thead><tr><th>Email</th><th>Role</th><th>Action</th></tr></thead>
-                <tbody id="usersTable"></tbody>
-            </table>
+        <div class="tab">
+            <button class="active" onclick="showTab('dashboard')">Dashboard</button>
+            <button onclick="showTab('users')">Users</button>
+            <button onclick="showTab('kyc')">KYC Pending</button>
+            <button onclick="showTab('listings')">Listings</button>
+            <button onclick="showTab('bids')">Bids</button>
         </div>
 
-        <div class="card">
-            <h3>Listings</h3>
-            <table>
-                <thead><tr><th>Title</th><th>Price</th><th>Type</th><th>Verified</th><th>Status</th><th>Actions</th></tr></thead>
-                <tbody id="listingsTable"></tbody>
-            </table>
+        <div id="dashboard" class="tab-content">
+            <div id="stats" class="stats">Loading...</div>
         </div>
 
-        <div class="card">
-            <h3>Recent Bids</h3>
-            <table>
-                <thead><tr><th>Bidder ID</th><th>Listing ID</th><th>Amount</th><th>Time</th></tr></thead>
-                <tbody id="bidsTable"></tbody>
-            </table>
+        <div id="users" class="tab-content hidden">
+            <div class="card">
+                <h3>All Users</h3>
+                <table>
+                    <thead><tr><th>Email</th><th>Role</th><th>KYC Status</th><th>Action</th></tr></thead>
+                    <tbody id="usersTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="kyc" class="tab-content hidden">
+            <div class="card">
+                <h3>KYC Verification Requests</h3>
+                <table>
+                    <thead><tr><th>Email</th><th>ID Photo</th><th>Selfie</th><th>Status</th><th>Actions</th></tr></thead>
+                    <tbody id="kycTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="listings" class="tab-content hidden">
+            <div class="card">
+                <h3>All Listings</h3>
+                <table>
+                    <thead><tr><th>Title</th><th>Price</th><th>Type</th><th>Verified</th><th>Status</th><th>Actions</th></tr></thead>
+                    <tbody id="listingsTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="bids" class="tab-content hidden">
+            <div class="card">
+                <h3>Recent Bids</h3>
+                <table>
+                    <thead><tr><th>Bidder ID</th><th>Listing ID</th><th>Amount</th><th>Time</th></tr></thead>
+                    <tbody id="bidsTable"></tbody>
+                </table>
+            </div>
         </div>
     </div>
 
@@ -70,6 +105,13 @@
             document.body.innerHTML = '<h2 style="text-align:center;margin-top:4rem;">Please login first.</h2>';
         } else {
             loadAdmin();
+        }
+
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(tabId).classList.remove('hidden');
+            document.querySelectorAll('.tab button').forEach(btn => btn.classList.remove('active'));
+            // find the clicked button and add active class (simple way)
         }
 
         async function loadAdmin() {
@@ -85,9 +127,9 @@
 
                 // Stats
                 document.getElementById('stats').innerHTML = `
-                    <div class="stat"><h2>${data.users.length}</h2><p>Users</p></div>
-                    <div class="stat"><h2>${data.listings.length}</h2><p>Listings</p></div>
-                    <div class="stat"><h2>${data.bids.length}</h2><p>Bids</p></div>
+                    <div class="stat"><h2>${data.users.length}</h2><p>Total Users</p></div>
+                    <div class="stat"><h2>${data.listings.length}</h2><p>Total Listings</p></div>
+                    <div class="stat"><h2>${data.bids.length}</h2><p>Total Bids</p></div>
                     <div class="stat"><h2>${data.hqWhatsapp}</h2><p>HQ WhatsApp</p></div>
                 `;
 
@@ -96,10 +138,25 @@
                     <tr>
                         <td>${u.email}</td>
                         <td>${u.role}</td>
+                        <td>${u.kycStatus} ${u.canSell ? '✅ Can Sell' : ''}</td>
                         <td>
-                            ${u.role !== 'AUCTIONEER' ? 
-                                `<button class="btn btn-red" onclick="makeAuctioneer('${u.id}')">Make Auctioneer</button>` : 
-                                `<span style="color:#28a745;font-weight:bold;">✓ Auctioneer</span>`}
+                            ${u.role !== 'AUCTIONEER' ? `<button class="btn btn-red btn-small" onclick="makeAuctioneer('${u.id}')">Make Auctioneer</button>` : ''}
+                            ${u.status !== 'BANNED_FRAUD' ? `<button class="btn btn-orange btn-small" onclick="blockUser('${u.id}')">Block</button>` : `<button class="btn btn-green btn-small" onclick="unblockUser('${u.id}')">Unblock</button>`}
+                        </td>
+                    </tr>
+                `).join('');
+
+                // KYC Pending (filter users with kycStatus NOT VERIFIED)
+                const kycPending = data.users.filter(u => u.kycStatus !== 'VERIFIED');
+                document.getElementById('kycTable').innerHTML = kycPending.map(u => `
+                    <tr>
+                        <td>${u.email}</td>
+                        <td class="photo-box">${u.idPhotoUrl ? `<img src="${u.idPhotoUrl}" onerror="this.style.display='none'">` : 'No ID'}</td>
+                        <td class="photo-box">${u.selfieUrl ? `<img src="${u.selfieUrl}" onerror="this.style.display='none'">` : 'No Selfie'}</td>
+                        <td>${u.kycStatus}</td>
+                        <td>
+                            <button class="btn btn-green btn-small" onclick="approveKyc('${u.id}')">Approve</button>
+                            <button class="btn btn-red btn-small" onclick="rejectKyc('${u.id}')">Reject</button>
                         </td>
                     </tr>
                 `).join('');
@@ -113,8 +170,8 @@
                         <td>${l.isVerified ? '<span style="color:#28a745;font-weight:bold;">✓ GREEN</span>' : '<span style="color:#666;">GREY</span>'}</td>
                         <td>${l.status || 'ACTIVE'}</td>
                         <td>
-                            ${!l.isVerified ? `<button class="btn btn-green" onclick="verifyListing('${l.id}')">Verify</button>` : ''}
-                            ${l.status === 'ACTIVE' ? `<button class="btn btn-black" onclick="endListing('${l.id}')">End</button>` : ''}
+                            ${!l.isVerified ? `<button class="btn btn-green btn-small" onclick="verifyListing('${l.id}')">Verify</button>` : ''}
+                            ${l.status === 'ACTIVE' ? `<button class="btn btn-black btn-small" onclick="endListing('${l.id}')">End</button>` : ''}
                         </td>
                     </tr>
                 `).join('');
@@ -131,7 +188,7 @@
 
             } catch (err) {
                 console.error(err);
-                document.body.innerHTML = '<h2 style="text-align:center;margin-top:4rem;">Error loading admin panel. Check console.</h2>';
+                document.body.innerHTML = '<h2 style="text-align:center;margin-top:4rem;">Error loading admin panel.</h2>';
             }
         }
 
@@ -150,13 +207,54 @@
             }
         }
 
+        async function approveKyc(userId) {
+            if (!confirm('Approve KYC for this user?')) return;
+            try {
+                await fetch(`/api/admin/approve-kyc/${userId}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+                alert('KYC Approved!');
+                loadAdmin();
+            } catch (err) {
+                alert('Failed to approve KYC.');
+            }
+        }
+
+        async function rejectKyc(userId) {
+            if (!confirm('Reject KYC for this user?')) return;
+            try {
+                await fetch(`/api/admin/reject-kyc/${userId}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+                alert('KYC Rejected!');
+                loadAdmin();
+            } catch (err) {
+                alert('Failed to reject KYC.');
+            }
+        }
+
+        async function blockUser(userId) {
+            if (!confirm('Block this user?')) return;
+            try {
+                await fetch(`/api/admin/block-user/${userId}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+                alert('User blocked!');
+                loadAdmin();
+            } catch (err) {
+                alert('Failed to block user.');
+            }
+        }
+
+        async function unblockUser(userId) {
+            if (!confirm('Unblock this user?')) return;
+            try {
+                await fetch(`/api/admin/unblock-user/${userId}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+                alert('User unblocked!');
+                loadAdmin();
+            } catch (err) {
+                alert('Failed to unblock user.');
+            }
+        }
+
         async function verifyListing(listingId) {
             if (!confirm('Verify this listing as CM Verified?')) return;
             try {
-                await fetch(`/api/admin/verify-listing/${listingId}`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
+                await fetch(`/api/admin/verify-listing/${listingId}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
                 alert('Listing Verified!');
                 loadAdmin();
             } catch (err) {
@@ -167,16 +265,23 @@
         async function endListing(listingId) {
             if (!confirm('End this listing?')) return;
             try {
-                await fetch(`/api/admin/end-listing/${listingId}`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
+                await fetch(`/api/admin/end-listing/${listingId}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
                 alert('Listing Ended!');
                 loadAdmin();
             } catch (err) {
                 alert('Failed to end listing.');
             }
         }
+
+        // Setup tab buttons
+        document.querySelectorAll('.tab button').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.tab button').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                const tabId = this.textContent.trim().toLowerCase();
+                showTab(tabId);
+            });
+        });
     </script>
 </body>
 </html>
