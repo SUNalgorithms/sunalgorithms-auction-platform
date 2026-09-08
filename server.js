@@ -130,6 +130,23 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
+// ========== TEMPORARY ADMIN PROMOTION - DELETE AFTER USE ==========
+app.post('/api/make-admin', async (req, res) => {
+  const { email } = req.body;
+  if (email !== 'ndoumukonazwothe11@gmail.com') {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  try {
+    const user = await prisma.user.update({
+      where: { email },
+      data: { role: 'ADMIN' }
+    });
+    res.json({ message: 'User promoted to ADMIN', user });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+// ========== END TEMPORARY ENDPOINT ==========
 
 const bidLimiter = rateLimit({ windowMs: 1000, max: 5, message: 'Too many bids, slow down' });
 
