@@ -363,7 +363,7 @@ async function initApp() {
         document.getElementById('navbar').style.display = 'flex';
 
         // Show/hide buttons based on role
-        const isSeller = app.user.role === 'INDIVIDUAL_SELLER' || app.user.role === 'AUCTIONEER';
+        const isSeller = app.user.role === 'INDIVIDUAL_SELLER' || app.user.role === 'AUCTIONEER' || app.user.role === 'ADMIN';
         document.getElementById('dashboardBtn').style.display = isSeller ? 'inline' : 'none';
         document.getElementById('createListingBtn').style.display = isSeller ? 'inline' : 'none';
         document.getElementById('adminDashBtn').style.display = (app.user.role === 'ADMIN') ? 'inline' : 'none';
