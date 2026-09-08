@@ -334,7 +334,9 @@ app.get('/api/listings/:id', async (req, res) => {
 // CREATE LISTING (seller) - JSON only
 app.post('/api/listings', authenticate, async (req, res) => {
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-    if (!user || !user.canSell) return res.status(403).json({ error: 'You must be KYC verified to sell' });
+    if (!user || (!user.canSell && user.role !== 'ADMIN')) {
+        return res.status(403).json({ error: 'You must be KYC verified to sell' });
+    }
 
     const data = req.body;
     if (/\d{10,}/.test(data.title + (data.description || ''))) return res.status(400).json({ error: 'Remove phone number. Buyers contact via CM Agent only.' });
@@ -398,6 +400,7 @@ app.post('/api/listings/:id/view', async (req, res) => {
     await prisma.listing.update({ where: { id: req.params.id }, data: { views: { increment: 1 } } });
     res.json({ ok: true });
 });
+
 // ============================================================
 // ========== SELLER PROFILE & DASHBOARD ======================
 // ============================================================

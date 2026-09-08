@@ -439,6 +439,9 @@ async function fetchMarketplace(filters = {}) {
 // ============================================================
 // ========== PART 2: MARKETPLACE, CARDS, LISTING DETAIL =====
 // ============================================================
+// ============================================================
+// ========== PART 2: MARKETPLACE, CARDS, LISTING DETAIL =====
+// ============================================================
 
 // ---------- RENDER MARKETPLACE (WeBuyCars Light Mode) ----------
 async function renderMarketplace() {
@@ -898,7 +901,8 @@ async function renderDashboard() {
     if (!app.user) return showToast('Please login first', 'error');
 
     const isSeller = app.user.role === 'INDIVIDUAL_SELLER' || app.user.role === 'AUCTIONEER';
-    if (!isSeller) {
+    // 🟢 FIX: Admin can access dashboard even if not seller
+    if (!isSeller && app.user.role !== 'ADMIN') {
         main.innerHTML = `
             <div style="max-width:800px;margin:0 auto;padding:2rem;text-align:center;background:#F5F5F7;min-height:100vh;">
                 <h2 style="color:#101010;">Access Denied</h2>
@@ -908,7 +912,8 @@ async function renderDashboard() {
         return;
     }
 
-    if (app.user.kycStatus !== 'VERIFIED' && !app.user.canSell) {
+    // 🟢 FIX: Admin bypass KYC warning
+    if (app.user.kycStatus !== 'VERIFIED' && !app.user.canSell && app.user.role !== 'ADMIN') {
         main.innerHTML = `
             <div style="max-width:700px;margin:0 auto;padding:2rem;background:#F5F5F7;min-height:100vh;">
                 <div style="background:#FFF8E1;border:1px solid #FFC107;padding:1.5rem;border-radius:12px;">
@@ -1034,7 +1039,423 @@ function setupKycFileDrop(dropId, inputId, previewId) {
 // ---------- RENDER CREATE LISTING (JSON submission) ----------
 function renderCreateListing() {
     const main = document.getElementById('mainContent');
-    if (!app.user || !app.user.canSell) {
+    // 🟢 FIX: Admin can access create listing even if canSell false
+    if (!app.user || (!app.user.canSell && app.user.role !== 'ADMIN')) {
+        main.innerHTML = `
+            <div style="max-width:600px;margin:0 auto;padding:2rem;text-align:center;background:#F5F5F7;min-height:100vh;">
+                <h2 style="color:#101010;">Access Denied</h2>
+                <p style="color:#666;">You need to be KYC verified to list items.</p>
+                <button class="btn btn-primary" style="background:#E30613;border:none;" onclick="navigate('kyc')">Upgrade KYC</button>
+            </div>`;
+        return;
+    }
+
+    main.innerHTML = `
+        <div style="max-width:700px;margin:0 auto;padding:1rem;background:#F5F5F7;min-height:100vh;">
+            <h2 style="color:#101010;">Sell Something</h2>
+            <p style="color:#666;margin-bottom:1rem;">List as auction or fixed price — like WeBuyCars</p>
+            <form id="createListingForm" style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;padding:0.25rem;background:#F5F5F7;border-radius:12px;margin-bottom:1rem;">
+                    <button type="button" class="listing-type-btn active" data-type="AUCTION" style="padding:0.6rem;border:none;border-radius:8px;font-weight:700;background:white;color:#101010;cursor:pointer;">🔨 Auction</button>
+                    <button type="button" class="listing-type-btn" data-type="FIXED_PRICE" style="padding:0.6rem;border:none;border-radius:8px;font-weight:700;background:transparent;color:#666;cursor:pointer;">🏷️ Fixed Price</button>
+                </div>
+                <input type="hidden" id="listingType" value="AUCTION">
+                <div class="form-group"><label style="color:#666;">Title *</label><input id="listingTitle" placeholder="e.g. Toyota Hilux 2.8 GD-6 2021" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                    <div class="form-group"><label style="color:#666;">Category *</label><select id="listingCategory" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"><option>Vehicles</option><option>Motorcycles</option><option>TLB/Machinery</option><option>Other</option></select></div>
+                    <div class="form-group"><label style="color:#666;">Condition *</label><select id="listingCondition" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"><option>USED</option><option>NEW</option><option>FOR_PARTS</option></select></div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                    <div class="form-group"><label style="color:#666;">Year</label><input id="listingYear" type="number" placeholder="2021" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
+                    <div class="form-group"><label style="color:#666;">Kilometers</label><input id="listingKm" type="number" placeholder="85000" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;">
+                    <div class="form-group"><label style="color:#666;">Color</label><input id="listingColor" placeholder="White" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
+                    <div class="form-group"><label style="color:#666;">Engine</label><input id="listingEngine" placeholder="2.8L" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
+                    <div class="form-group"><label style="color:#666;">Transmission</label><select id="listingTrans" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"><option>Manual</option><option>Automatic</option></select></div>
+                </div>
+                <div id="auctionFields">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                        <div class="form-group"><label style="color:#666;">Starting Price (R)</label><input id="listingStartPrice" type="number" placeholder="50000" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
+                        <div class="form-group"><label style="color:#666;">Reserve Price (R)</label><input id="listingReservePrice" type="number" placeholder="60000" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
+                    </div>
+                    <div class="form-group"><label style="color:#666;">Duration</label><select id="listingDuration" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"><option value="1d">1 Day</option><option value="3d">3 Days</option><option value="7d" selected>7 Days</option></select></div>
+                </div>
+                <div id="fixedFields" style="display:none;">
+                    <div class="form-group"><label style="color:#666;">Price (R)</label><input id="listingPrice" type="number" placeholder="120000" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
+                </div>
+                <div class="form-group"><label style="color:#666;">Description</label><textarea id="listingDescription" rows="4" placeholder="Condition, extras, reason for selling..." style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;resize:vertical;"></textarea></div>
+                
+                <!-- CM Verification Section (inputs only; photo upload removed for now) -->
+                <div style="background:#FFF3F3;border:1px solid #FFCFCF;padding:1rem;border-radius:12px;margin-bottom:1rem;">
+                    <h4 style="margin:0 0 0.8rem 0;color:#E30613;">CM Verification (Required for GREEN badge)</h4>
+                    <div class="form-group"><label style="color:#666;">VIN Number</label><input id="listingVin" placeholder="17 characters on windshield" style="width:100%;padding:0.6rem;border-radius:8px;background:#fff;border:1px solid #EAEAEA;color:#101010;"></div>
+                    <div class="form-group"><label style="color:#666;">Engine Number</label><input id="listingEngineNo" placeholder="e.g. 2GD-123456" style="width:100%;padding:0.6rem;border-radius:8px;background:#fff;border:1px solid #EAEAEA;color:#101010;"></div>
+                    <label style="font-size:0.8rem;display:flex;gap:8px;margin-top:8px;color:#101010;"><input type="checkbox" id="listingDeclare"> I declare this car is not stolen, not under finance, and km is true. False = banned.</label>
+                </div>
+
+                <div class="form-group"><label style="color:#666;">Images (URLs, comma separated)</label><input id="listingImages" placeholder="https://..., https://..." style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
+                
+                <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;background:#E30613;border:none;color:#fff;">Publish to CM Central Market</button>
+            </form>
+        </div>`;
+
+    // Type toggle
+    document.querySelectorAll('.listing-type-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const type = this.dataset.type;
+            document.getElementById('listingType').value = type;
+            document.querySelectorAll('.listing-type-btn').forEach(b => { b.style.background = 'transparent'; b.style.color = '#666'; b.classList.remove('active'); });
+            this.style.background = 'white'; this.style.color = '#101010'; this.classList.add('active');
+            document.getElementById('auctionFields').style.display = type === 'AUCTION' ? 'block' : 'none';
+            document.getElementById('fixedFields').style.display = type === 'FIXED_PRICE' ? 'block' : 'none';
+        });
+    });
+
+    document.getElementById('createListingForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!document.getElementById('listingDeclare').checked) {
+            return showToast('You must declare the vehicle is not stolen and km is true.', 'error');
+        }
+
+        const listingData = {
+            title: document.getElementById('listingTitle').value,
+            category: document.getElementById('listingCategory').value,
+            condition: document.getElementById('listingCondition').value,
+            year: parseInt(document.getElementById('listingYear').value) || null,
+            kilometers: parseInt(document.getElementById('listingKm').value) || null,
+            color: document.getElementById('listingColor').value,
+            engineSize: document.getElementById('listingEngine').value,
+            transmission: document.getElementById('listingTrans').value,
+            listingType: document.getElementById('listingType').value,
+            description: document.getElementById('listingDescription').value,
+            vinNumber: document.getElementById('listingVin').value,
+            engineNumber: document.getElementById('listingEngineNo').value,
+            startingPrice: document.getElementById('listingStartPrice')?.value ? parseFloat(document.getElementById('listingStartPrice').value) : null,
+            reservePrice: document.getElementById('listingReservePrice')?.value ? parseFloat(document.getElementById('listingReservePrice').value) : null,
+            price: document.getElementById('listingPrice')?.value ? parseFloat(document.getElementById('listingPrice').value) : null,
+            duration: document.getElementById('listingDuration')?.value || null,
+            images: document.getElementById('listingImages').value.split(',').map(s => s.trim()).filter(Boolean)
+        };
+
+        try {
+            const result = await api('/api/listings', 'POST', listingData);
+            showToast('Listing published to CM!', 'info');
+            navigate('dashboard');
+            fetchMarketplace();
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    });
+}
+
+// ---------- RENDER PROFILE PAGE ----------
+function renderProfile() {
+    const main = document.getElementById('mainContent');
+    const user = app.user;
+    if (!user) return showToast('Please login first', 'error');
+
+    const avatar = user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || user.name)}&background=E30613&color=fff&size=128`;
+
+    main.innerHTML = `
+        <div style="max-width:800px;margin:0 auto;padding:1rem;background:#F5F5F7;min-height:100vh;">
+            <h2 style="color:#101010;">Your Profile</h2>
+            <div style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:1.5rem;margin-bottom:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+                <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+                    <img src="${avatar}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;">
+                    <div style="flex:1;">
+                        <p style="font-size:1.2rem;font-weight:700;margin:0;color:#101010;">${user.displayName || user.name}</p>
+                        <p style="color:#666;margin:0;">${user.email} • ${user.role}</p>
+                        <p style="color:#666;margin:0;font-size:0.9rem;">KYC Status: ${user.kycStatus || 'NONE'} ${user.canSell ? '✅ Can Sell' : ''}</p>
+                    </div>
+                </div>
+                <div style="display:flex;gap:0.5rem;margin-top:1rem;flex-wrap:wrap;">
+                    <button class="btn btn-primary" style="background:#E30613;border:none;" onclick="editProfile()">Edit Profile</button>
+                    ${user.role !== 'BUYER' && user.kycStatus !== 'VERIFIED' ? `<button class="btn btn-outline" style="border-color:#E30613;color:#E30613;" onclick="navigate('kyc')">Upgrade KYC</button>` : ''}
+                    ${user.role !== 'BUYER' ? `<button class="btn btn-outline" style="border-color:#E30613;color:#E30613;" onclick="navigate('dashboard')">Dashboard</button>` : ''}
+                </div>
+            </div>
+        </div>`;
+}
+
+// ---------- EDIT PROFILE ----------
+function editProfile() {
+    const user = app.user;
+    openModal(`
+        <span class="close-modal" onclick="closeModal()">&times;</span>
+        <h3>Edit Profile</h3>
+        <div class="form-group"><label>Display Name</label><input id="editDisplayName" value="${user.displayName || ''}" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
+        <div class="form-group"><label>Bio</label><textarea id="editBio" rows="3" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;resize:vertical;">${user.bio || ''}</textarea></div>
+        <div class="form-group"><label>Avatar URL</label><input id="editAvatar" value="${user.avatar || ''}" placeholder="https://example.com/avatar.jpg" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
+        <button class="btn btn-primary" style="width:100%;background:#E30613;border:none;" onclick="saveProfile()">Save Changes</button>
+    `);
+}
+
+async function saveProfile() {
+    const displayName = document.getElementById('editDisplayName').value;
+    const bio = document.getElementById('editBio').value;
+    const avatar = document.getElementById('editAvatar').value;
+
+    try {
+        const res = await api('/api/users/me', 'PUT', { displayName, bio, avatar });
+        app.user.displayName = displayName || app.user.name;
+        app.user.bio = bio;
+        app.user.avatar = avatar;
+        localStorage.setItem('user', JSON.stringify(app.user));
+        closeModal();
+        showToast('Profile updated successfully!', 'info');
+        renderProfile();
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+// ---------- ADMIN DASHBOARD ----------
+async function renderAdminDashboard() {
+    if (app.user?.role !== 'ADMIN') return showToast('Admin access required', 'error');
+    const main = document.getElementById('mainContent');
+    try {
+        const data = await api('/api/admin/overview');
+        main.innerHTML = `
+            <div style="max-width:1400px;margin:0 auto;background:#F5F5F7;min-height:100vh;padding:1rem;">
+                <h2 style="color:#101010;">CM ADMIN HQ</h2>
+                <p style="color:#666;">Total Users: ${data.users.length} | Listings: ${data.listings.length} | HQ WhatsApp: ${data.hqWhatsapp}</p>
+                <div style="margin-top:2rem;">
+                    <h3>Users</h3>
+                    <table style="width:100%;border-collapse:collapse;background:white;border-radius:12px;overflow:hidden;">
+                        <thead><tr><th style="padding:8px;text-align:left;">Email</th><th style="padding:8px;text-align:left;">Role</th><th style="padding:8px;text-align:left;">Action</th></tr></thead>
+                        <tbody>${data.users.map(u => `<tr><td style="padding:8px;border-bottom:1px solid #eee;">${u.email}</td><td style="padding:8px;border-bottom:1px solid #eee;">${u.role}</td><td style="padding:8px;border-bottom:1px solid #eee;">${u.role !== 'AUCTIONEER' ? `<button onclick="makeAuctioneer('${u.id}')" style="background:#E30613;color:white;border:none;padding:4px 8px;border-radius:4px;cursor:pointer;">Make Auctioneer</button>` : '✓ Auctioneer'}</td></tr>`).join('')}</tbody>
+                    </table>
+                </div>
+            </div>`;
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+async function makeAuctioneer(userId) {
+    if (!confirm('Make this user AUCTIONEER?')) return;
+    try {
+        await api('/api/admin/make-auctioneer', 'POST', { userId });
+        showToast('User promoted to Auctioneer', 'info');
+        renderAdminDashboard();
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+// ---------- DEVICE FINGERPRINT ----------
+if (typeof Fingerprint2 !== 'undefined') {
+    Fingerprint2.get(function(components) {
+        const values = components.map(component => component.value);
+        const deviceId = Fingerprint2.x64hash128(values.join(''), 31);
+        localStorage.setItem('deviceId', deviceId);
+        app.deviceId = deviceId;
+        console.log('Device fingerprint:', deviceId);
+    });
+} else {
+    console.warn('FingerprintJS2 not loaded');
+    app.deviceId = localStorage.getItem('deviceId') || 'unknown';
+}
+
+// ---------- START APP ----------
+document.addEventListener('DOMContentLoaded', () => {
+    const token = localStorage.getItem('token');
+    if (token) {
+        app.token = token;
+        const userData = localStorage.getItem('user');
+        if (userData) app.user = JSON.parse(userData);
+    }
+    initApp();
+});
+
+console.log('✅ CM Central Market app.js loaded (Legacy Auction Cleaned, Listing Only)');// ============================================================
+// ========== PART 3: SELLER PROFILE, DASHBOARD, KYC, CREATE, ADMIN, INIT
+// ============================================================
+
+// ---------- VIEW SELLER PROFILE (Public) ----------
+async function viewSellerProfile(sellerId) {
+    try {
+        const seller = await api(`/api/sellers/${sellerId}`);
+        if (!seller) return showToast('Seller not found', 'error');
+        renderSellerProfile(seller);
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+function renderSellerProfile(seller) {
+    const main = document.getElementById('mainContent');
+    const avatar = seller.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(seller.displayName || seller.name)}&background=E30613&color=fff&size=128`;
+
+    main.innerHTML = `
+        <div style="max-width:1200px;margin:0 auto;padding:1rem;background:#F5F5F7;min-height:100vh;">
+            <button onclick="navigate('marketplace')" style="background:white;border:1px solid #EAEAEA;padding:0.5rem 1rem;border-radius:8px;color:#666;cursor:pointer;margin-bottom:1rem;">← Back to Marketplace</button>
+            <div style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:1.5rem;display:flex;gap:1.5rem;flex-wrap:wrap;align-items:center;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+                <img src="${avatar}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;">
+                <div style="flex:1;">
+                    <h1 style="font-size:1.8rem;font-weight:700;margin:0;color:#101010;">${seller.displayName || seller.name}</h1>
+                    <p style="color:#666;margin:0.2rem 0;">${seller.role} • Joined ${new Date(seller.joinedDate).toLocaleDateString()} • ${seller.listings?.length || 0} listings</p>
+                    <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+                        <button style="border:1px solid #EAEAEA;padding:0.3rem 1rem;border-radius:8px;background:white;color:#101010;cursor:pointer;">Chat</button>
+                        <button style="border:1px solid #EAEAEA;padding:0.3rem 1rem;border-radius:8px;background:white;color:#666;cursor:pointer;">Report</button>
+                    </div>
+                </div>
+            </div>
+            <h2 style="font-weight:700;font-size:1.2rem;margin:1.5rem 0 1rem 0;color:#101010;">Listings from ${seller.displayName || seller.name}</h2>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.25rem;">
+                ${seller.listings && seller.listings.length > 0 ? seller.listings.map(item => renderAuctionCard(item)).join('') : `<p style="color:#666;grid-column:1/-1;text-align:center;">No active listings</p>`}
+            </div>
+        </div>
+    `;
+}
+
+// ---------- RENDER DASHBOARD (Seller Tools) ----------
+async function renderDashboard() {
+    const main = document.getElementById('mainContent');
+    if (!app.user) return showToast('Please login first', 'error');
+
+    const isSeller = app.user.role === 'INDIVIDUAL_SELLER' || app.user.role === 'AUCTIONEER';
+    // 🟢 FIX: Admin can access dashboard even if not seller
+    if (!isSeller && app.user.role !== 'ADMIN') {
+        main.innerHTML = `
+            <div style="max-width:800px;margin:0 auto;padding:2rem;text-align:center;background:#F5F5F7;min-height:100vh;">
+                <h2 style="color:#101010;">Access Denied</h2>
+                <p style="color:#666;">This page is for Individual Sellers and Auctioneers only.</p>
+                <button class="btn btn-primary" style="background:#E30613;border:none;" onclick="navigate('marketplace')">Go to Marketplace</button>
+            </div>`;
+        return;
+    }
+
+    // 🟢 FIX: Admin bypass KYC warning
+    if (app.user.kycStatus !== 'VERIFIED' && !app.user.canSell && app.user.role !== 'ADMIN') {
+        main.innerHTML = `
+            <div style="max-width:700px;margin:0 auto;padding:2rem;background:#F5F5F7;min-height:100vh;">
+                <div style="background:#FFF8E1;border:1px solid #FFC107;padding:1.5rem;border-radius:12px;">
+                    <h3 style="color:#FF9800;">⚠️ You need to verify to sell</h3>
+                    <p style="color:#666;margin-bottom:1rem;">Upgrade your KYC to start listing items. This helps build trust with buyers.</p>
+                    <button class="btn btn-primary" style="background:#E30613;border:none;" onclick="navigate('kyc')">Upgrade KYC</button>
+                </div>
+            </div>`;
+        return;
+    }
+
+    try {
+        const stats = await api('/api/seller/dashboard');
+        const allListings = await api('/api/my-listings');
+        // Fix dashboard filter bug: check both sellerId and seller.id
+        const myActive = allListings.filter(l => l.sellerId === app.user.id || l.seller?.id === app.user.id);
+
+        main.innerHTML = `
+            <div style="max-width:1200px;margin:0 auto;padding:1rem;background:#F5F5F7;min-height:100vh;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
+                    <div style="display:flex;align-items:center;gap:12px;">
+                        <img src="/logo.jpeg" style="width:40px;height:40px;border-radius:8px;object-fit:contain;">
+                        <div>
+                            <h2 style="margin:0;font-weight:900;color:#101010;">Welcome, ${app.user.displayName || app.user.name}</h2>
+                            <p style="margin:0;color:#666;font-size:0.9rem;">CM Central Market Dashboard</p>
+                        </div>
+                    </div>
+                    <button onclick="navigate('createListing')" style="background:#E30613;color:white;border:none;padding:0.7rem 1.2rem;border-radius:8px;font-weight:800;cursor:pointer;">+ Sell Vehicle</button>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:2rem;">
+                    <div class="dash-stat"><p class="label">Active Listings</p><p class="value">${myActive.filter(l=>l.status==='ACTIVE').length}</p></div>
+                    <div class="dash-stat"><p class="label">Total Views</p><p class="value">${myActive.reduce((s,l)=>s+(l.views||0),0)}</p></div>
+                    <div class="dash-stat"><p class="label">Bids Received</p><p class="value">${myActive.reduce((s,l)=>s+(l.bids?.length||0),0)}</p></div>
+                    <div class="dash-stat"><p class="label">Sold</p><p class="value">${myActive.filter(l=>l.status==='SOLD').length}</p></div>
+                </div>
+
+                <h3 style="margin-bottom:1rem;color:#101010;">My Listings</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.25rem;">
+                    ${myActive.length > 0 ? myActive.map(item => renderAuctionCard(item)).join('') : `<p style="color:#666;grid-column:1/-1;background:white;padding:2rem;border-radius:12px;text-align:center;border:1px dashed #EAEAEA;">No active listings. Start selling!</p>`}
+                </div>
+            </div>`;
+    } catch (err) {
+        showToast(err.message, 'error');
+        main.innerHTML = `<p style="color:#666;text-align:center;padding:2rem;">Error loading dashboard.</p>`;
+    }
+}
+
+// ---------- RENDER KYC UPGRADE PAGE ----------
+function renderKYC() {
+    const main = document.getElementById('mainContent');
+    main.innerHTML = `
+        <div style="max-width:600px;margin:0 auto;padding:2rem;background:#F5F5F7;min-height:100vh;">
+            <h2 style="color:#101010;">Upgrade KYC</h2>
+            <p style="color:#666;margin-bottom:1.5rem;">Upload your documents to become a verified seller. This builds trust with buyers.</p>
+            <form id="kycForm" style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+                <div class="form-group">
+                    <label style="color:#666;">ID Document (Front)</label>
+                    <div class="drag-area" id="kycIdDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#F5F5F7;">
+                        <i class="fas fa-id-card" style="font-size:2rem;color:#E30613;"></i>
+                        <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Upload ID photo</p>
+                        <input type="file" id="kycIdFile" accept="image/*" hidden>
+                    </div>
+                    <div id="kycIdPreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
+                </div>
+                <div class="form-group">
+                    <label style="color:#666;">Proof of Address</label>
+                    <div class="drag-area" id="kycAddressDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#F5F5F7;">
+                        <i class="fas fa-home" style="font-size:2rem;color:#E30613;"></i>
+                        <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Upload utility bill or bank statement</p>
+                        <input type="file" id="kycAddressFile" accept="image/*,.pdf" hidden>
+                    </div>
+                    <div id="kycAddressPreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
+                </div>
+                <div class="form-group">
+                    <label style="color:#666;">Selfie with ID</label>
+                    <div class="drag-area" id="kycSelfieDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#F5F5F7;">
+                        <i class="fas fa-user" style="font-size:2rem;color:#E30613;"></i>
+                        <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Take a selfie holding your ID</p>
+                        <input type="file" id="kycSelfieFile" accept="image/*" hidden>
+                    </div>
+                    <div id="kycSelfiePreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;background:#E30613;border:none;">Submit for Verification</button>
+            </form>
+        </div>`;
+
+    setupKycFileDrop('kycIdDrop', 'kycIdFile', 'kycIdPreview');
+    setupKycFileDrop('kycAddressDrop', 'kycAddressFile', 'kycAddressPreview');
+    setupKycFileDrop('kycSelfieDrop', 'kycSelfieFile', 'kycSelfiePreview');
+
+    document.getElementById('kycForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        showToast('KYC submitted! Our team will review your documents.', 'info');
+        navigate('dashboard');
+    });
+}
+
+function setupKycFileDrop(dropId, inputId, previewId) {
+    const drop = document.getElementById(dropId);
+    const input = document.getElementById(inputId);
+    const preview = document.getElementById(previewId);
+    if (!drop || !input || !preview) return;
+    drop.addEventListener('click', () => input.click());
+    drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.style.borderColor = '#E30613'; });
+    drop.addEventListener('dragleave', () => { drop.style.borderColor = '#EAEAEA'; });
+    drop.addEventListener('drop', (e) => {
+        e.preventDefault();
+        drop.style.borderColor = '#EAEAEA';
+        const files = e.dataTransfer.files;
+        if (files.length) {
+            input.files = files;
+            preview.innerHTML = `<span style="color:#E30613;">✅ ${files[0].name}</span>`;
+        }
+    });
+    input.addEventListener('change', () => {
+        if (input.files.length) {
+            preview.innerHTML = `<span style="color:#E30613;">✅ ${input.files[0].name}</span>`;
+        }
+    });
+}
+
+// ---------- RENDER CREATE LISTING (JSON submission) ----------
+function renderCreateListing() {
+    const main = document.getElementById('mainContent');
+    // 🟢 FIX: Admin can access create listing even if canSell false
+    if (!app.user || (!app.user.canSell && app.user.role !== 'ADMIN')) {
         main.innerHTML = `
             <div style="max-width:600px;margin:0 auto;padding:2rem;text-align:center;background:#F5F5F7;min-height:100vh;">
                 <h2 style="color:#101010;">Access Denied</h2>
