@@ -121,6 +121,9 @@ function navigate(page) {
         case 'listingDetail':
             // handled by viewListingDetail
             break;
+        case 'adminDashboard':
+            renderAdminDashboard();
+            break;
         default:
             renderMarketplace();
     }
