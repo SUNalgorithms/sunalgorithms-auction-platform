@@ -1,7 +1,7 @@
 // ============================================================
-// server.js - CM Central Market - FIXED LAUNCH VERSION
-// All fixes applied: cron include bids, private uploads, socket admin check,
-// JWT no fallback, phone regex, KYC level fix, DNA private, etc.
+// server.js - CM Central Market - FINAL LAUNCH VERSION
+// Fixed: middleware order (API routes first), cron include bids,
+// private uploads, socket admin check, JWT no fallback, phone regex
 // ============================================================
 
 require('dotenv').config();
@@ -142,8 +142,6 @@ function generateToken(user) {
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
-// Do NOT expose uploads folder publicly – we'll serve private files via routes
-app.use(express.static(path.join(__dirname, 'public')));
 
 const bidLimiter = rateLimit({ windowMs: 1000, max: 5, message: 'Too many bids, slow down' });
 
@@ -155,7 +153,7 @@ if (!fs.existsSync(PRIVATE_UPLOAD_DIR)) {
     fs.mkdirSync(PRIVATE_UPLOAD_DIR, { recursive: true });
 }
 
-// Disk upload for verification files (now private)
+// Disk upload for verification files (private)
 const diskUpload = multer({
     storage: multer.diskStorage({
         destination: (req, file, cb) => {
@@ -193,9 +191,10 @@ function adminOnly(req, res, next) {
 }
 
 // ============================================================
-// ========== AUTH ============================================
+// ========== API ROUTES – MUST COME FIRST ===================
 // ============================================================
 
+// ---------- AUTH ----------
 app.post('/api/register', memoryUpload.fields([{ name: 'idPhoto', maxCount: 1 }, { name: 'selfie', maxCount: 1 }]), async (req, res) => {
     const { name, displayName, idNumber, email, password, phone, role } = req.body;
     const deviceId = req.headers['x-device-id'] || 'unknown';
@@ -277,25 +276,20 @@ app.put('/api/users/me', authenticate, async (req, res) => {
     res.json({ message: 'Profile updated', user });
 });
 
-// ============================================================
-// ========== KYC UPGRADE ======================================
-// ============================================================
-
+// ---------- KYC ----------
 app.post('/api/kyc/upgrade', authenticate, async (req, res) => {
     const { targetLevel, bankAccount, bankCode } = req.body;
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!user) return res.status(404).json({ error: 'User not found' });
     if (targetLevel <= user.kycLevel) return res.status(400).json({ error: 'Target level must be higher' });
 
-    // Level 4: Require bank details, but we don't auto-verify – we just store for manual review
-    // For now, we still upgrade, but we log and could add a bank check later.
     if (targetLevel === 4) {
         if (!bankAccount || !bankCode) return res.status(400).json({ error: 'Bank details required' });
         await prisma.user.update({
             where: { id: req.user.id },
             data: {
                 kycLevel: 4,
-                kycData: { ...(user.kycData || {}), bankAccount, bankCode, bankVerified: false } // not auto-verified
+                kycData: { ...(user.kycData || {}), bankAccount, bankCode, bankVerified: false }
             }
         });
     }
@@ -305,14 +299,12 @@ app.post('/api/kyc/upgrade', authenticate, async (req, res) => {
             where: { id: req.user.id },
             data: {
                 kycLevel: 5,
-                kycData: { ...(user.kycData || {}), millionRandVerified: false } // manual review
+                kycData: { ...(user.kycData || {}), millionRandVerified: false }
             }
         });
     }
 
-    // For sellers, if they reach level 4 (or higher) we set canSell = true, but we might want admin approval.
     if (targetLevel >= 4 && (user.role === 'INDIVIDUAL_SELLER' || user.role === 'AUCTIONEER')) {
-        // In production, you'd wait for admin approval. For now, we auto-approve but with a flag.
         await prisma.user.update({
             where: { id: req.user.id },
             data: {
@@ -327,10 +319,7 @@ app.post('/api/kyc/upgrade', authenticate, async (req, res) => {
     res.json({ token, kycLevel: updated.kycLevel, kycStatus: updated.kycStatus, canSell: updated.canSell, badge: getBadge(updated.kycLevel) });
 });
 
-// ============================================================
-// ========== MARKETPLACE & LISTINGS ==========================
-// ============================================================
-
+// ---------- MARKETPLACE ----------
 app.get('/api/marketplace', async (req, res) => {
     const { filter, category, search, verifiedOnly } = req.query;
     const where = { status: 'ACTIVE' };
@@ -402,7 +391,7 @@ app.get('/api/listings/:id', async (req, res) => {
     });
 });
 
-// CREATE LISTING (with file uploads)
+// ---------- CREATE LISTING ----------
 app.post('/api/listings', authenticate, memoryUpload.fields([
     { name: 'mainImage', maxCount: 1 },
     { name: 'compartmentImages', maxCount: 5 },
@@ -417,13 +406,11 @@ app.post('/api/listings', authenticate, memoryUpload.fields([
         const data = req.body;
         const files = req.files;
 
-        // Phone number check (improved regex)
         const phoneRegex = /(\d[\s-]?){10,}/;
         if (phoneRegex.test(data.title + (data.description || ''))) {
             return res.status(400).json({ error: 'Remove phone number. Buyers contact via CM Agent only.' });
         }
 
-        // Main image required
         let mainImageUrl = null;
         if (files.mainImage && files.mainImage[0]) {
             mainImageUrl = await uploadToR2(files.mainImage[0], 'listings/main');
@@ -488,18 +475,16 @@ app.post('/api/listings', authenticate, memoryUpload.fields([
     }
 });
 
-// PLACE BID (with KYC check for buyers)
+// ---------- BID ----------
 app.post('/api/listings/:id/bid', authenticate, async (req, res) => {
     const { amount } = req.body;
     const listing = await prisma.listing.findUnique({ where: { id: req.params.id } });
     if (!listing || listing.listingType !== 'AUCTION' || listing.status !== 'ACTIVE') return res.status(400).json({ error: 'Auction not active' });
 
-    // Check if user is the seller (self-bid block)
     if (listing.sellerId === req.user.id) {
         return res.status(403).json({ error: 'You cannot bid on your own listing' });
     }
 
-    // Require at least KYC Level 1 for bidding
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!user || user.kycLevel < 1) {
         return res.status(403).json({ error: 'You must complete KYC Level 1 to bid' });
@@ -515,12 +500,11 @@ app.post('/api/listings/:id/bid', authenticate, async (req, res) => {
     res.json({ bid, currentBid: parseFloat(amount) });
 });
 
-// VIEW COUNTER (with IP limit – simple)
+// ---------- VIEW COUNTER ----------
 const viewCounts = {};
 app.post('/api/listings/:id/view', async (req, res) => {
     const ip = req.ip || req.connection.remoteAddress;
     const key = `${req.params.id}:${ip}`;
-    // Limit: one view per IP per listing per 60 seconds
     if (viewCounts[key] && viewCounts[key] > Date.now() - 60000) {
         return res.json({ ok: true, cached: true });
     }
@@ -529,10 +513,7 @@ app.post('/api/listings/:id/view', async (req, res) => {
     res.json({ ok: true });
 });
 
-// ============================================================
-// ========== SELLER PROFILE & DASHBOARD ======================
-// ============================================================
-
+// ---------- SELLER PROFILE ----------
 app.get('/api/sellers/:sellerId', async (req, res) => {
     const seller = await prisma.user.findUnique({
         where: { id: req.params.sellerId },
@@ -597,98 +578,13 @@ app.get('/api/my-listings', authenticate, async (req, res) => {
     res.json(listings);
 });
 
-// ============================================================
-// ========== GHOST BIDDER RECOVERY ===========================
-// ============================================================
-
-async function captureGhostBidders(listingId) {
-    const listing = await prisma.listing.findUnique({ where: { id: listingId }, include: { bids: true } });
-    if (!listing || !listing.bids) return;
-    const finalPrice = listing.finalPrice || listing.currentBid || 0;
-
-    for (const bid of listing.bids) {
-        if (bid.amount >= finalPrice * 0.8 && bid.bidderId !== listing.winnerId) {
-            const user = await prisma.user.findUnique({ where: { id: bid.bidderId } });
-            if (user) {
-                await prisma.ghostLead.create({
-                    data: {
-                        listingId,
-                        sellerId: listing.sellerId,
-                        userId: user.id,
-                        name: user.displayName || user.name,
-                        phone: user.phone,
-                        email: user.email,
-                        maxBid: bid.amount,
-                        bidCount: listing.bids.filter(b => b.bidderId === user.id).length,
-                        category: listing.category,
-                        title: listing.title,
-                        finalPrice
-                    }
-                });
-            }
-        }
-    }
-    await sendGhostRecovery(listingId);
-}
-
-async function sendGhostRecovery(listingId) {
-    const listing = await prisma.listing.findUnique({ where: { id: listingId }, include: { seller: true } });
-    if (!listing) return;
-    const ghosts = await prisma.ghostLead.findMany({ where: { listingId } });
-    if (!ghosts.length) return;
-
-    if (listing.seller.email) {
-        const ghostListHtml = ghosts.map(g => `<li>${g.name} - Max Bid R${g.maxBid.toLocaleString()}</li>`).join('');
-        await sendEmail(listing.seller.email, `Ghost Leads for ${listing.title}`, `<p>Here are the bidders who didn't win:</p><ul>${ghostListHtml}</ul>`);
-    }
-    for (const g of ghosts) {
-        if (g.phone) {
-            const msg = `You missed out on ${listing.title} (final R${listing.finalPrice?.toLocaleString() || listing.currentBid?.toLocaleString()}). The seller may have similar items. Contact CM HQ!`;
-            await sendSms(formatPhone(g.phone), msg);
-        }
-        if (g.email) await sendEmail(g.email, `Another chance: ${listing.title}`, `Hi ${g.name}, you were a top bidder. The seller might have other deals. Check them out!`);
-    }
-}
-
+// ---------- GHOST LEADS ----------
 app.get('/api/seller/ghost-leads', authenticate, async (req, res) => {
     const ghosts = await prisma.ghostLead.findMany({ where: { sellerId: req.user.id }, orderBy: { capturedAt: 'desc' } });
     res.json(ghosts);
 });
 
-// ============================================================
-// ========== DNA REPORT ======================================
-// ============================================================
-
-async function generateAuctionDNA(listingId) {
-    const listing = await prisma.listing.findUnique({ where: { id: listingId }, include: { seller: true, bids: true } });
-    if (!listing) return;
-    const doc = new PDFDocument({ margin: 50 });
-    // Store in private directory
-    const filePath = path.join(PRIVATE_UPLOAD_DIR, `listing-dna-${listingId}.pdf`);
-    const stream = fs.createWriteStream(filePath);
-    doc.pipe(stream);
-    doc.fontSize(20).text(`Listing DNA Report: ${listing.title}`, { align: 'center' });
-    doc.moveDown();
-    doc.fontSize(12).text(`Seller: ${listing.seller?.displayName || listing.seller?.name}`);
-    doc.text(`Final Price: R${listing.finalPrice?.toLocaleString() || listing.currentBid?.toLocaleString() || 'N/A'}`);
-    doc.text(`Total Bids: ${listing.bids?.length || 0}`);
-    doc.moveDown();
-    if (listing.bids.length > 0) {
-        const chartRenderer = new ChartJSNodeCanvas({ width: 800, height: 300 });
-        const config = { type: 'bar', data: { labels: listing.bids.map(b => new Date(b.createdAt).toLocaleTimeString()), datasets: [{ label: 'Bid Amount', data: listing.bids.map(b => b.amount), backgroundColor: 'rgba(227,6,19,0.6)' }] }, options: { scales: { y: { beginAtZero: true } } } };
-        const buffer = await chartRenderer.renderToBuffer(config);
-        doc.image(buffer, { fit: [700, 300], align: 'center' });
-    }
-    doc.end();
-    stream.on('finish', async () => {
-        if (listing.seller.email) {
-            const fileBuffer = fs.readFileSync(filePath);
-            const attachment = { content: fileBuffer.toString('base64'), filename: `listing-dna-${listingId}.pdf`, type: 'application/pdf' };
-            await sendEmail(listing.seller.email, `Listing DNA Report: ${listing.title}`, 'Your report is attached.', [attachment]);
-        }
-    });
-}
-
+// ---------- DNA ----------
 app.get('/api/seller/dna/:listingId', authenticate, async (req, res) => {
     const listing = await prisma.listing.findUnique({ where: { id: req.params.listingId } });
     if (!listing || listing.sellerId !== req.user.id) return res.status(404).json({ error: 'Not found' });
@@ -697,10 +593,7 @@ app.get('/api/seller/dna/:listingId', authenticate, async (req, res) => {
     res.download(filePath);
 });
 
-// ============================================================
-// ========== RATINGS =========================================
-// ============================================================
-
+// ---------- RATINGS ----------
 app.post('/api/rate-seller', authenticate, async (req, res) => {
     const { sellerId, listingId, stars, comment, tags } = req.body;
     const rating = await prisma.rating.create({ data: { buyerId: req.user.id, sellerId, listingId, stars: parseInt(stars) || 5, comment: comment || null, tags: tags || [] } });
@@ -712,10 +605,7 @@ app.get('/api/seller/ratings/:sellerId', async (req, res) => {
     res.json(ratings);
 });
 
-// ============================================================
-// ========== ADMIN ===========================================
-// ============================================================
-
+// ---------- ADMIN ----------
 app.get('/api/admin/overview', authenticate, adminOnly, async (req, res) => {
     const users = await prisma.user.findMany({
         orderBy: { createdAt: 'desc' },
@@ -773,10 +663,29 @@ app.post('/api/admin/end-listing/:id', authenticate, adminOnly, async (req, res)
     res.json(listing);
 });
 
-// ============================================================
-// ========== UPLOAD VERIFICATION FILES (private) =============
-// ============================================================
+app.get('/api/admin/reports', authenticate, adminOnly, async (req, res) => {
+    const reports = await prisma.report.findMany({ where: { status: 'PENDING' }, include: { reporter: true, listing: true } });
+    res.json(reports);
+});
 
+app.post('/api/admin/report/:id/resolve', authenticate, adminOnly, async (req, res) => {
+    const report = await prisma.report.update({ where: { id: req.params.id }, data: { status: 'RESOLVED' } });
+    res.json({ message: 'Report resolved', report });
+});
+
+app.post('/api/admin/report/:id/dismiss', authenticate, adminOnly, async (req, res) => {
+    const report = await prisma.report.update({ where: { id: req.params.id }, data: { status: 'DISMISSED' } });
+    res.json({ message: 'Report dismissed', report });
+});
+
+app.post('/api/admin/ban-user', authenticate, adminOnly, async (req, res) => {
+    const { userId, reason } = req.body;
+    await prisma.user.update({ where: { id: userId }, data: { status: 'BANNED_FRAUD' } });
+    await prisma.report.updateMany({ where: { buyerId: userId, status: 'PENDING' }, data: { status: 'RESOLVED' } });
+    res.json({ message: 'User banned', reason });
+});
+
+// ---------- UPLOAD VERIFICATION ----------
 app.post('/api/upload/verification', authenticate, diskUpload.fields([
     { name: 'idDocument', maxCount: 1 },
     { name: 'licenseDisk', maxCount: 1 },
@@ -796,18 +705,157 @@ app.post('/api/upload/verification', authenticate, diskUpload.fields([
     }
 });
 
-// Serve private files only if authenticated and owner
+// ---------- PRIVATE FILES (authenticated) ----------
 app.get('/private-uploads/:filename', authenticate, async (req, res) => {
     const filename = req.params.filename;
-    // You could add extra checks: only allow if user owns the related listing, etc.
-    // For simplicity, we just serve if authenticated (but better to check ownership)
     const filePath = path.join(PRIVATE_UPLOAD_DIR, filename);
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
     res.sendFile(filePath);
 });
 
+// ---------- SELLER REQUIREMENTS ----------
+app.post('/api/seller/requirements', authenticate, async (req, res) => {
+    const { depositAmount, minKycLevel, requiredDocs, servicesOffered, ppraReg, bbbeeLevel, saiaMember } = req.body;
+    const user = await prisma.user.update({
+        where: { id: req.user.id },
+        data: {
+            sellerRequirements: {
+                depositAmount: depositAmount || 0,
+                minKycLevel: minKycLevel || 1,
+                requiredDocs: requiredDocs || ['ID'],
+                servicesOffered: servicesOffered || [],
+                ppraReg: ppraReg || null,
+                bbbeeLevel: bbbeeLevel || null,
+                saiaMember: saiaMember || false
+            }
+        }
+    });
+    res.json({ message: 'Requirements updated', user });
+});
+
+// ---------- MARK PAID ----------
+app.post('/api/listings/:id/paid', authenticate, async (req, res) => {
+    const listing = await prisma.listing.findUnique({ where: { id: req.params.id } });
+    if (!listing) return res.status(404).json({ error: 'Listing not found' });
+    if (listing.winnerId !== req.user.id) return res.status(403).json({ error: 'Only winner can mark as paid' });
+    await prisma.listing.update({ where: { id: listing.id }, data: { status: 'PAID' } });
+    res.json({ message: 'Listing marked as paid' });
+});
+
+// ---------- SELLER ANALYTICS ----------
+app.get('/api/seller/analytics/:listingId', authenticate, async (req, res) => {
+    const listing = await prisma.listing.findUnique({ where: { id: req.params.listingId } });
+    if (!listing || listing.sellerId !== req.user.id) return res.status(404).json({ error: 'Listing not found' });
+    res.json({ listingId: listing.id, title: listing.title, views: listing.views, bids: await prisma.bid.count({ where: { listingId: listing.id } }), currentBid: listing.currentBid, status: listing.status });
+});
+
 // ============================================================
-// ========== TIMED LISTING CRON (FIXED with bids) ============
+// ========== STATIC FILES – AFTER API ROUTES =================
+// ============================================================
+app.use(express.static(path.join(__dirname, 'public')));
+
+// ============================================================
+// ========== CATCH-ALL FALLBACK – SPA ROUTING ================
+// ============================================================
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// ============================================================
+// ========== GHOST BIDDER RECOVERY (helper functions) ========
+// ============================================================
+
+async function captureGhostBidders(listingId) {
+    const listing = await prisma.listing.findUnique({ where: { id: listingId }, include: { bids: true } });
+    if (!listing || !listing.bids) return;
+    const finalPrice = listing.finalPrice || listing.currentBid || 0;
+
+    for (const bid of listing.bids) {
+        if (bid.amount >= finalPrice * 0.8 && bid.bidderId !== listing.winnerId) {
+            const user = await prisma.user.findUnique({ where: { id: bid.bidderId } });
+            if (user) {
+                await prisma.ghostLead.create({
+                    data: {
+                        listingId,
+                        sellerId: listing.sellerId,
+                        userId: user.id,
+                        name: user.displayName || user.name,
+                        phone: user.phone,
+                        email: user.email,
+                        maxBid: bid.amount,
+                        bidCount: listing.bids.filter(b => b.bidderId === user.id).length,
+                        category: listing.category,
+                        title: listing.title,
+                        finalPrice
+                    }
+                });
+            }
+        }
+    }
+    await sendGhostRecovery(listingId);
+}
+
+async function sendGhostRecovery(listingId) {
+    const listing = await prisma.listing.findUnique({ where: { id: listingId }, include: { seller: true } });
+    if (!listing) return;
+    const ghosts = await prisma.ghostLead.findMany({ where: { listingId } });
+    if (!ghosts.length) return;
+
+    if (listing.seller.email) {
+        const ghostListHtml = ghosts.map(g => `<li>${g.name} - Max Bid R${g.maxBid.toLocaleString()}</li>`).join('');
+        await sendEmail(listing.seller.email, `Ghost Leads for ${listing.title}`, `<p>Here are the bidders who didn't win:</p><ul>${ghostListHtml}</ul>`);
+    }
+    for (const g of ghosts) {
+        if (g.phone) {
+            const msg = `You missed out on ${listing.title} (final R${listing.finalPrice?.toLocaleString() || listing.currentBid?.toLocaleString()}). The seller may have similar items. Contact CM HQ!`;
+            await sendSms(formatPhone(g.phone), msg);
+        }
+        if (g.email) await sendEmail(g.email, `Another chance: ${listing.title}`, `Hi ${g.name}, you were a top bidder. The seller might have other deals. Check them out!`);
+    }
+}
+
+// ============================================================
+// ========== DNA REPORT GENERATOR ============================
+// ============================================================
+
+async function generateAuctionDNA(listingId) {
+    const listing = await prisma.listing.findUnique({ where: { id: listingId }, include: { seller: true, bids: true } });
+    if (!listing) return;
+    const doc = new PDFDocument({ margin: 50 });
+    const filePath = path.join(PRIVATE_UPLOAD_DIR, `listing-dna-${listingId}.pdf`);
+    const stream = fs.createWriteStream(filePath);
+    doc.pipe(stream);
+    doc.fontSize(20).text(`Listing DNA Report: ${listing.title}`, { align: 'center' });
+    doc.moveDown();
+    doc.fontSize(12).text(`Seller: ${listing.seller?.displayName || listing.seller?.name}`);
+    doc.text(`Final Price: R${listing.finalPrice?.toLocaleString() || listing.currentBid?.toLocaleString() || 'N/A'}`);
+    doc.text(`Total Bids: ${listing.bids?.length || 0}`);
+    doc.moveDown();
+    if (listing.bids.length > 0) {
+        const chartRenderer = new ChartJSNodeCanvas({ width: 800, height: 300 });
+        const config = {
+            type: 'bar',
+            data: {
+                labels: listing.bids.map(b => new Date(b.createdAt).toLocaleTimeString()),
+                datasets: [{ label: 'Bid Amount', data: listing.bids.map(b => b.amount), backgroundColor: 'rgba(227,6,19,0.6)' }]
+            },
+            options: { scales: { y: { beginAtZero: true } } }
+        };
+        const buffer = await chartRenderer.renderToBuffer(config);
+        doc.image(buffer, { fit: [700, 300], align: 'center' });
+    }
+    doc.end();
+    stream.on('finish', async () => {
+        if (listing.seller.email) {
+            const fileBuffer = fs.readFileSync(filePath);
+            const attachment = { content: fileBuffer.toString('base64'), filename: `listing-dna-${listingId}.pdf`, type: 'application/pdf' };
+            await sendEmail(listing.seller.email, `Listing DNA Report: ${listing.title}`, 'Your report is attached.', [attachment]);
+        }
+    });
+}
+
+// ============================================================
+// ========== TIMED LISTING CRON ==============================
 // ============================================================
 
 function startTimedListingCron() {
@@ -817,7 +865,7 @@ function startTimedListingCron() {
             const now = new Date();
             const listings = await prisma.listing.findMany({
                 where: { listingType: 'AUCTION', status: 'ACTIVE', endTime: { not: null } },
-                include: { bids: true, seller: true }  // CRITICAL FIX
+                include: { bids: true, seller: true }
             });
             for (const listing of listings) {
                 const endMs = new Date(listing.endTime).getTime();
@@ -871,7 +919,7 @@ function startTimedListingCron() {
 }
 
 // ============================================================
-// ========== SOCKET.IO (with admin check for soldLot) ========
+// ========== SOCKET.IO =======================================
 // ============================================================
 
 io.use((socket, next) => {
@@ -883,7 +931,6 @@ io.use((socket, next) => {
     } catch (e) { return next(new Error('Invalid token')); }
 });
 
-// In-memory rate limiting for socket bids
 const socketBidLimits = {};
 
 io.on('connection', (socket) => {
@@ -892,7 +939,6 @@ io.on('connection', (socket) => {
     socket.on('leaveListing', () => { socket.rooms.clear(); });
 
     socket.on('handRaise', async (data) => {
-        // Rate limit: max 5 bids per 10 seconds per socket
         const now = Date.now();
         if (!socketBidLimits[socket.id]) socketBidLimits[socket.id] = [];
         const timestamps = socketBidLimits[socket.id].filter(t => t > now - 10000);
@@ -906,7 +952,6 @@ io.on('connection', (socket) => {
         const { listingId, amount } = data;
         const user = await prisma.user.findUnique({ where: { id: socket.user.id } });
         if (!user || !listingId || !amount) return;
-        // Additional check: prevent self-bid
         const listing = await prisma.listing.findUnique({ where: { id: listingId } });
         if (listing && listing.sellerId === socket.user.id) {
             socket.emit('error', { message: 'You cannot bid on your own listing' });
@@ -944,71 +989,8 @@ io.on('connection', (socket) => {
 });
 
 // ============================================================
-// ========== OTHER ROUTES ====================================
+// ========== SERVER START ====================================
 // ============================================================
-
-app.post('/api/seller/requirements', authenticate, async (req, res) => {
-    const { depositAmount, minKycLevel, requiredDocs, servicesOffered, ppraReg, bbbeeLevel, saiaMember } = req.body;
-    const user = await prisma.user.update({
-        where: { id: req.user.id },
-        data: {
-            sellerRequirements: {
-                depositAmount: depositAmount || 0,
-                minKycLevel: minKycLevel || 1,
-                requiredDocs: requiredDocs || ['ID'],
-                servicesOffered: servicesOffered || [],
-                ppraReg: ppraReg || null,
-                bbbeeLevel: bbbeeLevel || null,
-                saiaMember: saiaMember || false
-            }
-        }
-    });
-    res.json({ message: 'Requirements updated', user });
-});
-
-app.post('/api/listings/:id/paid', authenticate, async (req, res) => {
-    const listing = await prisma.listing.findUnique({ where: { id: req.params.id } });
-    if (!listing) return res.status(404).json({ error: 'Listing not found' });
-    if (listing.winnerId !== req.user.id) return res.status(403).json({ error: 'Only winner can mark as paid' });
-    await prisma.listing.update({ where: { id: listing.id }, data: { status: 'PAID' } });
-    res.json({ message: 'Listing marked as paid' });
-});
-
-app.get('/api/admin/reports', authenticate, adminOnly, async (req, res) => {
-    const reports = await prisma.report.findMany({ where: { status: 'PENDING' }, include: { reporter: true, listing: true } });
-    res.json(reports);
-});
-
-app.post('/api/admin/report/:id/resolve', authenticate, adminOnly, async (req, res) => {
-    const report = await prisma.report.update({ where: { id: req.params.id }, data: { status: 'RESOLVED' } });
-    res.json({ message: 'Report resolved', report });
-});
-
-app.post('/api/admin/report/:id/dismiss', authenticate, adminOnly, async (req, res) => {
-    const report = await prisma.report.update({ where: { id: req.params.id }, data: { status: 'DISMISSED' } });
-    res.json({ message: 'Report dismissed', report });
-});
-
-app.post('/api/admin/ban-user', authenticate, adminOnly, async (req, res) => {
-    const { userId, reason } = req.body;
-    await prisma.user.update({ where: { id: userId }, data: { status: 'BANNED_FRAUD' } });
-    await prisma.report.updateMany({ where: { buyerId: userId, status: 'PENDING' }, data: { status: 'RESOLVED' } });
-    res.json({ message: 'User banned', reason });
-});
-
-app.get('/api/seller/analytics/:listingId', authenticate, async (req, res) => {
-    const listing = await prisma.listing.findUnique({ where: { id: req.params.listingId } });
-    if (!listing || listing.sellerId !== req.user.id) return res.status(404).json({ error: 'Listing not found' });
-    res.json({ listingId: listing.id, title: listing.title, views: listing.views, bids: await prisma.bid.count({ where: { listingId: listing.id } }), currentBid: listing.currentBid, status: listing.status });
-});
-
-// ============================================================
-// ========== FALLBACK ROUTE & SERVER START ===================
-// ============================================================
-
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
 
 server.listen(PORT, () => {
     console.log(`✅ CM Central Market running on port ${PORT}`);
