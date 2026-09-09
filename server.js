@@ -146,8 +146,11 @@ const diskUpload = multer({
     limits: { fileSize: 15 * 1024 * 1024 }
 });
 
-// Memory upload for registering KYC (we'll also save to R2 eventually)
-const memoryUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+// Memory upload for listing images and video (multipart)
+const memoryUpload = multer({ 
+    storage: multer.memoryStorage(), 
+    limits: { fileSize: 50 * 1024 * 1024 } // 50MB for video
+});
 
 // Auth middleware
 function authenticate(req, res, next) {
@@ -280,12 +283,18 @@ app.get('/api/marketplace', async (req, res) => {
     if (search) where.title = { contains: search, mode: 'insensitive' };
     if (verifiedOnly === 'true') where.isVerified = true;
 
-    const listings = await prisma.listing.findMany({ where, include: { bids: true, seller: { select: { id: true, name: true, displayName: true } } }, orderBy: { createdAt: 'desc' } });
+    const listings = await prisma.listing.findMany({
+        where,
+        include: { bids: true, seller: { select: { id: true, name: true, displayName: true } } },
+        orderBy: { createdAt: 'desc' }
+    });
     const safe = listings.map(l => ({
         id: l.id,
         title: l.title,
         price: l.price || l.currentBid || l.startingPrice,
-        images: l.images,
+        mainImageUrl: l.mainImageUrl,
+        imageUrls: l.imageUrls || [],
+        images: l.images || [],
         category: l.category,
         condition: l.condition,
         listingType: l.listingType,
@@ -305,14 +314,20 @@ app.get('/api/marketplace', async (req, res) => {
 
 // GET single listing (safe, no contacts)
 app.get('/api/listings/:id', async (req, res) => {
-    const l = await prisma.listing.findUnique({ where: { id: req.params.id }, include: { bids: true, seller: { select: { id: true, name: true, displayName: true } } } });
+    const l = await prisma.listing.findUnique({
+        where: { id: req.params.id },
+        include: { bids: true, seller: { select: { id: true, name: true, displayName: true } } }
+    });
     if (!l) return res.status(404).json({ error: 'Listing not found' });
     const cleanDesc = (l.description || '').replace(/\d{10,}/g, '[contact hidden]');
     res.json({
         id: l.id,
         title: l.title,
         description: cleanDesc,
-        images: l.images,
+        mainImageUrl: l.mainImageUrl,
+        imageUrls: l.imageUrls || [],
+        odometerVideoUrl: l.odometerVideoUrl,
+        images: l.images || [],
         price: l.price || l.currentBid || l.startingPrice,
         category: l.category,
         condition: l.condition,
@@ -331,33 +346,63 @@ app.get('/api/listings/:id', async (req, res) => {
     });
 });
 
-// CREATE LISTING (seller) - JSON only
-app.post('/api/listings', authenticate, async (req, res) => {
-    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-    if (!user || (!user.canSell && user.role !== 'ADMIN')) {
-        return res.status(403).json({ error: 'You must be KYC verified to sell' });
-    }
+// CREATE LISTING with file uploads
+app.post('/api/listings', authenticate, memoryUpload.fields([
+    { name: 'mainImage', maxCount: 1 },
+    { name: 'compartmentImages', maxCount: 5 },
+    { name: 'odometerVideo', maxCount: 1 }
+]), async (req, res) => {
+    try {
+        const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+        if (!user || (!user.canSell && user.role !== 'ADMIN')) {
+            return res.status(403).json({ error: 'You must be KYC verified to sell' });
+        }
 
-    const data = req.body;
-    if (/\d{10,}/.test(data.title + (data.description || ''))) return res.status(400).json({ error: 'Remove phone number. Buyers contact via CM Agent only.' });
+        const data = req.body;
+        const files = req.files;
 
-    const imageUrls = data.images || [];
+        // Check for phone numbers in title/description
+        if (/\d{10,}/.test(data.title + (data.description || ''))) {
+            return res.status(400).json({ error: 'Remove phone number. Buyers contact via CM Agent only.' });
+        }
 
-    let endTime = null;
-    if (data.listingType === 'AUCTION') {
-        const days = parseInt(data.duration) || 7;
-        endTime = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
-    }
+        // Upload main image (required)
+        let mainImageUrl = null;
+        if (files.mainImage && files.mainImage[0]) {
+            mainImageUrl = await uploadToR2(files.mainImage[0], 'listings/main');
+        } else {
+            return res.status(400).json({ error: 'Main product image is required.' });
+        }
 
-    const newListing = await prisma.listing.create({
-        data: {
+        // Upload compartment images (up to 5)
+        const imageUrls = [];
+        if (files.compartmentImages) {
+            for (const file of files.compartmentImages.slice(0, 5)) {
+                const url = await uploadToR2(file, 'listings/compartments');
+                imageUrls.push(url);
+            }
+        }
+
+        // Upload odometer video (optional but recommended)
+        let odometerVideoUrl = null;
+        if (files.odometerVideo && files.odometerVideo[0]) {
+            odometerVideoUrl = await uploadToR2(files.odometerVideo[0], 'listings/videos');
+        }
+
+        // Build listing data
+        let endTime = null;
+        if (data.listingType === 'AUCTION') {
+            const days = parseInt(data.duration) || 7;
+            endTime = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+        }
+
+        const listingData = {
             sellerId: req.user.id,
             sellerRole: user.role || 'SELLER',
             title: data.title,
             description: data.description || '',
             category: data.category || 'Other',
             condition: data.condition || 'USED',
-            images: imageUrls,
             listingType: data.listingType || 'FIXED_PRICE',
             startingPrice: data.startingPrice ? parseFloat(data.startingPrice) : null,
             reservePrice: data.reservePrice ? parseFloat(data.reservePrice) : null,
@@ -374,10 +419,21 @@ app.post('/api/listings', authenticate, async (req, res) => {
             fuelType: data.fuelType || null,
             vinNumber: data.vinNumber || null,
             engineNumber: data.engineNumber || null,
+            // New image fields
+            mainImageUrl: mainImageUrl,
+            imageUrls: imageUrls,
+            odometerVideoUrl: odometerVideoUrl,
+            // Legacy support
+            images: [mainImageUrl, ...imageUrls].filter(Boolean),
             status: 'ACTIVE'
-        }
-    });
-    res.status(201).json({ id: newListing.id, message: 'Listing created' });
+        };
+
+        const newListing = await prisma.listing.create({ data: listingData });
+        res.status(201).json({ id: newListing.id, message: 'Listing created successfully' });
+    } catch (err) {
+        console.error('Create listing error:', err);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // PLACE BID
@@ -433,7 +489,9 @@ app.get('/api/sellers/:sellerId', async (req, res) => {
         listings: seller.listings.map(l => ({
             id: l.id,
             title: l.title,
-            images: l.images,
+            mainImageUrl: l.mainImageUrl,
+            imageUrls: l.imageUrls || [],
+            images: l.images || [],
             listingType: l.listingType,
             currentBid: l.currentBid,
             price: l.price,
@@ -593,7 +651,7 @@ app.post('/api/admin/make-auctioneer', authenticate, adminOnly, async (req, res)
     const user = await prisma.user.update({ where: { id: userId }, data: { role: 'AUCTIONEER', isAuctioneerApproved: true } });
     res.json(user);
 });
-// ========== ADMIN: KYC APPROVAL & USER BLOCK ==========
+
 app.post('/api/admin/approve-kyc/:id', authenticate, adminOnly, async (req, res) => {
     const user = await prisma.user.update({ where: { id: req.params.id }, data: { kycStatus: 'VERIFIED', canSell: true } });
     res.json(user);

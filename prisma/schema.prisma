@@ -20,7 +20,7 @@ model User {
   avatar                String?
   bio                   String?
   
-  // 👇 NEW FIELDS FOR KYC PHOTOS
+  // KYC PHOTOS
   idPhotoUrl            String?
   selfieUrl             String?
   
@@ -35,6 +35,7 @@ model User {
   sellerProfile         Json?
   favorites             Json?
 
+  // Relations
   listings              Listing[]       @relation("UserListings")
   bids                  Bid[]           @relation("UserBids")
   currentBids           Listing[]       @relation("CurrentBidder")
@@ -58,9 +59,23 @@ model Listing {
   description           String?
   category              String          @default("Other")
   condition             String          @default("USED")
-  images                Json?
-  listingType           String
+  
+  // ===== IMAGE UPLOAD SYSTEM =====
+  // MAIN IMAGE (First/cover photo - required)
+  mainImageUrl          String?         // Primary product image
+  
+  // COMPARTMENT IMAGES (Up to 5 additional photos)
+  imageUrls             String[]        // Array of up to 5 image URLs
+  
+  // ODOMETER VIDEO (10-second proof - required for verification)
+  odometerVideoUrl      String?         // Video proof of mileage
+  
+  // Legacy support (kept for backward compatibility)
+  images                Json?           // Original images field
+  
+  listingType           String          // "AUCTION" or "FIXED_PRICE"
 
+  // Auction fields
   startingPrice         Float?
   reservePrice          Float?
   currentBid            Float?
@@ -72,10 +87,12 @@ model Listing {
   isLast10Min           Boolean         @default(false)
   increment             Int             @default(1000)
 
+  // Fixed Price fields
   price                 Float?
   stock                 Int             @default(1)
   isNegotiable          Boolean         @default(false)
 
+  // Status & Tracking
   status                String          @default("ACTIVE")
   views                 Int             @default(0)
   winnerId              String?
@@ -83,6 +100,7 @@ model Listing {
   paymentDeadline       DateTime?
   requiredKycLevel      Int             @default(1)
 
+  // Vehicle Specifications
   year                  Int?
   kilometers            Int?
   color                 String?
@@ -90,17 +108,19 @@ model Listing {
   transmission          String?
   fuelType              String?
 
-  vinNumber             String?
-  engineNumber          String?
-  idDocumentUrl         String?
-  licenseDiskUrl        String?
-  odometerVideoUrl      String?
+  // ===== VERIFICATION FIELDS =====
+  vinNumber             String?         // VIN for verification
+  engineNumber          String?         // Engine number
+  idDocumentUrl         String?         // Seller ID document
+  licenseDiskUrl        String?         // License disk photo
   isVerified            Boolean         @default(false)
   verificationStatus    String          @default("PENDING")
 
+  // Timestamps
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
 
+  // Relations
   seller                User            @relation("UserListings", fields: [sellerId], references: [id], onDelete: Cascade)
   currentBidder         User?           @relation("CurrentBidder", fields: [currentBidderId], references: [id])
   winner                User?           @relation("WinnerAuctions", fields: [winnerId], references: [id])
@@ -109,6 +129,7 @@ model Listing {
   ghostLeads            GhostLead[]
   reports               Report[]        @relation("ReportedListing")
 
+  // Indexes
   @@index([sellerId])
   @@index([category])
   @@index([listingType])
