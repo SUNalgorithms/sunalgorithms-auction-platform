@@ -7,281 +7,672 @@
     <link rel="icon" href="/logo.jpeg">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
-        body { font-family: Arial, sans-serif; background:#F5F5F7; padding:1rem; margin:0; }
-        .container { max-width:1300px; margin:0 auto; }
-        .header { background:white; padding:1.5rem; border-radius:12px; border:1px solid #EAEAEA; display:flex; align-items:center; gap:12px; margin-bottom:1rem; }
-        .header img { width:50px; height:50px; border-radius:10px; }
-        .header h1 { margin:0; font-size:1.5rem; }
-        .header p { margin:0; color:#666; font-size:0.9rem; }
-        .card { background:white; padding:1rem; border-radius:12px; margin-bottom:1rem; border:1px solid #EAEAEA; box-shadow:0 2px 8px rgba(0,0,0,0.05); }
-        .stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:1rem; margin-bottom:1.5rem; }
-        .stat { background:white; padding:1rem; border-radius:12px; text-align:center; border:1px solid #EAEAEA; }
-        .stat h2 { margin:0; font-size:2rem; }
+        /* ----- RESET & BASE ----- */
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+            background:#F5F5F7;
+            padding:1rem;
+            margin:0;
+            color:#101010;
+        }
+        .container { max-width:1400px; margin:0 auto; }
+
+        /* ----- TOP BAR (Back + Logout) ----- */
+        .topbar {
+            background:white;
+            border:1px solid #EAEAEA;
+            border-radius:12px;
+            padding:0.75rem 1.5rem;
+            margin-bottom:1rem;
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            flex-wrap:wrap;
+            gap:0.75rem;
+            box-shadow:0 2px 8px rgba(0,0,0,0.05);
+        }
+        .topbar .brand {
+            display:flex;
+            align-items:center;
+            gap:10px;
+        }
+        .topbar .brand img {
+            width:40px;
+            height:40px;
+            border-radius:8px;
+            object-fit:contain;
+        }
+        .topbar .brand h1 {
+            font-size:1.2rem;
+            font-weight:900;
+            color:#101010;
+            margin:0;
+        }
+        .topbar .actions {
+            display:flex;
+            gap:0.5rem;
+            flex-wrap:wrap;
+        }
+        .topbar .actions button {
+            padding:0.4rem 1rem;
+            border:none;
+            border-radius:8px;
+            font-weight:700;
+            cursor:pointer;
+            transition:0.2s;
+            font-size:0.85rem;
+        }
+        .btn-back { background:#F5F5F7; color:#101010; border:1px solid #EAEAEA; }
+        .btn-back:hover { background:#EAEAEA; }
+        .btn-logout { background:#E30613; color:white; }
+        .btn-logout:hover { background:#c00510; }
+
+        /* ----- CARDS ----- */
+        .card {
+            background:white;
+            padding:1.25rem;
+            border-radius:12px;
+            margin-bottom:1rem;
+            border:1px solid #EAEAEA;
+            box-shadow:0 2px 8px rgba(0,0,0,0.05);
+        }
+        .card h3 { margin-bottom:0.8rem; color:#101010; }
+
+        /* ----- STATS ----- */
+        .stats {
+            display:grid;
+            grid-template-columns:repeat(auto-fit, minmax(140px,1fr));
+            gap:1rem;
+            margin-bottom:1.5rem;
+        }
+        .stat {
+            background:white;
+            padding:1rem;
+            border-radius:12px;
+            text-align:center;
+            border:1px solid #EAEAEA;
+        }
+        .stat h2 { font-size:2rem; margin:0; }
         .stat p { margin:0; color:#666; font-size:0.85rem; }
-        table { width:100%; border-collapse:collapse; }
-        th, td { padding:8px; text-align:left; border-bottom:1px solid #eee; font-size:0.85rem; }
-        .btn { padding:6px 10px; border:none; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.8rem; }
+
+        /* ----- TABS ----- */
+        .tab-bar {
+            display:flex;
+            gap:0.5rem;
+            flex-wrap:wrap;
+            margin-bottom:1rem;
+        }
+        .tab-bar button {
+            padding:0.6rem 1.4rem;
+            border:none;
+            border-radius:8px;
+            font-weight:700;
+            cursor:pointer;
+            background:#101010;
+            color:white;
+            transition:0.2s;
+            font-size:0.9rem;
+        }
+        .tab-bar button.active {
+            background:#E30613;
+        }
+        .tab-bar button:hover {
+            opacity:0.85;
+        }
+
+        /* ----- TABLE ----- */
+        .table-wrap {
+            overflow-x:auto;
+        }
+        table {
+            width:100%;
+            border-collapse:collapse;
+            font-size:0.85rem;
+        }
+        th {
+            text-align:left;
+            padding:10px 8px;
+            background:#F5F5F7;
+            border-bottom:2px solid #EAEAEA;
+        }
+        td {
+            padding:8px;
+            border-bottom:1px solid #EAEAEA;
+            vertical-align:middle;
+        }
+        .photo-box {
+            display:flex;
+            gap:6px;
+            align-items:center;
+            flex-wrap:wrap;
+        }
+        .photo-box img {
+            width:60px;
+            height:60px;
+            object-fit:cover;
+            border-radius:6px;
+            border:1px solid #EAEAEA;
+        }
+
+        /* ----- BUTTONS ----- */
+        .btn {
+            padding:5px 10px;
+            border:none;
+            border-radius:6px;
+            cursor:pointer;
+            font-weight:700;
+            font-size:0.75rem;
+            transition:0.2s;
+        }
         .btn-red { background:#E30613; color:white; }
+        .btn-red:hover { background:#c00510; }
         .btn-black { background:#101010; color:white; }
+        .btn-black:hover { background:#333; }
         .btn-green { background:#28a745; color:white; }
+        .btn-green:hover { background:#218838; }
         .btn-blue { background:#4dabf7; color:white; }
+        .btn-blue:hover { background:#3b8fd4; }
         .btn-orange { background:#ff9800; color:white; }
-        .btn-yellow { background:#ffc107; color:black; }
-        .btn-small { padding:4px 8px; font-size:0.7rem; }
-        .photo-box { display:flex; gap:8px; align-items:center; }
-        .photo-box img { width:60px; height:60px; object-fit:cover; border-radius:8px; border:1px solid #ddd; }
-        .tab { display:flex; gap:0.5rem; margin-bottom:1rem; flex-wrap:wrap; }
-        .tab button { padding:0.6rem 1.2rem; border:none; border-radius:8px; font-weight:700; cursor:pointer; background:#101010; color:white; }
-        .tab button.active { background:#E30613; }
-        .hidden { display:none; }
+        .btn-orange:hover { background:#e68900; }
+        .btn-outline { background:transparent; border:1px solid #EAEAEA; color:#101010; }
+        .btn-outline:hover { background:#F5F5F7; }
+        .btn-sm { padding:3px 8px; font-size:0.7rem; }
+
+        .hidden { display:none !important; }
+
+        /* ----- RESPONSIVE ----- */
+        @media(max-width:768px) {
+            .stats { grid-template-columns:1fr 1fr; }
+            .tab-bar button { flex:1; text-align:center; font-size:0.8rem; padding:0.5rem 0.8rem; }
+            table { font-size:0.75rem; }
+            td, th { padding:5px 4px; }
+            .photo-box img { width:40px; height:40px; }
+            .topbar .brand h1 { font-size:1rem; }
+        }
+        @media(max-width:480px) {
+            .stats { grid-template-columns:1fr; }
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
+
+<div class="container">
+
+    <!-- ===== TOP BAR ===== -->
+    <div class="topbar">
+        <div class="brand">
             <img src="/logo.jpeg" alt="CM">
-            <div>
-                <h1>CM Central Market - Admin HQ</h1>
-                <p>Control Center for Users, KYC, Listings & Auctioneers</p>
+            <h1>CM Admin HQ</h1>
+        </div>
+        <div class="actions">
+            <button class="btn-back" onclick="location.href='/'"><i class="fas fa-arrow-left"></i> Back to Marketplace</button>
+            <button class="btn-logout" onclick="logoutAdmin()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+        </div>
+    </div>
+
+    <!-- ===== TABS ===== -->
+    <div class="tab-bar">
+        <button class="active" data-tab="dashboard" onclick="switchTab('dashboard')">📊 Dashboard</button>
+        <button data-tab="users" onclick="switchTab('users')">👥 Users</button>
+        <button data-tab="kyc" onclick="switchTab('kyc')">📋 KYC Pending</button>
+        <button data-tab="listings" onclick="switchTab('listings')">🚗 Listings</button>
+        <button data-tab="bids" onclick="switchTab('bids')">💰 Bids</button>
+        <button data-tab="reports" onclick="switchTab('reports')">⚠️ Reports</button>
+    </div>
+
+    <!-- ===== TAB CONTENT ===== -->
+    <div id="dashboard" class="tab-content">
+        <div id="stats" class="stats">Loading...</div>
+        <div class="card">
+            <h3>Quick Actions</h3>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                <button class="btn btn-black" onclick="switchTab('kyc')">Review KYC</button>
+                <button class="btn btn-black" onclick="switchTab('reports')">View Reports</button>
             </div>
         </div>
+    </div>
 
-        <div class="tab">
-            <button class="active" onclick="showTab('dashboard')">Dashboard</button>
-            <button onclick="showTab('users')">Users</button>
-            <button onclick="showTab('kyc')">KYC Pending</button>
-            <button onclick="showTab('listings')">Listings</button>
-            <button onclick="showTab('bids')">Bids</button>
-        </div>
-
-        <div id="dashboard" class="tab-content">
-            <div id="stats" class="stats">Loading...</div>
-        </div>
-
-        <div id="users" class="tab-content hidden">
-            <div class="card">
-                <h3>All Users</h3>
+    <div id="users" class="tab-content hidden">
+        <div class="card">
+            <h3>All Users</h3>
+            <div style="margin-bottom:0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap;">
+                <input id="userSearch" placeholder="Search email..." style="flex:1;min-width:180px;padding:0.5rem 0.8rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;font-size:0.9rem;outline:none;">
+                <button class="btn btn-black" onclick="filterUsers()">Search</button>
+                <button class="btn btn-outline" onclick="loadAdminData()">Refresh</button>
+            </div>
+            <div class="table-wrap">
                 <table>
-                    <thead><tr><th>Email</th><th>Role</th><th>KYC Status</th><th>Action</th></tr></thead>
+                    <thead><tr><th>Email</th><th>Role</th><th>KYC</th><th>Status</th><th>Actions</th></tr></thead>
                     <tbody id="usersTable"></tbody>
                 </table>
             </div>
         </div>
+    </div>
 
-        <div id="kyc" class="tab-content hidden">
-            <div class="card">
-                <h3>KYC Verification Requests</h3>
+    <div id="kyc" class="tab-content hidden">
+        <div class="card">
+            <h3>KYC Verification Requests</h3>
+            <p style="color:#666;font-size:0.9rem;margin-bottom:0.75rem;">Only users who have uploaded ID and selfie appear here.</p>
+            <div class="table-wrap">
                 <table>
                     <thead><tr><th>Email</th><th>ID Photo</th><th>Selfie</th><th>Status</th><th>Actions</th></tr></thead>
                     <tbody id="kycTable"></tbody>
                 </table>
             </div>
         </div>
+    </div>
 
-        <div id="listings" class="tab-content hidden">
-            <div class="card">
-                <h3>All Listings</h3>
+    <div id="listings" class="tab-content hidden">
+        <div class="card">
+            <h3>All Listings</h3>
+            <div class="table-wrap">
                 <table>
                     <thead><tr><th>Title</th><th>Price</th><th>Type</th><th>Verified</th><th>Status</th><th>Actions</th></tr></thead>
                     <tbody id="listingsTable"></tbody>
                 </table>
             </div>
         </div>
+    </div>
 
-        <div id="bids" class="tab-content hidden">
-            <div class="card">
-                <h3>Recent Bids</h3>
+    <div id="bids" class="tab-content hidden">
+        <div class="card">
+            <h3>Recent Bids</h3>
+            <div class="table-wrap">
                 <table>
-                    <thead><tr><th>Bidder ID</th><th>Listing ID</th><th>Amount</th><th>Time</th></tr></thead>
+                    <thead><tr><th>Bidder</th><th>Listing</th><th>Amount</th><th>Time</th></tr></thead>
                     <tbody id="bidsTable"></tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <script>
-        const token = localStorage.getItem('token');
+    <div id="reports" class="tab-content hidden">
+        <div class="card">
+            <h3>Pending Reports</h3>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Buyer</th><th>Seller</th><th>Listing</th><th>Amount</th><th>Actions</th></tr></thead>
+                    <tbody id="reportsTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ============================================================
+    // HELPERS
+    // ============================================================
+
+    // ---------- HTML ESCAPE (XSS protection) ----------
+    function esc(s) {
+        if (!s) return '';
+        return String(s).replace(/[&<>"']/g, function(m) {
+            var map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+            return map[m];
+        });
+    }
+
+    // ---------- TOAST ----------
+    function showToast(msg, type) {
+        var t = document.getElementById('toast') || (function() {
+            var el = document.createElement('div');
+            el.id = 'toast';
+            el.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#101010;color:white;padding:0.8rem 1.5rem;border-radius:9999px;font-weight:600;z-index:9999;display:none;max-width:90%;';
+            document.body.appendChild(el);
+            return el;
+        })();
+        t.textContent = msg;
+        t.style.display = 'block';
+        t.style.borderColor = type === 'error' ? '#ff4444' : '#00ff88';
+        t.style.background = type === 'error' ? 'rgba(255,0,0,0.2)' : 'rgba(0,255,136,0.1)';
+        clearTimeout(t._hide);
+        t._hide = setTimeout(function(){ t.style.display = 'none'; }, 4000);
+    }
+
+    // ---------- GET TOKEN ----------
+    function getToken() {
+        return localStorage.getItem('token');
+    }
+
+    // ---------- API CALL ----------
+    async function adminApi(endpoint, method, body) {
+        var token = getToken();
+        if (!token) { showToast('Please login first', 'error'); return null; }
+        var opts = {
+            method: method || 'GET',
+            headers: { 'Authorization': 'Bearer ' + token }
+        };
+        if (body) {
+            if (body instanceof FormData) {
+                opts.body = body;
+            } else {
+                opts.headers['Content-Type'] = 'application/json';
+                opts.body = JSON.stringify(body);
+            }
+        }
+        try {
+            var res = await fetch(endpoint, opts);
+            var data = await res.json();
+            if (!res.ok) {
+                showToast(data.error || 'Request failed', 'error');
+                return null;
+            }
+            return data;
+        } catch (e) {
+            showToast(e.message, 'error');
+            return null;
+        }
+    }
+
+    // ---------- LOGOUT ----------
+    function logoutAdmin() {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/';
+    }
+
+    // ============================================================
+    // STATE
+    // ============================================================
+    var allData = null;
+    var currentTab = 'dashboard';
+
+    // ============================================================
+    // TAB SWITCHING
+    // ============================================================
+    function switchTab(tabId) {
+        currentTab = tabId;
+        // Hide all tab contents
+        document.querySelectorAll('.tab-content').forEach(function(el) {
+            el.classList.add('hidden');
+        });
+        var target = document.getElementById(tabId);
+        if (target) target.classList.remove('hidden');
+
+        // Update active button
+        document.querySelectorAll('.tab-bar button').forEach(function(btn) {
+            btn.classList.remove('active');
+            if (btn.dataset.tab === tabId) btn.classList.add('active');
+        });
+
+        // Render content
+        renderTab(tabId);
+    }
+
+    function renderTab(tabId) {
+        if (!allData) return;
+        switch (tabId) {
+            case 'dashboard': renderStats(); break;
+            case 'users': renderUsers(); break;
+            case 'kyc': renderKyc(); break;
+            case 'listings': renderListings(); break;
+            case 'bids': renderBids(); break;
+            case 'reports': renderReports(); break;
+        }
+    }
+
+    // ============================================================
+    // LOAD DATA
+    // ============================================================
+    async function loadAdminData() {
+        var token = getToken();
         if (!token) {
             document.body.innerHTML = '<h2 style="text-align:center;margin-top:4rem;">Please login first.</h2>';
-        } else {
-            loadAdmin();
+            return;
         }
+        var data = await adminApi('/api/admin/overview');
+        if (!data) return;
+        allData = data;
+        renderTab(currentTab);
+    }
 
-        function showTab(tabId) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-            document.getElementById(tabId).classList.remove('hidden');
-            document.querySelectorAll('.tab button').forEach(btn => btn.classList.remove('active'));
-            // find the clicked button and add active class (simple way)
-        }
-
-        async function loadAdmin() {
-            try {
-                const res = await fetch('/api/admin/overview', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                const data = await res.json();
-                if (data.error) {
-                    document.body.innerHTML = `<h2 style="text-align:center;margin-top:4rem;">${data.error}</h2>`;
-                    return;
-                }
-
-                // Stats
-                document.getElementById('stats').innerHTML = `
-                    <div class="stat"><h2>${data.users.length}</h2><p>Total Users</p></div>
-                    <div class="stat"><h2>${data.listings.length}</h2><p>Total Listings</p></div>
-                    <div class="stat"><h2>${data.bids.length}</h2><p>Total Bids</p></div>
-                    <div class="stat"><h2>${data.hqWhatsapp}</h2><p>HQ WhatsApp</p></div>
-                `;
-
-                // Users Table
-                document.getElementById('usersTable').innerHTML = data.users.map(u => `
-                    <tr>
-                        <td>${u.email}</td>
-                        <td>${u.role}</td>
-                        <td>${u.kycStatus} ${u.canSell ? '✅ Can Sell' : ''}</td>
-                        <td>
-                            ${u.role !== 'AUCTIONEER' ? `<button class="btn btn-red btn-small" onclick="makeAuctioneer('${u.id}')">Make Auctioneer</button>` : ''}
-                            ${u.status !== 'BANNED_FRAUD' ? `<button class="btn btn-orange btn-small" onclick="blockUser('${u.id}')">Block</button>` : `<button class="btn btn-green btn-small" onclick="unblockUser('${u.id}')">Unblock</button>`}
-                        </td>
-                    </tr>
-                `).join('');
-
-                // KYC Pending (filter users with kycStatus NOT VERIFIED)
-                const kycPending = data.users.filter(u => u.kycStatus !== 'VERIFIED');
-                document.getElementById('kycTable').innerHTML = kycPending.map(u => `
-                    <tr>
-                        <td>${u.email}</td>
-                        <td class="photo-box">${u.idPhotoUrl ? `<img src="${u.idPhotoUrl}" onerror="this.style.display='none'">` : 'No ID'}</td>
-                        <td class="photo-box">${u.selfieUrl ? `<img src="${u.selfieUrl}" onerror="this.style.display='none'">` : 'No Selfie'}</td>
-                        <td>${u.kycStatus}</td>
-                        <td>
-                            <button class="btn btn-green btn-small" onclick="approveKyc('${u.id}')">Approve</button>
-                            <button class="btn btn-red btn-small" onclick="rejectKyc('${u.id}')">Reject</button>
-                        </td>
-                    </tr>
-                `).join('');
-
-                // Listings Table
-                document.getElementById('listingsTable').innerHTML = data.listings.map(l => `
-                    <tr>
-                        <td>${l.title}</td>
-                        <td>R${l.price || l.currentBid || l.startingPrice || 0}</td>
-                        <td>${l.listingType || 'FIXED_PRICE'}</td>
-                        <td>${l.isVerified ? '<span style="color:#28a745;font-weight:bold;">✓ GREEN</span>' : '<span style="color:#666;">GREY</span>'}</td>
-                        <td>${l.status || 'ACTIVE'}</td>
-                        <td>
-                            ${!l.isVerified ? `<button class="btn btn-green btn-small" onclick="verifyListing('${l.id}')">Verify</button>` : ''}
-                            ${l.status === 'ACTIVE' ? `<button class="btn btn-black btn-small" onclick="endListing('${l.id}')">End</button>` : ''}
-                        </td>
-                    </tr>
-                `).join('');
-
-                // Bids Table
-                document.getElementById('bidsTable').innerHTML = data.bids.map(b => `
-                    <tr>
-                        <td>${b.bidderId}</td>
-                        <td>${b.listingId}</td>
-                        <td>R${b.amount}</td>
-                        <td>${new Date(b.createdAt).toLocaleString()}</td>
-                    </tr>
-                `).join('');
-
-            } catch (err) {
-                console.error(err);
-                document.body.innerHTML = '<h2 style="text-align:center;margin-top:4rem;">Error loading admin panel.</h2>';
-            }
-        }
-
-        async function makeAuctioneer(userId) {
-            if (!confirm('Make this user an AUCTIONEER?')) return;
-            try {
-                await fetch('/api/admin/make-auctioneer', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify({ userId })
-                });
-                alert('User promoted to Auctioneer!');
-                loadAdmin();
-            } catch (err) {
-                alert('Failed to promote user.');
-            }
-        }
-
-        async function approveKyc(userId) {
-            if (!confirm('Approve KYC for this user?')) return;
-            try {
-                await fetch(`/api/admin/approve-kyc/${userId}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
-                alert('KYC Approved!');
-                loadAdmin();
-            } catch (err) {
-                alert('Failed to approve KYC.');
-            }
-        }
-
-        async function rejectKyc(userId) {
-            if (!confirm('Reject KYC for this user?')) return;
-            try {
-                await fetch(`/api/admin/reject-kyc/${userId}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
-                alert('KYC Rejected!');
-                loadAdmin();
-            } catch (err) {
-                alert('Failed to reject KYC.');
-            }
-        }
-
-        async function blockUser(userId) {
-            if (!confirm('Block this user?')) return;
-            try {
-                await fetch(`/api/admin/block-user/${userId}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
-                alert('User blocked!');
-                loadAdmin();
-            } catch (err) {
-                alert('Failed to block user.');
-            }
-        }
-
-        async function unblockUser(userId) {
-            if (!confirm('Unblock this user?')) return;
-            try {
-                await fetch(`/api/admin/unblock-user/${userId}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
-                alert('User unblocked!');
-                loadAdmin();
-            } catch (err) {
-                alert('Failed to unblock user.');
-            }
-        }
-
-        async function verifyListing(listingId) {
-            if (!confirm('Verify this listing as CM Verified?')) return;
-            try {
-                await fetch(`/api/admin/verify-listing/${listingId}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
-                alert('Listing Verified!');
-                loadAdmin();
-            } catch (err) {
-                alert('Failed to verify listing.');
-            }
-        }
-
-        async function endListing(listingId) {
-            if (!confirm('End this listing?')) return;
-            try {
-                await fetch(`/api/admin/end-listing/${listingId}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
-                alert('Listing Ended!');
-                loadAdmin();
-            } catch (err) {
-                alert('Failed to end listing.');
-            }
-        }
-
-        // Setup tab buttons
-        document.querySelectorAll('.tab button').forEach(btn => {
-            btn.addEventListener('click', function() {
-                document.querySelectorAll('.tab button').forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-                const tabId = this.textContent.trim().toLowerCase();
-                showTab(tabId);
-            });
+    // ============================================================
+    // RENDER: STATS
+    // ============================================================
+    function renderStats() {
+        if (!allData) return;
+        var statsHtml = '';
+        var items = [
+            { label: 'Total Users', value: allData.users.length },
+            { label: 'Total Listings', value: allData.listings.length },
+            { label: 'Total Bids', value: allData.totalBids || allData.bids.length },
+            { label: 'HQ WhatsApp', value: allData.hqWhatsapp || 'Not set' }
+        ];
+        items.forEach(function(item) {
+            statsHtml += '<div class="stat"><h2>' + esc(item.value) + '</h2><p>' + esc(item.label) + '</p></div>';
         });
-    </script>
+        document.getElementById('stats').innerHTML = statsHtml;
+    }
+
+    // ============================================================
+    // RENDER: USERS
+    // ============================================================
+    function renderUsers() {
+        if (!allData) return;
+        var search = (document.getElementById('userSearch')?.value || '').toLowerCase();
+        var users = allData.users.filter(function(u) {
+            return u.email.toLowerCase().includes(search);
+        });
+
+        var html = users.map(function(u) {
+            var isAdmin = u.role === 'ADMIN';
+            var isAuctioneer = u.role === 'AUCTIONEER';
+            var isBanned = u.status === 'BANNED_FRAUD';
+            var roleDisplay = esc(u.role);
+            if (isAdmin) roleDisplay += ' ⭐';
+            var kycDisplay = esc(u.kycStatus || 'NONE');
+            if (u.canSell) kycDisplay += ' ✅';
+            var statusDisplay = isBanned ? '🚫 Banned' : '✅ Active';
+
+            var actionBtns = '';
+            if (!isAdmin) {
+                if (!isAuctioneer) {
+                    actionBtns += '<button class="btn btn-black btn-sm" onclick="makeAuctioneer(\'' + u.id + '\')">Make Auctioneer</button> ';
+                } else {
+                    actionBtns += '<span style="color:#28a745;">✓ Auctioneer</span> ';
+                }
+                if (!isBanned) {
+                    actionBtns += '<button class="btn btn-orange btn-sm" onclick="blockUser(\'' + u.id + '\')">Block</button>';
+                } else {
+                    actionBtns += '<button class="btn btn-green btn-sm" onclick="unblockUser(\'' + u.id + '\')">Unblock</button>';
+                }
+            } else {
+                actionBtns = '👑 Admin';
+            }
+
+            return '<tr>' +
+                '<td>' + esc(u.email) + '</td>' +
+                '<td>' + roleDisplay + '</td>' +
+                '<td>' + kycDisplay + '</td>' +
+                '<td>' + statusDisplay + '</td>' +
+                '<td>' + actionBtns + '</td>' +
+                '</tr>';
+        }).join('');
+
+        if (!html) html = '<tr><td colspan="5" style="text-align:center;color:#888;">No users found</td></tr>';
+        document.getElementById('usersTable').innerHTML = html;
+    }
+
+    function filterUsers() { renderUsers(); }
+
+    // ============================================================
+    // RENDER: KYC PENDING (only users with ID photo + not verified)
+    // ============================================================
+    function renderKyc() {
+        if (!allData) return;
+        var pending = allData.users.filter(function(u) {
+            return u.idPhotoUrl && u.kycStatus !== 'VERIFIED';
+        });
+
+        var html = pending.map(function(u) {
+            var idPhoto = u.idPhotoUrl ? '<button class="btn btn-blue btn-sm" onclick="window.open(\'' + esc(u.idPhotoUrl) + '\',\'_blank\')">📷 View ID</button>' : 'No ID';
+            var selfie = u.selfieUrl ? '<button class="btn btn-blue btn-sm" onclick="window.open(\'' + esc(u.selfieUrl) + '\',\'_blank\')">📷 View Selfie</button>' : 'No Selfie';
+
+            return '<tr>' +
+                '<td>' + esc(u.email) + '</td>' +
+                '<td>' + idPhoto + '</td>' +
+                '<td>' + selfie + '</td>' +
+                '<td>' + esc(u.kycStatus || 'NONE') + '</td>' +
+                '<td>' +
+                    '<button class="btn btn-green btn-sm" onclick="approveKyc(\'' + u.id + '\')">Approve</button> ' +
+                    '<button class="btn btn-red btn-sm" onclick="rejectKyc(\'' + u.id + '\')">Reject</button>' +
+                '</td>' +
+                '</tr>';
+        }).join('');
+
+        if (!html) html = '<tr><td colspan="5" style="text-align:center;color:#888;">No pending KYC requests</td></tr>';
+        document.getElementById('kycTable').innerHTML = html;
+    }
+
+    // ============================================================
+    // RENDER: LISTINGS
+    // ============================================================
+    function renderListings() {
+        if (!allData) return;
+        var html = allData.listings.map(function(l) {
+            var verified = l.isVerified ? '<span style="color:#28a745;font-weight:bold;">✓ GREEN</span>' : '<span style="color:#888;">GREY</span>';
+            var price = 'R' + (l.price || l.currentBid || l.startingPrice || 0).toLocaleString();
+            var status = esc(l.status || 'ACTIVE');
+            var actions = '';
+            if (!l.isVerified) {
+                actions += '<button class="btn btn-green btn-sm" onclick="verifyListing(\'' + l.id + '\')">Verify</button> ';
+            }
+            if (l.status === 'ACTIVE') {
+                actions += '<button class="btn btn-black btn-sm" onclick="endListing(\'' + l.id + '\')">End</button>';
+            }
+            if (!actions) actions = '—';
+
+            return '<tr>' +
+                '<td>' + esc(l.title) + '</td>' +
+                '<td>' + price + '</td>' +
+                '<td>' + esc(l.listingType || 'FIXED_PRICE') + '</td>' +
+                '<td>' + verified + '</td>' +
+                '<td>' + status + '</td>' +
+                '<td>' + actions + '</td>' +
+                '</tr>';
+        }).join('');
+
+        if (!html) html = '<tr><td colspan="6" style="text-align:center;color:#888;">No listings</td></tr>';
+        document.getElementById('listingsTable').innerHTML = html;
+    }
+
+    // ============================================================
+    // RENDER: BIDS
+    // ============================================================
+    function renderBids() {
+        if (!allData) return;
+        var bids = allData.bids || [];
+        var html = bids.map(function(b) {
+            return '<tr>' +
+                '<td>' + esc(b.bidderId || '?') + '</td>' +
+                '<td>' + esc(b.listingId || '?') + '</td>' +
+                '<td>R' + Number(b.amount || 0).toLocaleString() + '</td>' +
+                '<td>' + (b.createdAt ? new Date(b.createdAt).toLocaleString() : '—') + '</td>' +
+                '</tr>';
+        }).join('');
+
+        if (!html) html = '<tr><td colspan="4" style="text-align:center;color:#888;">No bids</td></tr>';
+        document.getElementById('bidsTable').innerHTML = html;
+    }
+
+    // ============================================================
+    // RENDER: REPORTS
+    // ============================================================
+    function renderReports() {
+        if (!allData) return;
+        // Reports not in overview, we need to fetch separately
+        adminApi('/api/admin/reports').then(function(data) {
+            if (!data) return;
+            var html = data.map(function(r) {
+                return '<tr>' +
+                    '<td>' + esc(r.buyerName || r.buyerId || '?') + '</td>' +
+                    '<td>' + esc(r.sellerName || r.sellerId || '?') + '</td>' +
+                    '<td>' + esc(r.listingTitle || r.listingId || '?') + '</td>' +
+                    '<td>R' + Number(r.amount || 0).toLocaleString() + '</td>' +
+                    '<td>' +
+                        '<button class="btn btn-green btn-sm" onclick="resolveReport(\'' + r.id + '\')">Resolve</button> ' +
+                        '<button class="btn btn-outline btn-sm" onclick="dismissReport(\'' + r.id + '\')">Dismiss</button>' +
+                    '</td>' +
+                    '</tr>';
+            }).join('');
+            if (!html) html = '<tr><td colspan="5" style="text-align:center;color:#888;">No pending reports</td></tr>';
+            document.getElementById('reportsTable').innerHTML = html;
+        });
+    }
+
+    // ============================================================
+    // ACTIONS (with res.ok check)
+    // ============================================================
+
+    async function makeAuctioneer(userId) {
+        if (!confirm('Make this user an AUCTIONEER?')) return;
+        var result = await adminApi('/api/admin/make-auctioneer', 'POST', { userId: userId });
+        if (result) { showToast('User promoted to Auctioneer!', 'info'); loadAdminData(); }
+    }
+
+    async function approveKyc(userId) {
+        if (!confirm('Approve KYC for this user?')) return;
+        var result = await adminApi('/api/admin/approve-kyc/' + userId, 'POST');
+        if (result) { showToast('KYC Approved!', 'info'); loadAdminData(); }
+    }
+
+    async function rejectKyc(userId) {
+        if (!confirm('Reject KYC for this user?')) return;
+        var result = await adminApi('/api/admin/reject-kyc/' + userId, 'POST');
+        if (result) { showToast('KYC Rejected!', 'info'); loadAdminData(); }
+    }
+
+    async function blockUser(userId) {
+        if (!confirm('Block this user?')) return;
+        var result = await adminApi('/api/admin/block-user/' + userId, 'POST');
+        if (result) { showToast('User blocked!', 'info'); loadAdminData(); }
+    }
+
+    async function unblockUser(userId) {
+        if (!confirm('Unblock this user?')) return;
+        var result = await adminApi('/api/admin/unblock-user/' + userId, 'POST');
+        if (result) { showToast('User unblocked!', 'info'); loadAdminData(); }
+    }
+
+    async function verifyListing(listingId) {
+        if (!confirm('Verify this listing as CM Verified?')) return;
+        var result = await adminApi('/api/admin/verify-listing/' + listingId, 'POST');
+        if (result) { showToast('Listing Verified!', 'info'); loadAdminData(); }
+    }
+
+    async function endListing(listingId) {
+        if (!confirm('End this listing?')) return;
+        var result = await adminApi('/api/admin/end-listing/' + listingId, 'POST');
+        if (result) { showToast('Listing Ended!', 'info'); loadAdminData(); }
+    }
+
+    async function resolveReport(reportId) {
+        if (!confirm('Resolve this report?')) return;
+        var result = await adminApi('/api/admin/report/' + reportId + '/resolve', 'POST');
+        if (result) { showToast('Report resolved!', 'info'); renderTab('reports'); }
+    }
+
+    async function dismissReport(reportId) {
+        if (!confirm('Dismiss this report?')) return;
+        var result = await adminApi('/api/admin/report/' + reportId + '/dismiss', 'POST');
+        if (result) { showToast('Report dismissed!', 'info'); renderTab('reports'); }
+    }
+
+    // ============================================================
+    // INIT
+    // ============================================================
+    document.addEventListener('DOMContentLoaded', function() {
+        var token = getToken();
+        if (!token) {
+            document.body.innerHTML = '<h2 style="text-align:center;margin-top:4rem;">Please login first. <a href="/">Go to Home</a></h2>';
+            return;
+        }
+        loadAdminData();
+    });
+
+    console.log('✅ CM Central Market admin.html loaded (FIXED LAUNCH VERSION)');
+</script>
 </body>
 </html>

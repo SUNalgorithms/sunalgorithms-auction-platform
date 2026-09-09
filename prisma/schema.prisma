@@ -7,6 +7,53 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ============================================================
+// ENUMS – Prevent string injection and ensure data integrity
+// ============================================================
+
+enum Role {
+  BUYER
+  INDIVIDUAL_SELLER
+  AUCTIONEER
+  ADMIN
+}
+
+enum KycStatus {
+  NONE
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum ListingType {
+  AUCTION
+  FIXED_PRICE
+}
+
+enum ListingStatus {
+  ACTIVE
+  ENDED
+  SOLD
+  AWAITING_PAYMENT
+  PAID
+}
+
+enum UserStatus {
+  ACTIVE
+  BANNED_FRAUD
+  SUSPENDED
+}
+
+enum ReportStatus {
+  PENDING
+  RESOLVED
+  DISMISSED
+}
+
+// ============================================================
+// MODELS
+// ============================================================
+
 model User {
   id                    String          @id @default(cuid())
   name                  String
@@ -19,18 +66,18 @@ model User {
   ip                    String?
   avatar                String?
   bio                   String?
-  
-  // KYC PHOTOS
+
+  // KYC PHOTOS (stored in R2)
   idPhotoUrl            String?
   selfieUrl             String?
-  
-  role                  String          @default("BUYER")
+
+  role                  Role            @default(BUYER)
   isAuctioneerApproved  Boolean         @default(false)
-  kycStatus             String          @default("NONE")
+  kycStatus             KycStatus       @default(NONE)
   canSell               Boolean         @default(false)
   kycLevel              Int             @default(1)
   kycData               Json?
-  status                String          @default("ACTIVE")
+  status                UserStatus      @default(ACTIVE)
   sellerRequirements    Json?
   sellerProfile         Json?
   favorites             Json?
@@ -49,6 +96,8 @@ model User {
 
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
+
+  @@map("users")
 }
 
 model Listing {
@@ -59,21 +108,14 @@ model Listing {
   description           String?
   category              String          @default("Other")
   condition             String          @default("USED")
-  
+
   // ===== IMAGE UPLOAD SYSTEM =====
-  // MAIN IMAGE (First/cover photo - required)
-  mainImageUrl          String?         // Primary product image
-  
-  // COMPARTMENT IMAGES (Up to 5 additional photos)
-  imageUrls             String[]        // Array of up to 5 image URLs
-  
-  // ODOMETER VIDEO (10-second proof - required for verification)
-  odometerVideoUrl      String?         // Video proof of mileage
-  
-  // Legacy support (kept for backward compatibility)
-  images                Json?           // Original images field
-  
-  listingType           String          // "AUCTION" or "FIXED_PRICE"
+  mainImageUrl          String?         // Primary product image (required)
+  imageUrls             String[]        // Up to 5 compartment images
+  odometerVideoUrl      String?         // 10-second video proof
+  images                Json?           // Legacy compatibility (kept for old listings)
+
+  listingType           ListingType     @default(FIXED_PRICE)
 
   // Auction fields
   startingPrice         Float?
@@ -93,7 +135,7 @@ model Listing {
   isNegotiable          Boolean         @default(false)
 
   // Status & Tracking
-  status                String          @default("ACTIVE")
+  status                ListingStatus   @default(ACTIVE)
   views                 Int             @default(0)
   winnerId              String?
   finalPrice            Float?
@@ -109,10 +151,10 @@ model Listing {
   fuelType              String?
 
   // ===== VERIFICATION FIELDS =====
-  vinNumber             String?         // VIN for verification
-  engineNumber          String?         // Engine number
-  idDocumentUrl         String?         // Seller ID document
-  licenseDiskUrl        String?         // License disk photo
+  vinNumber             String?         @unique   // UNIQUE – prevents stolen car relisting
+  engineNumber          String?         @unique   // UNIQUE – prevents odometer fraud
+  idDocumentUrl         String?
+  licenseDiskUrl        String?
   isVerified            Boolean         @default(false)
   verificationStatus    String          @default("PENDING")
 
@@ -135,6 +177,8 @@ model Listing {
   @@index([listingType])
   @@index([status])
   @@index([createdAt])
+  @@index([vinNumber])
+  @@index([engineNumber])
   @@map("listings")
 }
 
@@ -180,7 +224,7 @@ model Report {
   listingTitle          String
   amount                Float?
   evidence              String?
-  status                String          @default("PENDING")
+  status                ReportStatus    @default(PENDING)
   createdAt             DateTime        @default(now())
 
   reporter              User            @relation("Reporter", fields: [buyerId], references: [id], onDelete: Cascade)
