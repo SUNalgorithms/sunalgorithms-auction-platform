@@ -1,7 +1,6 @@
 // ============================================================
-// app.js - CM Central Market (Frontend) - FIXED LAUNCH VERSION
-// All fixes applied: XSS, video preview, KYC upload, self-bid block,
-// race conditions, duplicate listeners, admin redirect, etc.
+// app.js - CM Central Market (Frontend) - FINAL LAUNCH VERSION
+// All fixes + label for attributes + toast fallback
 // ============================================================
 
 // ---------- GLOBAL STATE ----------
@@ -46,23 +45,34 @@ const app = {
 function esc(s) {
     if (!s) return '';
     return String(s).replace(/[&<>"']/g, function(m) {
-        const map = {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#39;'
-        };
+        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
         return map[m];
     });
 }
 
-// ---------- API WRAPPER (fixed: only send token if exists) ----------
+// ---------- TOAST (with fallback) ----------
+function showToast(message, type = 'info') {
+    let toast = document.getElementById('toast');
+    if (!toast) {
+        // Fallback: create toast if missing
+        toast = document.createElement('div');
+        toast.id = 'toast';
+        toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#101010;color:white;padding:0.8rem 1.5rem;border-radius:9999px;font-weight:600;z-index:9999;display:none;max-width:90%;';
+        document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.style.display = 'block';
+    toast.style.borderColor = type === 'error' ? '#ff4444' : '#00ff88';
+    toast.style.background = type === 'error' ? 'rgba(255,0,0,0.2)' : 'rgba(0,255,136,0.1)';
+    clearTimeout(toast._hide);
+    toast._hide = setTimeout(() => {
+        toast.style.display = 'none';
+    }, 4000);
+}
+
+// ---------- API WRAPPER ----------
 async function api(endpoint, method = 'GET', body = null) {
-    const options = {
-        method,
-        headers: {}
-    };
+    const options = { method, headers: {} };
     if (app.token) {
         options.headers['Authorization'] = `Bearer ${app.token}`;
     }
@@ -80,19 +90,6 @@ async function api(endpoint, method = 'GET', body = null) {
         throw new Error(data.error || 'API request failed');
     }
     return data;
-}
-
-// ---------- TOAST ----------
-function showToast(message, type = 'info') {
-    const toast = document.getElementById('toast');
-    toast.textContent = message;
-    toast.style.display = 'block';
-    toast.style.borderColor = type === 'error' ? '#ff4444' : '#00ff88';
-    toast.style.background = type === 'error' ? 'rgba(255,0,0,0.2)' : 'rgba(0,255,136,0.1)';
-    clearTimeout(toast._hide);
-    toast._hide = setTimeout(() => {
-        toast.style.display = 'none';
-    }, 4000);
 }
 
 // ---------- MODAL ----------
@@ -130,11 +127,11 @@ function showLogin() {
         <span class="close-modal" onclick="closeModal()">&times;</span>
         <h2>CM Central Market Login</h2>
         <div class="form-group">
-            <label>Email</label>
+            <label for="loginEmail">Email</label>
             <input id="loginEmail" type="email" placeholder="you@example.com">
         </div>
         <div class="form-group">
-            <label>Password</label>
+            <label for="loginPassword">Password</label>
             <input id="loginPassword" type="password" placeholder="••••••••">
         </div>
         <button class="btn btn-primary" style="width:100%;background:#E30613;border:none;" onclick="handleLogin()">Login</button>
@@ -147,23 +144,27 @@ function showLogin() {
 async function handleLogin() {
     const email = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
+    console.log('🔐 Login attempt:', email);
     if (!email || !password) return showToast('Email and password required', 'error');
     try {
+        console.log('📡 Sending request...');
         const res = await fetch('/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password })
         });
+        console.log('📨 Response status:', res.status);
         const data = await res.json();
+        console.log('📦 Response data:', data);
         if (!res.ok) throw new Error(data.error);
         app.token = data.token;
         app.user = data.user;
         localStorage.setItem('token', app.token);
-        // We'll refresh user via /api/me in initApp, so don't store user permanently
         closeModal();
-        initApp(); // this will fetch fresh user
+        await initApp();
         showToast(`Welcome, ${esc(app.user?.displayName || app.user?.name)}!`);
     } catch (err) {
+        console.error('❌ Login error:', err);
         showToast(err.message, 'error');
     }
 }
@@ -173,27 +174,27 @@ function showRegister() {
         <span class="close-modal" onclick="closeModal()">&times;</span>
         <h2>Register for CM Central Market</h2>
         <div class="form-group">
-            <label>Full Name</label>
+            <label for="regName">Full Name</label>
             <input id="regName" placeholder="John Doe">
         </div>
         <div class="form-group">
-            <label>Display Name</label>
+            <label for="regDisplayName">Display Name</label>
             <input id="regDisplayName" placeholder="JohnDoe (optional)">
         </div>
         <div class="form-group">
-            <label>ID Number</label>
+            <label for="regIdNumber">ID Number</label>
             <input id="regIdNumber" placeholder="8001011234567">
         </div>
         <div class="form-group">
-            <label>Email</label>
+            <label for="regEmail">Email</label>
             <input id="regEmail" type="email" placeholder="you@example.com">
         </div>
         <div class="form-group">
-            <label>Phone (SA)</label>
+            <label for="regPhone">Phone (SA)</label>
             <input id="regPhone" placeholder="0821234567">
         </div>
         <div class="form-group">
-            <label>Password</label>
+            <label for="regPassword">Password</label>
             <input id="regPassword" type="password" placeholder="••••••••">
         </div>
         <div class="form-group">
@@ -212,7 +213,7 @@ function showRegister() {
             <input type="hidden" id="regRole" value="BUYER">
         </div>
         <div class="form-group">
-            <label>ID Photo</label>
+            <label for="regIdPhoto">ID Photo</label>
             <div class="drag-area" id="registerIdDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#fff;">
                 <i class="fas fa-id-card" style="font-size:2rem;color:#E30613;"></i>
                 <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Click to upload ID photo</p>
@@ -221,7 +222,7 @@ function showRegister() {
             <div id="regIdPreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
         </div>
         <div class="form-group">
-            <label>Selfie</label>
+            <label for="regSelfie">Selfie</label>
             <div class="drag-area" id="registerSelfieDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#fff;">
                 <i class="fas fa-user" style="font-size:2rem;color:#E30613;"></i>
                 <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Take a selfie with your ID</p>
@@ -903,7 +904,7 @@ function renderKYC() {
             <p style="color:#666;margin-bottom:1.5rem;">Upload your documents to become a verified seller. This builds trust with buyers.</p>
             <form id="kycForm" style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
                 <div class="form-group">
-                    <label style="color:#666;">ID Document (Front)</label>
+                    <label for="kycIdFile">ID Document (Front)</label>
                     <div class="drag-area" id="kycIdDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#F5F5F7;">
                         <i class="fas fa-id-card" style="font-size:2rem;color:#E30613;"></i>
                         <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Upload ID photo</p>
@@ -912,7 +913,7 @@ function renderKYC() {
                     <div id="kycIdPreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
                 </div>
                 <div class="form-group">
-                    <label style="color:#666;">Proof of Address</label>
+                    <label for="kycAddressFile">Proof of Address</label>
                     <div class="drag-area" id="kycAddressDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#F5F5F7;">
                         <i class="fas fa-home" style="font-size:2rem;color:#E30613;"></i>
                         <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Upload utility bill or bank statement</p>
@@ -921,7 +922,7 @@ function renderKYC() {
                     <div id="kycAddressPreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
                 </div>
                 <div class="form-group">
-                    <label style="color:#666;">Selfie with ID</label>
+                    <label for="kycSelfieFile">Selfie with ID</label>
                     <div class="drag-area" id="kycSelfieDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#F5F5F7;">
                         <i class="fas fa-user" style="font-size:2rem;color:#E30613;"></i>
                         <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Take a selfie holding your ID</p>
@@ -1019,15 +1020,28 @@ function renderCreateListing() {
                     <button type="button" class="listing-type-btn" data-type="FIXED_PRICE" style="padding:0.6rem;border:none;border-radius:8px;font-weight:700;background:transparent;color:#666;cursor:pointer;">🏷️ Fixed Price</button>
                 </div>
                 <input type="hidden" id="listingType" value="AUCTION">
-                <div class="form-group"><label>Title *</label><input id="listingTitle" placeholder="e.g. Toyota Hilux 2.8 GD-6 2021" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
+                <div class="form-group">
+                    <label for="listingTitle">Title *</label>
+                    <input id="listingTitle" placeholder="e.g. Toyota Hilux 2.8 GD-6 2021" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
+                </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-                    <div class="form-group"><label>Category *</label><select id="listingCategory" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"><option>Vehicles</option><option>Motorcycles</option><option>TLB/Machinery</option><option>Other</option></select></div>
-                    <div class="form-group"><label>Condition *</label><select id="listingCondition" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"><option>USED</option><option>NEW</option><option>FOR_PARTS</option></select></div>
+                    <div class="form-group">
+                        <label for="listingCategory">Category *</label>
+                        <select id="listingCategory" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
+                            <option>Vehicles</option><option>Motorcycles</option><option>TLB/Machinery</option><option>Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="listingCondition">Condition *</label>
+                        <select id="listingCondition" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
+                            <option>USED</option><option>NEW</option><option>FOR_PARTS</option>
+                        </select>
+                    </div>
                 </div>
                 <div style="margin:1.5rem 0;padding:1rem;background:#FFF8F8;border-radius:12px;border:1px solid #FFE0E0;">
                     <h4 style="margin:0 0 0.8rem 0;color:#E30613;">📸 Upload Photos & Video</h4>
                     <div class="form-group">
-                        <label style="font-weight:600;">Main Product Image <span style="color:#E30613;">*</span></label>
+                        <label for="mainImageInput" style="font-weight:600;">Main Product Image <span style="color:#E30613;">*</span></label>
                         <div class="drag-area" id="mainImageDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#F5F5F7;">
                             <i class="fas fa-camera" style="font-size:2rem;color:#E30613;"></i>
                             <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Click to upload main product photo</p>
@@ -1037,7 +1051,7 @@ function renderCreateListing() {
                         <div id="mainImagePreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
                     </div>
                     <div class="form-group">
-                        <label style="font-weight:600;">Additional Photos <span style="color:#888;font-weight:400;">(up to 5)</span></label>
+                        <label for="compartmentImageInput" style="font-weight:600;">Additional Photos <span style="color:#888;font-weight:400;">(up to 5)</span></label>
                         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:0.5rem;" id="compartmentDropContainer">
                             <div class="drag-area" id="compartmentImageDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1rem;text-align:center;cursor:pointer;background:#F5F5F7;min-height:80px;display:flex;flex-direction:column;align-items:center;justify-content:center;">
                                 <i class="fas fa-images" style="font-size:1.5rem;color:#E30613;"></i>
@@ -1048,7 +1062,7 @@ function renderCreateListing() {
                         <div id="compartmentImagePreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;display:flex;flex-wrap:wrap;gap:0.3rem;"></div>
                     </div>
                     <div class="form-group">
-                        <label style="font-weight:600;">Odometer Video (10 seconds) <span style="color:#E30613;">*</span></label>
+                        <label for="videoInput" style="font-weight:600;">Odometer Video (10 seconds) <span style="color:#E30613;">*</span></label>
                         <div class="drag-area" id="videoDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#F5F5F7;">
                             <i class="fas fa-video" style="font-size:2rem;color:#E30613;"></i>
                             <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Upload 10-second odometer video proof</p>
@@ -1059,29 +1073,69 @@ function renderCreateListing() {
                     </div>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-                    <div class="form-group"><label>Year</label><input id="listingYear" type="number" placeholder="2021" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
-                    <div class="form-group"><label>Kilometers</label><input id="listingKm" type="number" placeholder="85000" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
+                    <div class="form-group">
+                        <label for="listingYear">Year</label>
+                        <input id="listingYear" type="number" placeholder="2021" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
+                    </div>
+                    <div class="form-group">
+                        <label for="listingKm">Kilometers</label>
+                        <input id="listingKm" type="number" placeholder="85000" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
+                    </div>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;">
-                    <div class="form-group"><label>Color</label><input id="listingColor" placeholder="White" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
-                    <div class="form-group"><label>Engine</label><input id="listingEngine" placeholder="2.8L" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
-                    <div class="form-group"><label>Transmission</label><select id="listingTrans" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"><option>Manual</option><option>Automatic</option></select></div>
+                    <div class="form-group">
+                        <label for="listingColor">Color</label>
+                        <input id="listingColor" placeholder="White" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
+                    </div>
+                    <div class="form-group">
+                        <label for="listingEngine">Engine</label>
+                        <input id="listingEngine" placeholder="2.8L" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
+                    </div>
+                    <div class="form-group">
+                        <label for="listingTrans">Transmission</label>
+                        <select id="listingTrans" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
+                            <option>Manual</option><option>Automatic</option>
+                        </select>
+                    </div>
                 </div>
                 <div id="auctionFields">
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-                        <div class="form-group"><label>Starting Price (R)</label><input id="listingStartPrice" type="number" placeholder="50000" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
-                        <div class="form-group"><label>Reserve Price (R)</label><input id="listingReservePrice" type="number" placeholder="60000" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
+                        <div class="form-group">
+                            <label for="listingStartPrice">Starting Price (R)</label>
+                            <input id="listingStartPrice" type="number" placeholder="50000" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
+                        </div>
+                        <div class="form-group">
+                            <label for="listingReservePrice">Reserve Price (R)</label>
+                            <input id="listingReservePrice" type="number" placeholder="60000" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
+                        </div>
                     </div>
-                    <div class="form-group"><label>Duration</label><select id="listingDuration" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"><option value="1d">1 Day</option><option value="3d">3 Days</option><option value="7d" selected>7 Days</option></select></div>
+                    <div class="form-group">
+                        <label for="listingDuration">Duration</label>
+                        <select id="listingDuration" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
+                            <option value="1d">1 Day</option><option value="3d">3 Days</option><option value="7d" selected>7 Days</option>
+                        </select>
+                    </div>
                 </div>
                 <div id="fixedFields" style="display:none;">
-                    <div class="form-group"><label>Price (R)</label><input id="listingPrice" type="number" placeholder="120000" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
+                    <div class="form-group">
+                        <label for="listingPrice">Price (R)</label>
+                        <input id="listingPrice" type="number" placeholder="120000" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
+                    </div>
                 </div>
-                <div class="form-group"><label>Description</label><textarea id="listingDescription" rows="4" placeholder="Condition, extras, reason for selling..." style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;resize:vertical;"></textarea></div>
+                <div class="form-group">
+                    <label for="listingDescription">Description</label>
+                    <textarea id="listingDescription" rows="4" placeholder="Condition, extras, reason for selling..." style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;resize:vertical;"></textarea>
+                </div>
                 <div style="background:#FFF3F3;border:1px solid #FFCFCF;padding:1rem;border-radius:12px;margin-bottom:1rem;">
                     <h4 style="margin:0 0 0.8rem 0;color:#E30613;">CM Verification (Required for GREEN badge)</h4>
-                    <div class="form-group"><label>VIN Number</label><input id="listingVin" placeholder="17 characters on windshield" style="width:100%;padding:0.6rem;border-radius:8px;background:#fff;border:1px solid #EAEAEA;color:#101010;"></div>
-                    <div class="form-group"><label>Engine Number</label><input id="listingEngineNo" placeholder="e.g. 2GD-123456" style="width:100%;padding:0.6rem;border-radius:8px;background:#fff;border:1px solid #EAEAEA;color:#101010;"></div>
+                    <div class="form-group">
+                        <label for="listingVin">VIN Number</label>
+                        <input id="listingVin" placeholder="17 characters on windshield" style="width:100%;padding:0.6rem;border-radius:8px;background:#fff;border:1px solid #EAEAEA;color:#101010;">
+                    </div>
+                    <div class="form-group">
+                        <label for="listingEngineNo">Engine Number</label>
+                        <input id="listingEngineNo" placeholder="e.g. 2GD-123456" style="width:100%;padding:0.6rem;border-radius:8px;background:#fff;border:1px solid #EAEAEA;color:#101010;">
+                    </div>
                     <label style="font-size:0.8rem;display:flex;gap:8px;margin-top:8px;color:#101010;">
                         <input type="checkbox" id="listingDeclare"> I declare this car is not stolen, not under finance, and km is true. False = banned.
                     </label>
@@ -1265,9 +1319,18 @@ function editProfile() {
     openModal(`
         <span class="close-modal" onclick="closeModal()">&times;</span>
         <h3>Edit Profile</h3>
-        <div class="form-group"><label>Display Name</label><input id="editDisplayName" value="${esc(user.displayName || '')}" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
-        <div class="form-group"><label>Bio</label><textarea id="editBio" rows="3" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;resize:vertical;">${esc(user.bio || '')}</textarea></div>
-        <div class="form-group"><label>Avatar URL</label><input id="editAvatar" value="${esc(user.avatar || '')}" placeholder="https://example.com/avatar.jpg" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
+        <div class="form-group">
+            <label for="editDisplayName">Display Name</label>
+            <input id="editDisplayName" value="${esc(user.displayName || '')}" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
+        </div>
+        <div class="form-group">
+            <label for="editBio">Bio</label>
+            <textarea id="editBio" rows="3" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;resize:vertical;">${esc(user.bio || '')}</textarea>
+        </div>
+        <div class="form-group">
+            <label for="editAvatar">Avatar URL</label>
+            <input id="editAvatar" value="${esc(user.avatar || '')}" placeholder="https://example.com/avatar.jpg" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
+        </div>
         <button class="btn btn-primary" style="width:100%;background:#E30613;border:none;" onclick="saveProfile()">Save Changes</button>
     `);
 }
@@ -1318,4 +1381,4 @@ document.addEventListener('DOMContentLoaded', () => {
     initApp();
 });
 
-console.log('✅ CM Central Market app.js loaded (FIXED LAUNCH VERSION)');
+console.log('✅ CM Central Market app.js loaded (FINAL LAUNCH VERSION)');
