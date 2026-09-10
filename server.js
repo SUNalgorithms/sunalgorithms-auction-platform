@@ -1,7 +1,7 @@
 // ============================================================
-// server.js - CM Central Market - FINAL LAUNCH VERSION
-// SAFE INIT: Twilio, SendGrid, R2 (no crash if env vars missing)
-// Middleware order fixed, cron includes bids, private uploads
+// server.js - CM Central Market - FINAL FIXED FOR MISTER SUN
+// Solves: P2021, photo field mismatch, admin wiped, case-sensitive login
+// Safe init: Twilio, SendGrid, R2 never crash on startup
 // ============================================================
 
 require('dotenv').config();
@@ -16,7 +16,6 @@ try {
     console.log('✅ Database migrations completed.');
 } catch (err) {
     console.error('❌ Migration failed (continuing anyway):', err.message);
-    // Do NOT process.exit(1) – let the app start
 }
 
 const express = require('express');
@@ -38,39 +37,24 @@ const sgMail = require('@sendgrid/mail');
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, { cors: { origin: '*', methods: ['GET', 'POST'] } });
-
 const prisma = new PrismaClient();
 
 // ---------- CONFIG ----------
 const PORT = process.env.PORT || 3000;
 
-// CRITICAL: No fallback for JWT_SECRET
 if (!process.env.JWT_SECRET) {
-    console.error('❌ JWT_SECRET is not set in environment. Exiting.');
+    console.error('❌ JWT_SECRET is not set. Exiting.');
     process.exit(1);
 }
 const JWT_SECRET = process.env.JWT_SECRET;
-
 const HQ_WHATSAPP = process.env.HQ_WHATSAPP || null;
-if (!HQ_WHATSAPP) {
-    console.warn('⚠️ HQ_WHATSAPP not set – WhatsApp links will use placeholder.');
-}
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ? process.env.ADMIN_EMAIL.toLowerCase().trim() : null;
 
-// ---------- RETRY HELPER ----------
-async function queryWithRetry(fn, retries = 3, delay = 1000) {
-    for (let i = 0; i < retries; i++) {
-        try {
-            return await fn();
-        } catch (err) {
-            if (i === retries - 1) throw err;
-            console.log(`[RETRY] Attempt ${i + 1} failed, retrying in ${delay}ms...`);
-            await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
-        }
-    }
-}
+if (!HQ_WHATSAPP) console.warn('⚠️ HQ_WHATSAPP not set – WhatsApp links will use placeholder.');
+if (!ADMIN_EMAIL) console.warn('⚠️ ADMIN_EMAIL not set – emergency admin by first user only.');
 
 // ============================================================
-// SAFE INIT: R2 (S3 Client) – never crash if env vars missing
+// SAFE INIT: R2 (S3 Client)
 // ============================================================
 let s3Client = null;
 let R2_BUCKET = null;
@@ -107,14 +91,13 @@ async function uploadToR2(file, folder = 'listings') {
         throw new Error('R2 storage not configured');
     }
     const { PutObjectCommand } = require('@aws-sdk/client-s3');
-    const key = `${folder}/${Date.now()}-${file.originalname}`;
-    const command = new PutObjectCommand({
+    const key = `${folder}/${Date.now()}-${file.originalname.replace(/\s+/g, '-')}`;
+    await s3Client.send(new PutObjectCommand({
         Bucket: R2_BUCKET,
         Key: key,
         Body: file.buffer,
-        ContentType: file.mimetype,
-    });
-    await s3Client.send(command);
+        ContentType: file.mimetype
+    }));
     return `${R2_PUBLIC_URL}/${key}`;
 }
 
@@ -129,7 +112,7 @@ async function deleteFromR2(key) {
 }
 
 // ============================================================
-// SAFE INIT: TWILIO – never crash if env vars missing
+// SAFE INIT: TWILIO
 // ============================================================
 let twilioClient = null;
 let TWILIO_PHONE_NUMBER = null;
@@ -147,7 +130,7 @@ try {
 }
 
 // ============================================================
-// SAFE INIT: SENDGRID – never crash if env vars missing
+// SAFE INIT: SENDGRID
 // ============================================================
 let SENDGRID_ENABLED = false;
 const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@cmcentralmarket.co.za';
@@ -192,14 +175,14 @@ async function sendEmail(to, subject, html, attachments = []) {
 }
 
 function getBadge(kycLevel) {
-    const badges = { 1: 'ID Verified ✓', 2: 'ID + Selfie ✓', 3: 'Address Verified ✓', 4: 'Bank Verified ✓✓', 5: 'Million-Rand ✓✓' };
-    return badges[kycLevel] || 'Unverified';
+    const b = { 1: 'ID Verified ✓', 2: 'ID + Selfie ✓', 3: 'Address Verified ✓', 4: 'Bank Verified ✓✓', 5: 'Million-Rand ✓✓' };
+    return b[kycLevel] || 'Unverified';
 }
 
 function formatPhone(phone) {
     if (!phone) return null;
     let cleaned = phone.replace(/\D/g, '');
-    if (cleaned.startsWith('27')) return cleaned; // already correct
+    if (cleaned.startsWith('27')) return cleaned;
     if (cleaned.startsWith('0')) cleaned = '27' + cleaned.slice(1);
     else cleaned = '27' + cleaned;
     return cleaned;
@@ -217,7 +200,7 @@ app.use(express.urlencoded({ extended: true }));
 const bidLimiter = rateLimit({ windowMs: 1000, max: 5, message: 'Too many bids, slow down' });
 
 // ------------------------------------------------------------------
-// PRIVATE UPLOADS – stored outside public
+// PRIVATE UPLOADS
 // ------------------------------------------------------------------
 const PRIVATE_UPLOAD_DIR = path.join(__dirname, 'uploads-private');
 if (!fs.existsSync(PRIVATE_UPLOAD_DIR)) {
@@ -226,12 +209,8 @@ if (!fs.existsSync(PRIVATE_UPLOAD_DIR)) {
 
 const diskUpload = multer({
     storage: multer.diskStorage({
-        destination: (req, file, cb) => {
-            cb(null, PRIVATE_UPLOAD_DIR);
-        },
-        filename: (req, file, cb) => {
-            cb(null, Date.now() + '-' + file.originalname.replace(/\s+/g, '-'));
-        }
+        destination: (req, file, cb) => cb(null, PRIVATE_UPLOAD_DIR),
+        filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname.replace(/\s+/g, '-'))
     }),
     limits: { fileSize: 15 * 1024 * 1024 }
 });
@@ -242,11 +221,10 @@ const memoryUpload = multer({
 });
 
 function authenticate(req, res, next) {
-    const header = req.headers.authorization;
-    if (!header) return res.status(401).json({ error: 'No token' });
-    const token = header.split(' ')[1];
+    const h = req.headers.authorization;
+    if (!h) return res.status(401).json({ error: 'No token' });
     try {
-        req.user = jwt.verify(token, JWT_SECRET);
+        req.user = jwt.verify(h.split(' ')[1], JWT_SECRET);
         next();
     } catch (e) {
         return res.status(401).json({ error: 'Invalid token' });
@@ -259,59 +237,80 @@ function adminOnly(req, res, next) {
 }
 
 // ============================================================
-// ========== API ROUTES – MUST COME BEFORE STATIC ============
+// ========== API ROUTES =====================================
 // ============================================================
 
-// ---------- AUTH ----------
-app.post('/api/register', memoryUpload.fields([{ name: 'idPhoto', maxCount: 1 }, { name: 'selfie', maxCount: 1 }]), async (req, res) => {
+// ---------- REGISTER (FINAL FIXED) ----------
+app.post('/api/register', memoryUpload.fields([
+    { name: 'idPhoto', maxCount: 1 },
+    { name: 'idDocument', maxCount: 1 },
+    { name: 'idImage', maxCount: 1 },
+    { name: 'selfie', maxCount: 1 },
+    { name: 'selfieImage', maxCount: 1 },
+    { name: 'licenseDisk', maxCount: 1 }
+]), async (req, res) => {
     try {
+        console.log('REGISTER FILES:', Object.keys(req.files || {}), 'BODY EMAIL:', req.body.email);
         const { name, displayName, idNumber, email, password, phone, role } = req.body;
         const deviceId = req.headers['x-device-id'] || 'unknown';
-        const ip = req.ip || req.connection.remoteAddress;
+        const ip = req.ip;
 
-        if (!['BUYER', 'INDIVIDUAL_SELLER', 'AUCTIONEER'].includes(role)) {
-            return res.status(400).json({ error: 'Invalid role' });
-        }
-
-        const existing = await prisma.user.findFirst({ where: { OR: [{ email }, { idNumber }] } });
-        if (existing) return res.status(400).json({ error: 'Email or ID already registered' });
-
-        if (!name || !idNumber || !email || !password) {
+        if (!email || !password || !name || !idNumber) {
             return res.status(400).json({ error: 'All fields required' });
         }
-        if (!req.files?.idPhoto?.[0] || !req.files?.selfie?.[0]) {
-            return res.status(400).json({ error: 'ID photo and selfie required' });
+
+        const normalizedEmail = email.toLowerCase().trim();
+        const existing = await prisma.user.findFirst({
+            where: { OR: [{ email: normalizedEmail }, { idNumber }] }
+        });
+        if (existing) return res.status(400).json({ error: 'Email or ID already registered' });
+
+        // Accept multiple field names for ID + selfie
+        const idFile = req.files?.idPhoto?.[0] || req.files?.idDocument?.[0] || req.files?.idImage?.[0];
+        const selfieFile = req.files?.selfie?.[0] || req.files?.selfieImage?.[0];
+
+        if (!idFile || !selfieFile) {
+            return res.status(400).json({
+                error: 'Please upload your ID and selfie',
+                got: Object.keys(req.files || {})
+            });
         }
 
         let idPhotoUrl, selfieUrl;
         try {
-            idPhotoUrl = await uploadToR2(req.files.idPhoto[0], 'kyc');
-            selfieUrl = await uploadToR2(req.files.selfie[0], 'kyc');
-        } catch (uploadErr) {
-            return res.status(500).json({ error: 'Image upload failed. Please try again.' });
+            idPhotoUrl = await uploadToR2(idFile, 'kyc');
+            selfieUrl = await uploadToR2(selfieFile, 'kyc');
+        } catch (e) {
+            return res.status(500).json({ error: 'R2 upload failed: ' + e.message });
         }
+
+        // Emergency admin logic: first user OR matching ADMIN_EMAIL becomes ADMIN
+        const userCount = await prisma.user.count();
+        const isFirstUser = userCount === 0;
+        const isAdminEmail = ADMIN_EMAIL && normalizedEmail === ADMIN_EMAIL;
+        const shouldBeAdmin = isFirstUser || isAdminEmail;
+
+        console.log(`ADMIN CHECK: count=${userCount}, isFirst=${isFirstUser}, adminEmailMatch=${isAdminEmail}, willBeAdmin=${shouldBeAdmin}`);
 
         const hashed = await bcrypt.hash(password, 10);
         const newUser = await prisma.user.create({
             data: {
                 name,
                 displayName: displayName || name,
-                email,
+                email: normalizedEmail,
                 password: hashed,
                 idNumber,
                 phone: phone || null,
                 deviceId,
                 ip,
-                role,
-                kycLevel: 1,
-                kycStatus: 'NONE',
-                canSell: false,
+                role: shouldBeAdmin ? 'ADMIN' : (role || 'BUYER'),
+                kycLevel: shouldBeAdmin ? 5 : 1,
+                kycStatus: shouldBeAdmin ? 'VERIFIED' : 'NONE',
+                canSell: shouldBeAdmin ? true : false,
+                isAuctioneerApproved: shouldBeAdmin ? true : false,
                 idPhotoUrl,
                 selfieUrl,
-                kycData: { verifiedAt: new Date() },
-                status: 'ACTIVE',
-                sellerRequirements: { depositAmount: 0, minKycLevel: 1 },
-                sellerProfile: { trustScore: null, totalRatings: 0 }
+                status: 'ACTIVE'
             }
         });
 
@@ -329,20 +328,25 @@ app.post('/api/register', memoryUpload.fields([{ name: 'idPhoto', maxCount: 1 },
             }
         });
     } catch (err) {
-        console.error('Register error:', err);
-        res.status(500).json({ error: err.message });
+        console.error('REGISTER CRASH:', err);
+        res.status(500).json({ error: 'Register failed', details: err.message });
     }
 });
 
+// ---------- LOGIN (FINAL FIXED - case-insensitive) ----------
 app.post('/api/login', async (req, res) => {
     try {
         const { email, password } = req.body;
         if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
-        const user = await prisma.user.findUnique({ where: { email } });
+
+        const normalizedEmail = email.toLowerCase().trim();
+        const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
         if (!user) return res.status(400).json({ error: 'Invalid credentials' });
         if (user.status === 'BANNED_FRAUD') return res.status(403).json({ error: 'Account banned' });
+
         const ok = await bcrypt.compare(password, user.password);
         if (!ok) return res.status(400).json({ error: 'Invalid credentials' });
+
         const token = generateToken(user);
         res.json({
             token,
@@ -358,8 +362,8 @@ app.post('/api/login', async (req, res) => {
             }
         });
     } catch (err) {
-        console.error('Login error:', err);
-        res.status(500).json({ error: 'Login failed. Please try again.' });
+        console.error('LOGIN CRASH:', err.message, err.stack);
+        res.status(500).json({ error: 'Login failed', details: err.message });
     }
 });
 
@@ -628,7 +632,7 @@ app.post('/api/listings', authenticate, memoryUpload.fields([
     }
 });
 
-// ---------- BID (with rate limiter) ----------
+// ---------- BID ----------
 app.post('/api/listings/:id/bid', authenticate, bidLimiter, async (req, res) => {
     try {
         const { amount } = req.body;
@@ -1060,9 +1064,6 @@ app.get('/api/seller/analytics/:listingId', authenticate, async (req, res) => {
 // ============================================================
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ============================================================
-// ========== CATCH-ALL FALLBACK – SPA ROUTING ================
-// ============================================================
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
@@ -1334,7 +1335,6 @@ io.on('connection', (socket) => {
     socket.on('managerAck', (data) => { io.to(`listing_${data.listingId}`).emit('bidAccepted', data); });
     socket.on('managerReject', (data) => { io.to(`listing_${data.listingId}`).emit('bidRejected', data); });
 
-    // Admin-only for soldLot
     socket.on('soldLot', async (data) => {
         if (socket.user.role !== 'ADMIN') {
             socket.emit('error', { message: 'Admin only' });
