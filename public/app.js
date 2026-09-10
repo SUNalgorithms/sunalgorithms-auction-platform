@@ -1,6 +1,8 @@
 // ============================================================
-// app.js - CM Central Market (Frontend) - FINAL LAUNCH VERSION
-// All fixes + label for attributes + toast fallback
+// app.js - CM Central Market (Frontend) - GUEST BROWSING VERSION
+// Guests can browse marketplace without login.
+// Protected: bid, sell, dashboard, admin → show login/register.
+// All previous fixes preserved (XSS, KYC upload, video preview, etc.)
 // ============================================================
 
 // ---------- GLOBAL STATE ----------
@@ -54,7 +56,6 @@ function esc(s) {
 function showToast(message, type = 'info') {
     let toast = document.getElementById('toast');
     if (!toast) {
-        // Fallback: create toast if missing
         toast = document.createElement('div');
         toast.id = 'toast';
         toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#101010;color:white;padding:0.8rem 1.5rem;border-radius:9999px;font-weight:600;z-index:9999;display:none;max-width:90%;';
@@ -103,10 +104,25 @@ function closeModal() {
     document.getElementById('modal').style.display = 'none';
 }
 
+// ---------- AUTH GUARD ----------
+// Call this before any protected action. If user not logged in, show login.
+function requireLogin(actionLabel) {
+    if (app.user && app.token) return true;
+    showToast(`Please login to ${actionLabel}`, 'error');
+    showLogin();
+    return false;
+}
+
 // ============================================================
-// ========== NAVIGATION ======================================
+// ========== NAVIGATION (with guard) =========================
 // ============================================================
 function navigate(page) {
+    // Protected pages: dashboard, createListing, kyc, profile, adminDashboard
+    if (!app.user && ['dashboard', 'createListing', 'kyc', 'profile', 'adminDashboard'].includes(page)) {
+        showToast('Please login to access this page', 'error');
+        return showLogin();
+    }
+
     app.currentPage = page;
     switch (page) {
         case 'marketplace': renderMarketplace(); break;
@@ -146,26 +162,43 @@ async function handleLogin() {
     const password = document.getElementById('loginPassword').value;
     console.log('🔐 Login attempt:', email);
     if (!email || !password) return showToast('Email and password required', 'error');
+
+    const loginBtn = document.querySelector('#modalContent .btn-primary');
+    if (loginBtn) { loginBtn.disabled = true; loginBtn.textContent = 'Logging in...'; }
+
     try {
-        console.log('📡 Sending request...');
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
         const res = await fetch('/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
+            body: JSON.stringify({ email, password }),
+            signal: controller.signal
         });
+        clearTimeout(timeoutId);
+
         console.log('📨 Response status:', res.status);
         const data = await res.json();
         console.log('📦 Response data:', data);
         if (!res.ok) throw new Error(data.error);
+
         app.token = data.token;
         app.user = data.user;
         localStorage.setItem('token', app.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
         closeModal();
         await initApp();
         showToast(`Welcome, ${esc(app.user?.displayName || app.user?.name)}!`);
     } catch (err) {
         console.error('❌ Login error:', err);
-        showToast(err.message, 'error');
+        if (err.name === 'AbortError') {
+            showToast('Request timed out. Please try again.', 'error');
+        } else {
+            showToast(err.message, 'error');
+        }
+    } finally {
+        if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = 'Login'; }
     }
 }
 
@@ -236,7 +269,7 @@ function showRegister() {
         </p>
     `);
 
-    // Role selection using data-role
+    // Role selection
     document.querySelectorAll('.role-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const role = this.dataset.role;
@@ -248,24 +281,22 @@ function showRegister() {
         });
     });
 
-    // Setup file drops (remove old listeners to avoid duplicates)
     setupRegisterFileDrop('registerIdDrop', 'regIdPhoto', 'regIdPreview');
     setupRegisterFileDrop('registerSelfieDrop', 'regSelfie', 'regSelfiePreview');
 }
 
-// Register file drop with cleanup
 function setupRegisterFileDrop(dropId, inputId, previewId) {
     const drop = document.getElementById(dropId);
     const input = document.getElementById(inputId);
     const preview = document.getElementById(previewId);
     if (!drop || !input) return;
-    // Remove previous listeners (if any) by cloning
+
     const newDrop = drop.cloneNode(true);
     drop.parentNode.replaceChild(newDrop, drop);
     const newInput = input.cloneNode(true);
     input.parentNode.replaceChild(newInput, input);
     const newPreview = document.getElementById(previewId);
-    
+
     newDrop.addEventListener('click', () => newInput.click());
     newDrop.addEventListener('dragover', (e) => { e.preventDefault(); newDrop.style.borderColor = '#E30613'; });
     newDrop.addEventListener('dragleave', () => { newDrop.style.borderColor = '#EAEAEA'; });
@@ -301,6 +332,10 @@ async function handleRegister() {
     if (!idPhotoFile || !selfieFile) {
         return showToast('Please upload your ID photo and a selfie', 'error');
     }
+
+    const regBtn = document.querySelector('#modalContent .btn-primary');
+    if (regBtn) { regBtn.disabled = true; regBtn.textContent = 'Registering...'; }
+
     try {
         const formData = new FormData();
         formData.append('name', name);
@@ -323,11 +358,14 @@ async function handleRegister() {
         app.token = data.token;
         app.user = data.user;
         localStorage.setItem('token', app.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
         closeModal();
         initApp();
-        showToast(`Registered successfully! Welcome ${esc(app.user.displayName || app.user.name)}`);
+        showToast(`Registered! Welcome ${esc(app.user.displayName || app.user.name)}`);
     } catch (err) {
         showToast(err.message, 'error');
+    } finally {
+        if (regBtn) { regBtn.disabled = false; regBtn.textContent = 'Register'; }
     }
 }
 
@@ -340,90 +378,99 @@ function logout() {
     app.token = null;
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    document.getElementById('navbar').style.display = 'none';
-    document.getElementById('mainContent').innerHTML = `
-        <div class="landing-hero">
-            <img src="/logo.jpeg" alt="CM" style="width:80px;height:80px;object-fit:contain;border-radius:16px;margin-bottom:1rem;">
-            <h1 style="font-weight:900;color:#101010;">CM CENTRAL MARKET</h1>
-            <p style="color:#666;font-weight:600;letter-spacing:2px;">AUTOMOTIVE AUCTIONS</p>
-            <div style="display:flex;gap:1rem;justify-content:center;margin-top:2rem;">
-                <button class="btn btn-primary" style="background:#E30613;border:none;" onclick="showLogin()">Login</button>
-                <button class="btn btn-outline" style="border-color:#E30613;color:#E30613;" onclick="showRegister()">Register</button>
-            </div>
-        </div>
-    `;
     showToast('Logged out');
+    initApp(); // refresh UI as guest
 }
 
-// ---------- INIT APP (fixed race & refresh) ----------
+// ============================================================
+// ========== INIT APP (GUEST-FRIENDLY) =======================
+// ============================================================
 async function initApp() {
     app.deviceId = localStorage.getItem('deviceId') || Math.random().toString(36).slice(2) + Date.now().toString(36);
     localStorage.setItem('deviceId', app.deviceId);
 
     const token = localStorage.getItem('token');
-    if (!token) {
-        showLanding();
-        return;
+    const navbar = document.getElementById('navbar');
+
+    if (token) {
+        app.token = token;
+        try {
+            const user = await api('/api/me');
+            app.user = user;
+            localStorage.setItem('user', JSON.stringify(user));
+        } catch (err) {
+            console.warn('Session invalid, continuing as guest:', err.message);
+            app.user = null;
+            app.token = null;
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+        }
+    } else {
+        app.user = null;
+        app.token = null;
     }
-    app.token = token;
 
-    try {
-        // Fetch fresh user data from server
-        const user = await api('/api/me');
-        app.user = user;
-        // Store minimal user data for display (but we'll refresh on each init)
-        localStorage.setItem('user', JSON.stringify(user));
-    } catch (err) {
-        // Token invalid or expired
-        console.warn('Session invalid:', err.message);
-        logout();
-        return;
+    // ALWAYS show navbar (guest or user)
+    navbar.style.display = 'flex';
+
+    if (app.user) {
+        const isSeller = app.user.role === 'INDIVIDUAL_SELLER' || app.user.role === 'AUCTIONEER' || app.user.role === 'ADMIN';
+        document.getElementById('dashboardBtn').style.display = isSeller ? 'inline' : 'none';
+        document.getElementById('createListingBtn').style.display = isSeller ? 'inline' : 'none';
+        document.getElementById('adminDashBtn').style.display = (app.user.role === 'ADMIN') ? 'inline' : 'none';
+        document.getElementById('userDisplay').textContent = `👤 ${esc(app.user.displayName || app.user.name)}`;
+
+        // Show login/register buttons as hidden
+        const loginBtn = document.getElementById('loginNavBtn');
+        const registerBtn = document.getElementById('registerNavBtn');
+        const logoutBtn = document.getElementById('logoutNavBtn');
+        if (loginBtn) loginBtn.style.display = 'none';
+        if (registerBtn) registerBtn.style.display = 'none';
+        if (logoutBtn) logoutBtn.style.display = 'inline-block';
+
+        connectSocket();
+    } else {
+        // GUEST MODE
+        document.getElementById('dashboardBtn').style.display = 'none';
+        document.getElementById('createListingBtn').style.display = 'none';
+        document.getElementById('adminDashBtn').style.display = 'none';
+        document.getElementById('userDisplay').textContent = 'Guest';
+
+        const loginBtn = document.getElementById('loginNavBtn');
+        const registerBtn = document.getElementById('registerNavBtn');
+        const logoutBtn = document.getElementById('logoutNavBtn');
+        if (loginBtn) loginBtn.style.display = 'inline-block';
+        if (registerBtn) registerBtn.style.display = 'inline-block';
+        if (logoutBtn) logoutBtn.style.display = 'none';
     }
 
-    // Now we are authenticated
-    document.getElementById('navbar').style.display = 'flex';
-    const isSeller = app.user.role === 'INDIVIDUAL_SELLER' || app.user.role === 'AUCTIONEER' || app.user.role === 'ADMIN';
-    document.getElementById('dashboardBtn').style.display = isSeller ? 'inline' : 'none';
-    document.getElementById('createListingBtn').style.display = isSeller ? 'inline' : 'none';
-    document.getElementById('adminDashBtn').style.display = (app.user.role === 'ADMIN') ? 'inline' : 'none';
-    document.getElementById('userDisplay').textContent = `👤 ${esc(app.user.displayName || app.user.name)}`;
-
-    connectSocket();
+    // Always load marketplace
     await fetchMarketplace();
     navigate('marketplace');
-}
 
-function showLanding() {
-    document.getElementById('navbar').style.display = 'none';
-    document.getElementById('mainContent').innerHTML = `
-        <div class="landing-hero">
-            <img src="/logo.jpeg" alt="CM" style="width:80px;height:80px;object-fit:contain;border-radius:16px;margin-bottom:1rem;">
-            <h1 style="font-weight:900;color:#101010;">CM CENTRAL MARKET</h1>
-            <p style="color:#666;font-weight:600;letter-spacing:2px;">AUTOMOTIVE AUCTIONS</p>
-            <div style="display:flex;gap:1rem;justify-content:center;margin-top:2rem;">
-                <button class="btn btn-primary" style="background:#E30613;border:none;" onclick="showLogin()">Login</button>
-                <button class="btn btn-outline" style="border-color:#E30613;color:#E30613;" onclick="showRegister()">Register</button>
-            </div>
-        </div>
-    `;
+    if (!app.user) {
+        setTimeout(() => showToast('Browse freely! Login to bid or sell.', 'info'), 1200);
+    }
 }
 
 // ============================================================
 // ========== SOCKET.IO =======================================
 // ============================================================
 function connectSocket() {
-    if (app.socket) return;
-    app.socket = io({
-        auth: { token: app.token }
-    });
-    app.socket.on('connect', () => console.log('Socket connected'));
-    app.socket.on('connect_error', (err) => console.error('Socket error:', err.message));
-    app.socket.on('marketplaceUpdated', () => fetchMarketplace());
-    app.socket.on('bidUpdate', (data) => {
-        showToast(`New bid on ${esc(data.listingId)}: R${Number(data.currentBid).toLocaleString()}`, 'info');
-        fetchMarketplace();
-    });
-    app.socket.on('error', (data) => showToast(data.message, 'error'));
+    if (app.socket || !app.token) return;
+    try {
+        app.socket = io({ auth: { token: app.token } });
+        app.socket.on('connect', () => console.log('Socket connected'));
+        app.socket.on('connect_error', (err) => console.error('Socket error:', err.message));
+        app.socket.on('marketplaceUpdated', () => fetchMarketplace());
+        app.socket.on('bidUpdate', (data) => {
+            showToast(`New bid on ${esc(data.listingId)}: R${Number(data.currentBid).toLocaleString()}`, 'info');
+            fetchMarketplace();
+        });
+        app.socket.on('error', (data) => showToast(data.message, 'error'));
+    } catch (e) {
+        console.warn('Socket connection failed:', e.message);
+    }
 }
 
 // ============================================================
@@ -442,7 +489,6 @@ async function fetchMarketplace(filters = {}) {
     }
 }
 
-// Render marketplace with filter toggle
 async function renderMarketplace() {
     const main = document.getElementById('mainContent');
     if (!app._marketplaceFilters) {
@@ -450,7 +496,6 @@ async function renderMarketplace() {
     }
     const filters = app._marketplaceFilters;
 
-    // Fetch fresh data (but we keep separate from render to avoid double-fetch)
     await fetchMarketplace({
         filter: filters.filter,
         category: filters.category === 'ALL' ? '' : filters.category,
@@ -463,11 +508,11 @@ async function renderMarketplace() {
     const filterChipsHtml = `
         <div id="filterChips" style="display:${app.filterPanelVisible ? 'flex' : 'none'}; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.5rem; overflow-x:auto; padding-bottom:0.25rem; width:100%;">
             ${[
-                {id:'ALL', label:'All'},
-                {id:'AUCTION', label:'🔨 Live Auctions'},
-                {id:'FIXED_PRICE', label:'🏷️ Fixed Price'}
+                { id: 'ALL', label: 'All' },
+                { id: 'AUCTION', label: '🔨 Live Auctions' },
+                { id: 'FIXED_PRICE', label: '🏷️ Fixed Price' }
             ].map(c => `
-                <button onclick="setMarketplaceFilter('filter','${c.id}')" style="white-space:nowrap;padding:0.5rem 1.2rem;border-radius:9999px;font-size:0.9rem;font-weight:700;border:1px solid ${filters.filter===c.id ? '#101010' : '#EAEAEA'};background:${filters.filter===c.id ? '#101010' : 'white'};color:${filters.filter===c.id ? 'white' : '#666'};cursor:pointer;transition:0.2s;">
+                <button onclick="setMarketplaceFilter('filter','${c.id}')" style="white-space:nowrap;padding:0.5rem 1.2rem;border-radius:9999px;font-size:0.9rem;font-weight:700;border:1px solid ${filters.filter === c.id ? '#101010' : '#EAEAEA'};background:${filters.filter === c.id ? '#101010' : 'white'};color:${filters.filter === c.id ? 'white' : '#666'};cursor:pointer;transition:0.2s;">
                     ${c.label}
                 </button>
             `).join('')}
@@ -477,7 +522,7 @@ async function renderMarketplace() {
         </div>
         <div id="categoryChips" style="display:${app.filterPanelVisible ? 'flex' : 'none'}; flex-wrap:wrap; gap:0.5rem; margin-bottom:1rem; overflow-x:auto; padding-bottom:0.25rem; width:100%;">
             ${categories.map(c => `
-                <button onclick="setMarketplaceFilter('category','${c}')" style="white-space:nowrap;padding:0.3rem 1rem;border-radius:9999px;font-size:0.85rem;font-weight:600;border:1px solid ${filters.category===c ? '#101010' : '#EAEAEA'};background:${filters.category===c ? '#F5F5F7' : 'white'};color:${filters.category===c ? '#101010' : '#666'};cursor:pointer;transition:0.2s;">
+                <button onclick="setMarketplaceFilter('category','${c}')" style="white-space:nowrap;padding:0.3rem 1rem;border-radius:9999px;font-size:0.85rem;font-weight:600;border:1px solid ${filters.category === c ? '#101010' : '#EAEAEA'};background:${filters.category === c ? '#F5F5F7' : 'white'};color:${filters.category === c ? '#101010' : '#666'};cursor:pointer;transition:0.2s;">
                     ${c}
                 </button>
             `).join('')}
@@ -493,10 +538,10 @@ async function renderMarketplace() {
                     <i class="fas fa-sliders-h"></i> Filter
                 </button>
                 <select onchange="setMarketplaceFilter('sort', this.value)" style="padding:0.5rem 0.8rem;border-radius:8px;background:white;border:1px solid #EAEAEA;color:#101010;font-size:0.9rem;">
-                    <option value="recent" ${filters.sort==='recent'?'selected':''}>Most Recent</option>
-                    <option value="price_low" ${filters.sort==='price_low'?'selected':''}>Price: Low to High</option>
-                    <option value="price_high" ${filters.sort==='price_high'?'selected':''}>Price: High to Low</option>
-                    <option value="ending" ${filters.sort==='ending'?'selected':''}>Ending Soon</option>
+                    <option value="recent" ${filters.sort === 'recent' ? 'selected' : ''}>Most Recent</option>
+                    <option value="price_low" ${filters.sort === 'price_low' ? 'selected' : ''}>Price: Low to High</option>
+                    <option value="price_high" ${filters.sort === 'price_high' ? 'selected' : ''}>Price: High to Low</option>
+                    <option value="ending" ${filters.sort === 'ending' ? 'selected' : ''}>Ending Soon</option>
                 </select>
             </div>
             ${filterChipsHtml}
@@ -532,7 +577,7 @@ function applyMarketplaceFilters() {
     renderMarketplace();
 }
 
-// ---------- RENDER AUCTION CARD (with esc) ----------
+// ---------- RENDER AUCTION CARD ----------
 function renderAuctionCard(item) {
     const isAuction = item.listingType === 'AUCTION';
     const isLive = isAuction && (!item.endTime || new Date(item.endTime) > new Date());
@@ -582,13 +627,13 @@ function getTimeRemaining(endTime) {
     const now = Date.now();
     const diff = end - now;
     if (diff <= 0) return 'Ended';
-    const days = Math.floor(diff / (24*60*60*1000));
-    const hours = Math.floor((diff % (24*60*60*1000)) / (60*60*1000));
-    const mins = Math.floor((diff % (60*60*1000)) / (60*1000));
-    const secs = Math.floor((diff % (60*1000)) / 1000);
-    if (days > 0) return `${days}d ${String(hours).padStart(2,'0')}h`;
-    if (hours > 0) return `${String(hours).padStart(2,'0')}h ${String(mins).padStart(2,'0')}m`;
-    return `${String(mins).padStart(2,'0')}m ${String(secs).padStart(2,'0')}s`;
+    const days = Math.floor(diff / (24 * 60 * 60 * 1000));
+    const hours = Math.floor((diff % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+    const mins = Math.floor((diff % (60 * 60 * 1000)) / (60 * 1000));
+    const secs = Math.floor((diff % (60 * 1000)) / 1000);
+    if (days > 0) return `${days}d ${String(hours).padStart(2, '0')}h`;
+    if (hours > 0) return `${String(hours).padStart(2, '0')}h ${String(mins).padStart(2, '0')}m`;
+    return `${String(mins).padStart(2, '0')}m ${String(secs).padStart(2, '0')}s`;
 }
 
 // ============================================================
@@ -617,8 +662,7 @@ async function viewListingDetail(listingId) {
 function renderListingDetail(listing) {
     const main = document.getElementById('mainContent');
     const isAuction = listing.listingType === 'AUCTION';
-    const isSeller = app.user && (app.user.role === 'INDIVIDUAL_SELLER' || app.user.role === 'AUCTIONEER');
-    const isOwnListing = isSeller && app.user.id === listing.seller?.id;
+    const isOwnListing = app.user && app.user.id === listing.seller?.id;
 
     const specs = [
         { label: 'Year', value: listing.year || '-' },
@@ -638,20 +682,24 @@ function renderListingDetail(listing) {
         </div>
     `).join('');
 
-    const bidHtml = isOwnListing ? `
-        <div style="background:#FFF3F3;padding:0.5rem;border-radius:8px;text-align:center;color:#E30613;font-weight:700;">
-            You cannot bid on your own listing
-        </div>
-    ` : (isAuction ? `
-        <input type="number" id="bidAmountInput" value="${(Number(listing.currentBid || listing.startingPrice || 0) + 1000)}" style="width:100%;padding:0.75rem;border:1px solid #EAEAEA;border-radius:8px;font-size:1.1rem;font-weight:bold;color:#101010;margin-bottom:0.75rem;outline:none;">
-        <button onclick="placeBid('${listing.id}')" style="width:100%;background:#E30613;color:#fff;padding:0.9rem;border:none;border-radius:8px;font-weight:800;font-size:1rem;cursor:pointer;transition:0.2s;">
-            Place Bid
-        </button>
-    ` : `
-        <button onclick="buyNow('${listing.id}')" style="width:100%;background:#E30613;color:#fff;padding:0.9rem;border:none;border-radius:8px;font-weight:800;font-size:1rem;cursor:pointer;transition:0.2s;">
-            Buy Now at R ${Number(listing.price || 0).toLocaleString()}
-        </button>
-    `);
+    // Bid section: depends on login state
+    let bidHtml;
+    if (isOwnListing) {
+        bidHtml = `<div style="background:#FFF3F3;padding:0.5rem;border-radius:8px;text-align:center;color:#E30613;font-weight:700;">You cannot bid on your own listing</div>`;
+    } else if (isAuction) {
+        bidHtml = `
+            <input type="number" id="bidAmountInput" value="${(Number(listing.currentBid || listing.startingPrice || 0) + 1000)}" style="width:100%;padding:0.75rem;border:1px solid #EAEAEA;border-radius:8px;font-size:1.1rem;font-weight:bold;color:#101010;margin-bottom:0.75rem;outline:none;">
+            <button onclick="placeBid('${listing.id}')" style="width:100%;background:#E30613;color:#fff;padding:0.9rem;border:none;border-radius:8px;font-weight:800;font-size:1rem;cursor:pointer;transition:0.2s;">
+                Place Bid
+            </button>
+        `;
+    } else {
+        bidHtml = `
+            <button onclick="buyNow('${listing.id}')" style="width:100%;background:#E30613;color:#fff;padding:0.9rem;border:none;border-radius:8px;font-weight:800;font-size:1rem;cursor:pointer;transition:0.2s;">
+                Buy Now at R ${Number(listing.price || 0).toLocaleString()}
+            </button>
+        `;
+    }
 
     main.innerHTML = `
         <div style="max-width:1400px;margin:0 auto;padding:1rem;background:#F5F5F7;min-height:100vh;">
@@ -720,10 +768,6 @@ function renderListingDetail(listing) {
                             <p style="font-weight:bold;color:#101010;margin:0;">${esc(listing.seller?.name || 'CM Agent')}</p>
                             <a href="javascript:void(0)" onclick="viewSellerProfile('${listing.seller?.id}')" style="color:#E30613;font-size:0.9rem;font-weight:700;">View Profile →</a>
                         </div>
-                        <div id="liveVideoContainer" style="display:none;margin-top:1rem;background:#000;border-radius:8px;padding:1rem;text-align:center;color:#fff;">
-                            <p>🔴 LIVE STREAM IS ACTIVE</p>
-                            <video id="liveVideoPlayer" autoplay playsinline style="width:100%;max-height:300px;background:#000;border-radius:8px;"></video>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -731,7 +775,6 @@ function renderListingDetail(listing) {
     `;
 }
 
-// Gallery functions with guard
 function setGalleryImage(index) {
     const mainImg = document.getElementById('mainGalleryImage');
     const counter = document.getElementById('galleryCounter');
@@ -749,10 +792,10 @@ function changeGalleryImage(offset) {
     setGalleryImage(newIndex);
 }
 
-// ---------- BID & BUY ----------
+// ---------- BID & BUY (with login guard) ----------
 async function placeBid(listingId) {
-    if (!app.user) return showToast('Please login first', 'error');
-    // Check if own listing
+    if (!requireLogin('place a bid')) return;
+
     const listing = app._currentListing;
     if (listing && listing.seller && app.user.id === listing.seller.id) {
         return showToast('You cannot bid on your own listing', 'error');
@@ -760,7 +803,7 @@ async function placeBid(listingId) {
     const amountInput = document.getElementById('bidAmountInput');
     const amount = parseFloat(amountInput?.value);
     if (!amount || amount <= 0) return showToast('Enter a valid bid amount', 'error');
-    // Minimum increment check (frontend only)
+
     const currentBid = listing?.currentBid || listing?.startingPrice || 0;
     if (amount < currentBid + 1000) {
         return showToast(`Minimum bid is R${(currentBid + 1000).toLocaleString()}`, 'error');
@@ -776,11 +819,9 @@ async function placeBid(listingId) {
 }
 
 async function buyNow(listingId) {
+    if (!requireLogin('purchase')) return;
     showToast('Direct purchase coming soon', 'info');
 }
-
-function startLiveAuction(listingId) { /* placeholder */ }
-function joinLiveAuction(listingId) { /* placeholder */ }
 
 // ============================================================
 // ========== SELLER PROFILE ==================================
@@ -821,17 +862,11 @@ function renderSellerProfile(seller) {
 }
 
 // ============================================================
-// ========== DASHBOARD (fixed access) ========================
+// ========== DASHBOARD =======================================
 // ============================================================
 async function renderDashboard() {
     const main = document.getElementById('mainContent');
-    if (!app.user) return showToast('Please login first', 'error');
-
-    // Admin bypass first
-    if (app.user.role === 'ADMIN') {
-        // Admin can see dashboard but may not be seller; we'll show limited view or redirect to admin
-        // For now, we allow admin to see seller dashboard if they have listings
-    }
+    if (!app.user) return showLogin();
 
     const isSeller = (app.user.role === 'INDIVIDUAL_SELLER' || app.user.role === 'AUCTIONEER');
     if (!isSeller && app.user.role !== 'ADMIN') {
@@ -844,7 +879,6 @@ async function renderDashboard() {
         return;
     }
 
-    // For sellers: check if they have canSell and kycStatus
     const canSell = app.user.canSell === true;
     const kycOk = app.user.kycStatus === 'VERIFIED';
     if (!canSell || !kycOk) {
@@ -877,10 +911,10 @@ async function renderDashboard() {
                     <button onclick="navigate('createListing')" style="background:#E30613;color:white;border:none;padding:0.7rem 1.2rem;border-radius:8px;font-weight:800;cursor:pointer;">+ Sell Vehicle</button>
                 </div>
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:2rem;">
-                    <div class="dash-stat"><p class="label">Active Listings</p><p class="value">${myActive.filter(l=>l.status==='ACTIVE').length}</p></div>
-                    <div class="dash-stat"><p class="label">Total Views</p><p class="value">${myActive.reduce((s,l)=>s+(l.views||0),0)}</p></div>
-                    <div class="dash-stat"><p class="label">Bids Received</p><p class="value">${myActive.reduce((s,l)=>s+(l.bids?.length||0),0)}</p></div>
-                    <div class="dash-stat"><p class="label">Sold</p><p class="value">${myActive.filter(l=>l.status==='SOLD').length}</p></div>
+                    <div class="dash-stat"><p class="label">Active Listings</p><p class="value">${myActive.filter(l => l.status === 'ACTIVE').length}</p></div>
+                    <div class="dash-stat"><p class="label">Total Views</p><p class="value">${myActive.reduce((s, l) => s + (l.views || 0), 0)}</p></div>
+                    <div class="dash-stat"><p class="label">Bids Received</p><p class="value">${myActive.reduce((s, l) => s + (l.bids?.length || 0), 0)}</p></div>
+                    <div class="dash-stat"><p class="label">Sold</p><p class="value">${myActive.filter(l => l.status === 'SOLD').length}</p></div>
                 </div>
                 <h3 style="margin-bottom:1rem;color:#101010;">My Listings</h3>
                 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.25rem;">
@@ -894,14 +928,16 @@ async function renderDashboard() {
 }
 
 // ============================================================
-// ========== KYC (FIXED – real upload) ======================
+// ========== KYC =============================================
 // ============================================================
 function renderKYC() {
     const main = document.getElementById('mainContent');
+    if (!app.user) return showLogin();
+
     main.innerHTML = `
         <div style="max-width:600px;margin:0 auto;padding:2rem;background:#F5F5F7;min-height:100vh;">
             <h2 style="color:#101010;">Upgrade KYC</h2>
-            <p style="color:#666;margin-bottom:1.5rem;">Upload your documents to become a verified seller. This builds trust with buyers.</p>
+            <p style="color:#666;margin-bottom:1.5rem;">Upload your documents to become a verified seller.</p>
             <form id="kycForm" style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
                 <div class="form-group">
                     <label for="kycIdFile">ID Document (Front)</label>
@@ -934,7 +970,6 @@ function renderKYC() {
             </form>
         </div>`;
 
-    // Setup file drops (clean)
     setupKycFileDrop('kycIdDrop', 'kycIdFile', 'kycIdPreview');
     setupKycFileDrop('kycAddressDrop', 'kycAddressFile', 'kycAddressPreview');
     setupKycFileDrop('kycSelfieDrop', 'kycSelfieFile', 'kycSelfiePreview');
@@ -958,7 +993,7 @@ function renderKYC() {
                 body: fd
             });
             if (!res.ok) throw new Error('Upload failed');
-            await api('/api/kyc/upgrade', 'POST', { targetLevel: 2 }); // upgrade to level 2
+            await api('/api/kyc/upgrade', 'POST', { targetLevel: 2 });
             showToast('KYC submitted! Our team will review.', 'info');
             navigate('dashboard');
         } catch (err) {
@@ -970,7 +1005,6 @@ function renderKYC() {
 function setupKycFileDrop(dropId, inputId, previewId) {
     const drop = document.getElementById(dropId);
     const input = document.getElementById(inputId);
-    const preview = document.getElementById(previewId);
     if (!drop || !input) return;
     const newDrop = drop.cloneNode(true);
     drop.parentNode.replaceChild(newDrop, drop);
@@ -996,11 +1030,12 @@ function setupKycFileDrop(dropId, inputId, previewId) {
 }
 
 // ============================================================
-// ========== CREATE LISTING (with video fix, esc, VIN) ======
+// ========== CREATE LISTING ==================================
 // ============================================================
 function renderCreateListing() {
     const main = document.getElementById('mainContent');
-    if (!app.user || (!app.user.canSell && app.user.role !== 'ADMIN')) {
+    if (!app.user) return showLogin();
+    if (!app.user.canSell && app.user.role !== 'ADMIN') {
         main.innerHTML = `
             <div style="max-width:600px;margin:0 auto;padding:2rem;text-align:center;background:#F5F5F7;min-height:100vh;">
                 <h2 style="color:#101010;">Access Denied</h2>
@@ -1045,7 +1080,6 @@ function renderCreateListing() {
                         <div class="drag-area" id="mainImageDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#F5F5F7;">
                             <i class="fas fa-camera" style="font-size:2rem;color:#E30613;"></i>
                             <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Click to upload main product photo</p>
-                            <p style="margin:0;color:#888;font-size:0.7rem;">First image shown on marketplace</p>
                             <input type="file" id="mainImageInput" accept="image/*" hidden>
                         </div>
                         <div id="mainImagePreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
@@ -1062,94 +1096,51 @@ function renderCreateListing() {
                         <div id="compartmentImagePreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;display:flex;flex-wrap:wrap;gap:0.3rem;"></div>
                     </div>
                     <div class="form-group">
-                        <label for="videoInput" style="font-weight:600;">Odometer Video (10 seconds) <span style="color:#E30613;">*</span></label>
+                        <label for="videoInput" style="font-weight:600;">Odometer Video (10 seconds)</label>
                         <div class="drag-area" id="videoDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#F5F5F7;">
                             <i class="fas fa-video" style="font-size:2rem;color:#E30613;"></i>
                             <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Upload 10-second odometer video proof</p>
-                            <p style="margin:0;color:#888;font-size:0.7rem;">MP4, MOV, or AVI (max 50MB)</p>
                             <input type="file" id="videoInput" accept="video/*" hidden>
                         </div>
                         <div id="videoPreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
                     </div>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-                    <div class="form-group">
-                        <label for="listingYear">Year</label>
-                        <input id="listingYear" type="number" placeholder="2021" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
-                    </div>
-                    <div class="form-group">
-                        <label for="listingKm">Kilometers</label>
-                        <input id="listingKm" type="number" placeholder="85000" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
-                    </div>
+                    <div class="form-group"><label for="listingYear">Year</label><input id="listingYear" type="number" placeholder="2021" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
+                    <div class="form-group"><label for="listingKm">Kilometers</label><input id="listingKm" type="number" placeholder="85000" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;">
-                    <div class="form-group">
-                        <label for="listingColor">Color</label>
-                        <input id="listingColor" placeholder="White" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
-                    </div>
-                    <div class="form-group">
-                        <label for="listingEngine">Engine</label>
-                        <input id="listingEngine" placeholder="2.8L" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
-                    </div>
-                    <div class="form-group">
-                        <label for="listingTrans">Transmission</label>
-                        <select id="listingTrans" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
-                            <option>Manual</option><option>Automatic</option>
-                        </select>
-                    </div>
+                    <div class="form-group"><label for="listingColor">Color</label><input id="listingColor" placeholder="White" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
+                    <div class="form-group"><label for="listingEngine">Engine</label><input id="listingEngine" placeholder="2.8L" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
+                    <div class="form-group"><label for="listingTrans">Transmission</label><select id="listingTrans" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"><option>Manual</option><option>Automatic</option></select></div>
                 </div>
                 <div id="auctionFields">
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-                        <div class="form-group">
-                            <label for="listingStartPrice">Starting Price (R)</label>
-                            <input id="listingStartPrice" type="number" placeholder="50000" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
-                        </div>
-                        <div class="form-group">
-                            <label for="listingReservePrice">Reserve Price (R)</label>
-                            <input id="listingReservePrice" type="number" placeholder="60000" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
-                        </div>
+                        <div class="form-group"><label for="listingStartPrice">Starting Price (R)</label><input id="listingStartPrice" type="number" placeholder="50000" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
+                        <div class="form-group"><label for="listingReservePrice">Reserve Price (R)</label><input id="listingReservePrice" type="number" placeholder="60000" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
                     </div>
-                    <div class="form-group">
-                        <label for="listingDuration">Duration</label>
-                        <select id="listingDuration" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
-                            <option value="1d">1 Day</option><option value="3d">3 Days</option><option value="7d" selected>7 Days</option>
-                        </select>
-                    </div>
+                    <div class="form-group"><label for="listingDuration">Duration</label><select id="listingDuration" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"><option value="1d">1 Day</option><option value="3d">3 Days</option><option value="7d" selected>7 Days</option></select></div>
                 </div>
                 <div id="fixedFields" style="display:none;">
-                    <div class="form-group">
-                        <label for="listingPrice">Price (R)</label>
-                        <input id="listingPrice" type="number" placeholder="120000" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
-                    </div>
+                    <div class="form-group"><label for="listingPrice">Price (R)</label><input id="listingPrice" type="number" placeholder="120000" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
                 </div>
-                <div class="form-group">
-                    <label for="listingDescription">Description</label>
-                    <textarea id="listingDescription" rows="4" placeholder="Condition, extras, reason for selling..." style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;resize:vertical;"></textarea>
-                </div>
+                <div class="form-group"><label for="listingDescription">Description</label><textarea id="listingDescription" rows="4" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;resize:vertical;"></textarea></div>
                 <div style="background:#FFF3F3;border:1px solid #FFCFCF;padding:1rem;border-radius:12px;margin-bottom:1rem;">
-                    <h4 style="margin:0 0 0.8rem 0;color:#E30613;">CM Verification (Required for GREEN badge)</h4>
-                    <div class="form-group">
-                        <label for="listingVin">VIN Number</label>
-                        <input id="listingVin" placeholder="17 characters on windshield" style="width:100%;padding:0.6rem;border-radius:8px;background:#fff;border:1px solid #EAEAEA;color:#101010;">
-                    </div>
-                    <div class="form-group">
-                        <label for="listingEngineNo">Engine Number</label>
-                        <input id="listingEngineNo" placeholder="e.g. 2GD-123456" style="width:100%;padding:0.6rem;border-radius:8px;background:#fff;border:1px solid #EAEAEA;color:#101010;">
-                    </div>
+                    <h4 style="margin:0 0 0.8rem 0;color:#E30613;">CM Verification</h4>
+                    <div class="form-group"><label for="listingVin">VIN Number</label><input id="listingVin" placeholder="17 characters" style="width:100%;padding:0.6rem;border-radius:8px;background:#fff;border:1px solid #EAEAEA;color:#101010;"></div>
+                    <div class="form-group"><label for="listingEngineNo">Engine Number</label><input id="listingEngineNo" placeholder="e.g. 2GD-123456" style="width:100%;padding:0.6rem;border-radius:8px;background:#fff;border:1px solid #EAEAEA;color:#101010;"></div>
                     <label style="font-size:0.8rem;display:flex;gap:8px;margin-top:8px;color:#101010;">
-                        <input type="checkbox" id="listingDeclare"> I declare this car is not stolen, not under finance, and km is true. False = banned.
+                        <input type="checkbox" id="listingDeclare"> I declare this car is not stolen and km is true.
                     </label>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;background:#E30613;border:none;color:#fff;">Publish to CM Central Market</button>
+                <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;background:#E30613;border:none;color:#fff;">Publish</button>
             </form>
         </div>`;
 
-    // Setup file drops with clean listeners and video preview fix
     setupFileDrop('mainImageDrop', 'mainImageInput', 'mainImagePreview', 'single');
     setupFileDrop('compartmentImageDrop', 'compartmentImageInput', 'compartmentImagePreview', 'multiple');
     setupFileDrop('videoDrop', 'videoInput', 'videoPreview', 'video');
 
-    // Type toggle
     document.querySelectorAll('.listing-type-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const type = this.dataset.type;
@@ -1161,16 +1152,14 @@ function renderCreateListing() {
         });
     });
 
-    // Submit handler with VIN validation
     document.getElementById('createListingForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         if (!document.getElementById('listingDeclare').checked) {
-            return showToast('You must declare the vehicle is not stolen and km is true.', 'error');
+            return showToast('You must declare the vehicle is not stolen.', 'error');
         }
         const vin = document.getElementById('listingVin').value.trim();
-        if (vin && vin.length !== 17) {
-            return showToast('VIN must be exactly 17 characters', 'error');
-        }
+        if (vin && vin.length !== 17) return showToast('VIN must be exactly 17 characters', 'error');
+
         const mainInput = document.getElementById('mainImageInput');
         if (!mainInput.files || mainInput.files.length === 0) {
             return showToast('Please upload a main product image', 'error');
@@ -1189,26 +1178,21 @@ function renderCreateListing() {
         fd.append('description', document.getElementById('listingDescription').value);
         fd.append('vinNumber', vin);
         fd.append('engineNumber', document.getElementById('listingEngineNo').value.trim());
-        const startPrice = document.getElementById('listingStartPrice');
-        if (startPrice) fd.append('startingPrice', startPrice.value);
-        const reservePrice = document.getElementById('listingReservePrice');
-        if (reservePrice) fd.append('reservePrice', reservePrice.value);
-        const price = document.getElementById('listingPrice');
-        if (price) fd.append('price', price.value);
-        const duration = document.getElementById('listingDuration');
-        if (duration) fd.append('duration', duration.value);
+
+        const sp = document.getElementById('listingStartPrice');
+        if (sp) fd.append('startingPrice', sp.value);
+        const rp = document.getElementById('listingReservePrice');
+        if (rp) fd.append('reservePrice', rp.value);
+        const pr = document.getElementById('listingPrice');
+        if (pr) fd.append('price', pr.value);
+        const du = document.getElementById('listingDuration');
+        if (du) fd.append('duration', du.value);
 
         fd.append('mainImage', mainInput.files[0]);
         const compInput = document.getElementById('compartmentImageInput');
-        if (compInput.files) {
-            for (let i = 0; i < Math.min(compInput.files.length, 5); i++) {
-                fd.append('compartmentImages', compInput.files[i]);
-            }
-        }
+        if (compInput.files) for (let i = 0; i < Math.min(compInput.files.length, 5); i++) fd.append('compartmentImages', compInput.files[i]);
         const videoInput = document.getElementById('videoInput');
-        if (videoInput.files && videoInput.files.length > 0) {
-            fd.append('odometerVideo', videoInput.files[0]);
-        }
+        if (videoInput.files && videoInput.files.length > 0) fd.append('odometerVideo', videoInput.files[0]);
 
         try {
             const res = await fetch('/api/listings', {
@@ -1217,8 +1201,8 @@ function renderCreateListing() {
                 body: fd
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Failed to create listing');
-            showToast('Listing published to CM!', 'info');
+            if (!res.ok) throw new Error(data.error || 'Failed');
+            showToast('Listing published!', 'info');
             navigate('dashboard');
             fetchMarketplace();
         } catch (err) {
@@ -1227,11 +1211,9 @@ function renderCreateListing() {
     });
 }
 
-// File drop with video preview fix and listener cleanup
 function setupFileDrop(dropId, inputId, previewId, mode = 'single') {
     const drop = document.getElementById(dropId);
     const input = document.getElementById(inputId);
-    const preview = document.getElementById(previewId);
     if (!drop || !input) return;
     const newDrop = drop.cloneNode(true);
     drop.parentNode.replaceChild(newDrop, drop);
@@ -1250,9 +1232,7 @@ function setupFileDrop(dropId, inputId, previewId, mode = 'single') {
             updateFilePreview(newInput, newPreview, mode);
         }
     });
-    newInput.addEventListener('change', () => {
-        updateFilePreview(newInput, newPreview, mode);
-    });
+    newInput.addEventListener('change', () => updateFilePreview(newInput, newPreview, mode));
 }
 
 function updateFilePreview(input, preview, mode) {
@@ -1261,12 +1241,10 @@ function updateFilePreview(input, preview, mode) {
     if (!files || files.length === 0) { preview.innerHTML = ''; return; }
 
     if (mode === 'video') {
-        // Don't use FileReader for video to avoid RAM crash
         const file = files[0];
         preview.innerHTML = `✅ ${esc(file.name)} (${(file.size / 1024 / 1024).toFixed(1)} MB)`;
         return;
     }
-
     if (mode === 'single') {
         const file = files[0];
         const reader = new FileReader();
@@ -1279,7 +1257,7 @@ function updateFilePreview(input, preview, mode) {
             `;
         };
         reader.readAsDataURL(file);
-    } else { // multiple images
+    } else {
         const names = Array.from(files).map(f => esc(f.name));
         preview.innerHTML = names.map(n => `<span style="background:#F5F5F7;padding:0.2rem 0.6rem;border-radius:4px;font-size:0.75rem;color:#101010;">📷 ${n}</span>`).join('');
     }
@@ -1290,8 +1268,8 @@ function updateFilePreview(input, preview, mode) {
 // ============================================================
 function renderProfile() {
     const main = document.getElementById('mainContent');
+    if (!app.user) return showLogin();
     const user = app.user;
-    if (!user) return showToast('Please login first', 'error');
     const avatar = user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || user.name)}&background=E30613&color=fff&size=128`;
     main.innerHTML = `
         <div style="max-width:800px;margin:0 auto;padding:1rem;background:#F5F5F7;min-height:100vh;">
@@ -1302,7 +1280,7 @@ function renderProfile() {
                     <div style="flex:1;">
                         <p style="font-size:1.2rem;font-weight:700;margin:0;color:#101010;">${esc(user.displayName || user.name)}</p>
                         <p style="color:#666;margin:0;">${esc(user.email)} • ${esc(user.role)}</p>
-                        <p style="color:#666;margin:0;font-size:0.9rem;">KYC Status: ${esc(user.kycStatus || 'NONE')} ${user.canSell ? '✅ Can Sell' : ''}</p>
+                        <p style="color:#666;margin:0;font-size:0.9rem;">KYC: ${esc(user.kycStatus || 'NONE')} ${user.canSell ? '✅ Can Sell' : ''}</p>
                     </div>
                 </div>
                 <div style="display:flex;gap:0.5rem;margin-top:1rem;flex-wrap:wrap;">
@@ -1319,18 +1297,9 @@ function editProfile() {
     openModal(`
         <span class="close-modal" onclick="closeModal()">&times;</span>
         <h3>Edit Profile</h3>
-        <div class="form-group">
-            <label for="editDisplayName">Display Name</label>
-            <input id="editDisplayName" value="${esc(user.displayName || '')}" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
-        </div>
-        <div class="form-group">
-            <label for="editBio">Bio</label>
-            <textarea id="editBio" rows="3" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;resize:vertical;">${esc(user.bio || '')}</textarea>
-        </div>
-        <div class="form-group">
-            <label for="editAvatar">Avatar URL</label>
-            <input id="editAvatar" value="${esc(user.avatar || '')}" placeholder="https://example.com/avatar.jpg" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
-        </div>
+        <div class="form-group"><label for="editDisplayName">Display Name</label><input id="editDisplayName" value="${esc(user.displayName || '')}" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
+        <div class="form-group"><label for="editBio">Bio</label><textarea id="editBio" rows="3" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;resize:vertical;">${esc(user.bio || '')}</textarea></div>
+        <div class="form-group"><label for="editAvatar">Avatar URL</label><input id="editAvatar" value="${esc(user.avatar || '')}" placeholder="https://example.com/avatar.jpg" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
         <button class="btn btn-primary" style="width:100%;background:#E30613;border:none;" onclick="saveProfile()">Save Changes</button>
     `);
 }
@@ -1340,13 +1309,13 @@ async function saveProfile() {
     const bio = document.getElementById('editBio').value;
     const avatar = document.getElementById('editAvatar').value;
     try {
-        const res = await api('/api/users/me', 'PUT', { displayName, bio, avatar });
+        await api('/api/users/me', 'PUT', { displayName, bio, avatar });
         app.user.displayName = displayName || app.user.name;
         app.user.bio = bio;
         app.user.avatar = avatar;
         localStorage.setItem('user', JSON.stringify(app.user));
         closeModal();
-        showToast('Profile updated successfully!', 'info');
+        showToast('Profile updated!', 'info');
         renderProfile();
     } catch (err) {
         showToast(err.message, 'error');
@@ -1357,13 +1326,13 @@ async function saveProfile() {
 // ========== ADMIN REDIRECT ==================================
 // ============================================================
 function renderAdminDashboard() {
-    if (app.user?.role !== 'ADMIN') return showToast('Admin access required', 'error');
-    // Open admin in new tab so main app stays
+    if (!app.user) return showLogin();
+    if (app.user.role !== 'ADMIN') return showToast('Admin access required', 'error');
     window.open('/admin.html', '_blank');
 }
 
 // ============================================================
-// ========== START APP =======================================
+// ========== DEVICE FINGERPRINT ==============================
 // ============================================================
 if (typeof Fingerprint2 !== 'undefined') {
     Fingerprint2.get(function(components) {
@@ -1376,9 +1345,11 @@ if (typeof Fingerprint2 !== 'undefined') {
     app.deviceId = localStorage.getItem('deviceId') || 'unknown';
 }
 
+// ============================================================
+// ========== START APP =======================================
+// ============================================================
 document.addEventListener('DOMContentLoaded', () => {
-    // Only one init
     initApp();
 });
 
-console.log('✅ CM Central Market app.js loaded (FINAL LAUNCH VERSION)');
+console.log('✅ CM Central Market app.js loaded (GUEST BROWSING VERSION)');
