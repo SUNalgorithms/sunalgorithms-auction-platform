@@ -86,19 +86,29 @@ try {
     console.warn('⚠️ R2 init failed (continuing):', e.message);
 }
 
+// ------------------------------------------------------------
+// EMERGENCY R2: if R2 configured, upload to R2; otherwise fall back
+// to base64 data URL so register/listing still works without R2.
+// After R2 is properly configured, this still uses R2 first.
+// ------------------------------------------------------------
 async function uploadToR2(file, folder = 'listings') {
-    if (!s3Client) {
-        throw new Error('R2 storage not configured');
+    if (s3Client) {
+        try {
+            const { PutObjectCommand } = require('@aws-sdk/client-s3');
+            const key = `${folder}/${Date.now()}-${file.originalname.replace(/\s+/g, '-')}`;
+            await s3Client.send(new PutObjectCommand({
+                Bucket: R2_BUCKET,
+                Key: key,
+                Body: file.buffer,
+                ContentType: file.mimetype
+            }));
+            return `${R2_PUBLIC_URL}/${key}`;
+        } catch (e) {
+            console.warn('[R2] Upload failed, falling back to base64:', e.message);
+        }
     }
-    const { PutObjectCommand } = require('@aws-sdk/client-s3');
-    const key = `${folder}/${Date.now()}-${file.originalname.replace(/\s+/g, '-')}`;
-    await s3Client.send(new PutObjectCommand({
-        Bucket: R2_BUCKET,
-        Key: key,
-        Body: file.buffer,
-        ContentType: file.mimetype
-    }));
-    return `${R2_PUBLIC_URL}/${key}`;
+    // FALLBACK: store as base64 data URL (works everywhere, bigger payload)
+    return `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
 }
 
 async function deleteFromR2(key) {
