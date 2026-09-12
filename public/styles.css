@@ -1240,20 +1240,92 @@ body {
 }
 
 /* Ensure sticky bid panel becomes a bottom sheet on mobile (already there, but keep it strong) */
-@media(max-width:768px) {
+/* ============================================================
+   ========== LISTING DETAIL – PROFESSIONAL MOBILE LAYOUT =====
+   ============================================================ */
+
+/* Desktop / Tablet layout */
+.listing-detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.bid-panel {
+    background: white;
+    border: 1px solid #EAEAEA;
+    border-radius: 12px;
+    padding: 1.5rem;
+    position: sticky;
+    top: 80px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+/* ========== MOBILE (max-width 768px) ========== */
+@media (max-width: 768px) {
+
+    /* Turn the grid into a vertical stack */
+    .listing-detail-grid {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 1rem !important;
+    }
+
+    /* "display: contents" makes the wrapper divs invisible so their
+       children become direct flex items → allows reordering */
+    .listing-left-col,
+    .listing-right-col {
+        display: contents !important;
+    }
+
+    /* Reorder: gallery → bid → specs → description */
+    .listing-gallery-block      { order: 1; }
+    .bid-panel                  { order: 2; }
+    .listing-specs-block        { order: 3; }
+    .listing-description-block  { order: 4; }
+
+    /* Reset bid panel to flow naturally (no sticky / no fixed) */
     .bid-panel {
-        position: fixed !important;
-        bottom: 0 !important;
-        left: 0 !important;
-        right: 0 !important;
+        position: static !important;
         top: auto !important;
-        border-radius: 12px 12px 0 0 !important;
-        max-height: 60vh !important;
-        overflow-y: auto !important;
-        z-index: 50 !important;
+        border-radius: 12px !important;
+        padding: 1.25rem !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
+    }
+
+    /* Extra breathing room at bottom so last card isn't glued to edge */
+    #mainContent {
+        padding-bottom: 1.5rem !important;
+    }
+
+    /* Slightly smaller gallery arrows on phones */
+    .listing-gallery-block button {
+        width: 34px !important;
+        height: 34px !important;
+        font-size: 1.3rem !important;
+    }
+
+    /* Smaller thumbnail sizes for thumbs row */
+    .thumbnail-item {
+        width: 64px !important;
+        height: 64px !important;
+    }
+}
+
+/* ========== SMALL PHONES (max-width 480px) ========== */
+@media (max-width: 480px) {
+    .listing-gallery-block button {
+        width: 30px !important;
+        height: 30px !important;
+        font-size: 1.2rem !important;
+    }
+    .bid-panel {
+        padding: 1rem !important;
     }
     #mainContent {
-        padding-bottom: 80px !important;
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
     }
 }
 
