@@ -1,7 +1,7 @@
 // ============================================================
-// server.js - CM Central Market - FINAL FIXED FOR MISTER SUN
-// Solves: P2021, photo field mismatch, admin wiped, case-sensitive login
-// Safe init: Twilio, SendGrid, R2 never crash on startup
+// server.js - CM Central Market - FINAL FIXED
+// Fixes: marketplace price fallback, endTime in payload,
+// multi-field register, emergency admin, safe init
 // ============================================================
 
 require('dotenv').config();
@@ -80,17 +80,13 @@ try {
         R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || process.env.R2_ENDPOINT;
         console.log('✅ R2 storage initialised.');
     } else {
-        console.warn('⚠️ R2 not configured – image uploads will fail gracefully.');
+        console.warn('⚠️ R2 not configured – falling back to base64 storage.');
     }
 } catch (e) {
     console.warn('⚠️ R2 init failed (continuing):', e.message);
 }
 
-// ------------------------------------------------------------
-// EMERGENCY R2: if R2 configured, upload to R2; otherwise fall back
-// to base64 data URL so register/listing still works without R2.
-// After R2 is properly configured, this still uses R2 first.
-// ------------------------------------------------------------
+// ---------- EMERGENCY R2 FALLBACK ----------
 async function uploadToR2(file, folder = 'listings') {
     if (s3Client) {
         try {
@@ -107,7 +103,6 @@ async function uploadToR2(file, folder = 'listings') {
             console.warn('[R2] Upload failed, falling back to base64:', e.message);
         }
     }
-    // FALLBACK: store as base64 data URL (works everywhere, bigger payload)
     return `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
 }
 
@@ -250,7 +245,7 @@ function adminOnly(req, res, next) {
 // ========== API ROUTES =====================================
 // ============================================================
 
-// ---------- REGISTER (FINAL FIXED) ----------
+// ---------- REGISTER ----------
 app.post('/api/register', memoryUpload.fields([
     { name: 'idPhoto', maxCount: 1 },
     { name: 'idDocument', maxCount: 1 },
@@ -275,7 +270,6 @@ app.post('/api/register', memoryUpload.fields([
         });
         if (existing) return res.status(400).json({ error: 'Email or ID already registered' });
 
-        // Accept multiple field names for ID + selfie
         const idFile = req.files?.idPhoto?.[0] || req.files?.idDocument?.[0] || req.files?.idImage?.[0];
         const selfieFile = req.files?.selfie?.[0] || req.files?.selfieImage?.[0];
 
@@ -291,10 +285,9 @@ app.post('/api/register', memoryUpload.fields([
             idPhotoUrl = await uploadToR2(idFile, 'kyc');
             selfieUrl = await uploadToR2(selfieFile, 'kyc');
         } catch (e) {
-            return res.status(500).json({ error: 'R2 upload failed: ' + e.message });
+            return res.status(500).json({ error: 'Upload failed: ' + e.message });
         }
 
-        // Emergency admin logic: first user OR matching ADMIN_EMAIL becomes ADMIN
         const userCount = await prisma.user.count();
         const isFirstUser = userCount === 0;
         const isAdminEmail = ADMIN_EMAIL && normalizedEmail === ADMIN_EMAIL;
@@ -343,7 +336,7 @@ app.post('/api/register', memoryUpload.fields([
     }
 });
 
-// ---------- LOGIN (FINAL FIXED - case-insensitive) ----------
+// ---------- LOGIN ----------
 app.post('/api/login', async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -465,7 +458,9 @@ app.post('/api/kyc/upgrade', authenticate, async (req, res) => {
     }
 });
 
-// ---------- MARKETPLACE ----------
+// ============================================================
+// ========== MARKETPLACE (FIXED payload) =====================
+// ============================================================
 app.get('/api/marketplace', async (req, res) => {
     try {
         const { filter, category, search, verifiedOnly } = req.query;
@@ -481,27 +476,42 @@ app.get('/api/marketplace', async (req, res) => {
             include: { bids: true, seller: { select: { id: true, name: true, displayName: true } } },
             orderBy: { createdAt: 'desc' }
         });
-        const safe = listings.map(l => ({
-            id: l.id,
-            title: l.title,
-            price: l.price || l.currentBid || l.startingPrice,
-            mainImageUrl: l.mainImageUrl,
-            imageUrls: l.imageUrls || [],
-            images: l.images || [],
-            category: l.category,
-            condition: l.condition,
-            listingType: l.listingType,
-            year: l.year,
-            kilometers: l.kilometers,
-            transmission: l.transmission,
-            fuelType: l.fuelType,
-            currentBid: l.currentBid,
-            bidCount: l.bids.length,
-            isVerified: l.isVerified,
-            endsIn: l.endTime || null,
-            views: l.views,
-            seller: l.seller ? { id: l.seller.id, name: l.seller.displayName || l.seller.name } : null
-        }));
+
+        const safe = listings.map(l => {
+            // Robust price fallback chain
+            let displayPrice = null;
+            if (l.listingType === 'AUCTION') {
+                displayPrice = l.currentBid || l.startingPrice || l.reservePrice || null;
+            } else {
+                displayPrice = l.price || null;
+            }
+
+            return {
+                id: l.id,
+                title: l.title,
+                price: l.price || null,
+                currentBid: l.currentBid || null,
+                startingPrice: l.startingPrice || null,
+                reservePrice: l.reservePrice || null,
+                displayPrice: displayPrice,
+                mainImageUrl: l.mainImageUrl,
+                imageUrls: l.imageUrls || [],
+                images: l.images || [],
+                category: l.category,
+                condition: l.condition,
+                listingType: l.listingType,
+                year: l.year,
+                kilometers: l.kilometers,
+                transmission: l.transmission,
+                fuelType: l.fuelType,
+                bidCount: l.bids.length,
+                isVerified: l.isVerified,
+                endTime: l.endTime || null,
+                duration: l.duration || null,
+                views: l.views,
+                seller: l.seller ? { id: l.seller.id, name: l.seller.displayName || l.seller.name } : null
+            };
+        });
         res.json(safe);
     } catch (err) {
         console.error('Marketplace error:', err);
@@ -509,6 +519,9 @@ app.get('/api/marketplace', async (req, res) => {
     }
 });
 
+// ============================================================
+// ========== SINGLE LISTING (FIXED payload with endTime) =====
+// ============================================================
 app.get('/api/listings/:id', async (req, res) => {
     try {
         const l = await prisma.listing.findUnique({
@@ -516,7 +529,9 @@ app.get('/api/listings/:id', async (req, res) => {
             include: { bids: true, seller: { select: { id: true, name: true, displayName: true } } }
         });
         if (!l) return res.status(404).json({ error: 'Listing not found' });
+
         const cleanDesc = (l.description || '').replace(/(\d[\s-]?){10,}/g, '[contact hidden]');
+
         res.json({
             id: l.id,
             title: l.title,
@@ -525,7 +540,12 @@ app.get('/api/listings/:id', async (req, res) => {
             imageUrls: l.imageUrls || [],
             odometerVideoUrl: l.odometerVideoUrl,
             images: l.images || [],
-            price: l.price || l.currentBid || l.startingPrice,
+            price: l.price || null,
+            startingPrice: l.startingPrice || null,
+            reservePrice: l.reservePrice || null,
+            currentBid: l.currentBid || null,
+            endTime: l.endTime || null,
+            duration: l.duration || null,
             category: l.category,
             condition: l.condition,
             listingType: l.listingType,
@@ -533,7 +553,8 @@ app.get('/api/listings/:id', async (req, res) => {
             kilometers: l.kilometers,
             transmission: l.transmission,
             fuelType: l.fuelType,
-            currentBid: l.currentBid,
+            color: l.color,
+            engineSize: l.engineSize,
             bidCount: l.bids.length,
             isVerified: l.isVerified,
             location: 'Tokoza',
@@ -574,7 +595,7 @@ app.post('/api/listings', authenticate, memoryUpload.fields([
         try {
             mainImageUrl = await uploadToR2(files.mainImage[0], 'listings/main');
         } catch (uploadErr) {
-            return res.status(500).json({ error: 'Main image upload failed. Check R2 config.' });
+            return res.status(500).json({ error: 'Main image upload failed: ' + uploadErr.message });
         }
 
         const imageUrls = [];
@@ -660,7 +681,7 @@ app.post('/api/listings/:id/bid', authenticate, bidLimiter, async (req, res) => 
             return res.status(403).json({ error: 'You must complete KYC Level 1 to bid' });
         }
 
-        const minBid = listing.currentBid ? listing.currentBid + 1 : (listing.startingPrice || 0);
+        const minBid = listing.currentBid ? listing.currentBid + 1 : (listing.startingPrice || listing.reservePrice || 0);
         if (amount < minBid) return res.status(400).json({ error: `Bid must be at least R${minBid}` });
 
         const bid = await prisma.bid.create({
@@ -736,6 +757,8 @@ app.get('/api/sellers/:sellerId', async (req, res) => {
                 images: l.images || [],
                 listingType: l.listingType,
                 currentBid: l.currentBid,
+                startingPrice: l.startingPrice,
+                reservePrice: l.reservePrice,
                 price: l.price,
                 endTime: l.endTime,
                 status: l.status,
@@ -1070,7 +1093,7 @@ app.get('/api/seller/analytics/:listingId', authenticate, async (req, res) => {
 });
 
 // ============================================================
-// ========== STATIC FILES – AFTER API ROUTES =================
+// ========== STATIC + CATCH-ALL ==============================
 // ============================================================
 app.use(express.static(path.join(__dirname, 'public')));
 

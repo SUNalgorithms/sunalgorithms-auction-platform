@@ -580,21 +580,38 @@ function applyMarketplaceFilters() {
 // ---------- RENDER AUCTION CARD ----------
 function renderAuctionCard(item) {
     const isAuction = item.listingType === 'AUCTION';
-    const isLive = isAuction && (!item.endTime || new Date(item.endTime) > new Date());
-    const isEnded = isAuction && item.endTime && new Date(item.endTime) <= new Date();
-    const priceDisplay = isAuction
-        ? (item.currentBid ? `R ${Number(item.currentBid).toLocaleString()}` : `R ${(item.startingPrice || 0).toLocaleString()}`)
-        : `R ${(item.price || 0).toLocaleString()}`;
+    const endTime = item.endTime || null;
+    const isLive = isAuction && (!endTime || new Date(endTime) > new Date());
+    const isEnded = isAuction && endTime && new Date(endTime) <= new Date();
+
+    // Robust price fallback – server sends displayPrice, but we recompute for safety
+    let displayPrice = 0;
+    if (item.displayPrice) {
+        displayPrice = item.displayPrice;
+    } else if (isAuction) {
+        displayPrice = item.currentBid || item.startingPrice || item.reservePrice || 0;
+    } else {
+        displayPrice = item.price || 0;
+    }
+
+    const priceDisplay = `R ${Number(displayPrice).toLocaleString()}`;
+
     const timeDisplay = isAuction
-        ? (item.endTime ? getTimeRemaining(item.endTime) : 'No end time')
+        ? (endTime ? getTimeRemaining(endTime) : 'No end time')
         : (item.isNegotiable ? 'Negotiable' : 'Buy Now');
+
     const imageUrl = item.mainImageUrl || (item.images && item.images.length > 0 ? item.images[0] : '/logo.jpeg');
     const sellerName = esc(item.seller?.displayName || item.seller?.name || 'CM Agent');
     const sellerId = item.seller?.id || '';
+
     const specLine = item.year || item.kilometers
         ? `${item.year || ''} • ${item.kilometers ? Number(item.kilometers).toLocaleString() + ' km' : ''}`
         : item.category || '';
-    const verifiedBadge = item.isVerified ? `<span style="background:#28a745;color:white;font-size:0.65rem;padding:2px 6px;border-radius:4px;margin-left:6px;">✓ VERIFIED</span>` : '';
+
+    const verifiedBadge = item.isVerified
+        ? `<span style="background:#28a745;color:white;font-size:0.65rem;padding:2px 6px;border-radius:4px;margin-left:6px;">✓ VERIFIED</span>`
+        : '';
+
     const title = esc(item.title);
 
     return `
