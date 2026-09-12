@@ -704,11 +704,11 @@ function renderListingDetail(listing) {
         bidHtml = `<div style="background:#FFF3F3;padding:0.75rem;border-radius:8px;text-align:center;color:#E30613;font-weight:700;font-size:0.9rem;">You cannot bid on your own listing</div>`;
     } else if (isAuction) {
         bidHtml = `
-            <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem;">
-                <input type="number" id="bidAmountInput" value="${(Number(listing.currentBid || listing.startingPrice || 0) + 1000)}" 
-                    style="flex:1;min-width:0;padding:0.85rem 1rem;border:1px solid #EAEAEA;border-radius:8px;font-size:1.1rem;font-weight:700;color:#101010;outline:none;">
-                <button onclick="placeBid('${listing.id}')" 
-                    style="background:#E30613;color:#fff;padding:0.85rem 1.5rem;border:none;border-radius:8px;font-weight:800;font-size:0.95rem;cursor:pointer;white-space:nowrap;transition:0.2s;">
+            <div class="bid-input-row">
+                <input type="number" id="bidAmountInput" 
+                    value="${(Number(listing.currentBid || listing.startingPrice || listing.reservePrice || 0) + 1000)}" 
+                    class="bid-input">
+                <button onclick="placeBid('${listing.id}')" class="bid-submit-btn">
                     Place Bid
                 </button>
             </div>
@@ -722,6 +722,11 @@ function renderListingDetail(listing) {
         `;
     }
 
+    // Price fallback for detail page
+    const detailPrice = isAuction
+        ? (listing.currentBid || listing.startingPrice || listing.reservePrice || 0)
+        : (listing.price || 0);
+
     main.innerHTML = `
         <div style="max-width:1400px;margin:0 auto;padding:1rem;background:#F5F5F7;min-height:100vh;">
 
@@ -731,103 +736,104 @@ function renderListingDetail(listing) {
                 ← Back to Marketplace
             </button>
 
-            <!-- Main Grid -->
+            <!-- ===== MAIN GRID (all blocks are direct children) ===== -->
             <div class="listing-detail-grid">
 
-                <!-- LEFT COLUMN -->
-                <div class="listing-left-col">
-
-                    <!-- GALLERY BLOCK -->
-                    <div class="listing-gallery-block">
-                        <div style="background:#000;border-radius:12px;overflow:hidden;position:relative;">
-                            <div style="position:relative;width:100%;aspect-ratio:16/10;">
-                                <img id="mainGalleryImage" src="${galleryImages[0]}" style="width:100%;height:100%;object-fit:contain;">
-                                <button onclick="changeGalleryImage(-1)" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.9);border:none;width:40px;height:40px;border-radius:50%;font-size:1.5rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">‹</button>
-                                <button onclick="changeGalleryImage(1)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.9);border:none;width:40px;height:40px;border-radius:50%;font-size:1.5rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">›</button>
-                                <div style="position:absolute;top:12px;left:12px;background:#E30613;color:#fff;font-size:0.7rem;font-weight:700;padding:0.2rem 0.7rem;border-radius:4px;text-transform:uppercase;">
-                                    ${isAuction ? '● LIVE AUCTION' : 'FIXED PRICE'}
-                                </div>
-                                ${listing.isVerified 
-                                    ? `<div style="position:absolute;top:12px;right:12px;background:#28a745;color:#fff;font-size:0.7rem;font-weight:700;padding:0.2rem 0.7rem;border-radius:4px;">✓ CM VERIFIED</div>` 
-                                    : `<div style="position:absolute;top:12px;right:12px;background:#666;color:#fff;font-size:0.7rem;font-weight:700;padding:0.2rem 0.7rem;border-radius:4px;">UNVERIFIED</div>`}
-                                <div id="galleryCounter" style="position:absolute;bottom:12px;right:12px;background:rgba(0,0,0,0.7);color:#fff;padding:0.2rem 0.7rem;border-radius:20px;font-size:0.8rem;">
-                                    1 / ${galleryImages.length}
-                                </div>
+                <!-- GALLERY BLOCK -->
+                <div class="listing-gallery-block">
+                    <div style="background:#000;border-radius:12px;overflow:hidden;position:relative;">
+                        <div style="position:relative;width:100%;aspect-ratio:16/10;">
+                            <img id="mainGalleryImage" src="${galleryImages[0]}" style="width:100%;height:100%;object-fit:contain;">
+                            <button onclick="changeGalleryImage(-1)" class="gallery-nav-btn gallery-nav-left">‹</button>
+                            <button onclick="changeGalleryImage(1)" class="gallery-nav-btn gallery-nav-right">›</button>
+                            <div class="gallery-badge-type">
+                                ${isAuction ? '● LIVE AUCTION' : 'FIXED PRICE'}
+                            </div>
+                            ${listing.isVerified 
+                                ? `<div class="gallery-badge-verified">✓ CM VERIFIED</div>` 
+                                : `<div class="gallery-badge-unverified">UNVERIFIED</div>`}
+                            <div id="galleryCounter" class="gallery-counter">
+                                1 / ${galleryImages.length}
                             </div>
                         </div>
-
-                        <!-- Thumbnails -->
-                        <div class="thumbnails-container" style="display:flex;gap:0.5rem;overflow-x:auto;padding:0.5rem 0;margin-top:0.5rem;">
-                            ${thumbnailHTML}
-                        </div>
                     </div>
 
-                    <!-- SPECS BLOCK -->
-                    <div class="listing-specs-block" style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:1rem;margin-top:1rem;">
-                        <h4 style="margin:0 0 1rem 0;color:#101010;font-size:1rem;">Vehicle Specs</h4>
-                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:0.5rem;">
-                            ${specs.map(spec => `
-                                <div style="background:#F5F5F7;padding:0.6rem 0.5rem;border-radius:8px;text-align:center;">
-                                    <p style="font-size:0.7rem;color:#888;text-transform:uppercase;margin:0;letter-spacing:0.5px;">${esc(spec.label)}</p>
-                                    <p style="font-weight:800;color:#101010;margin:0.2rem 0 0 0;font-size:0.95rem;">${esc(spec.value)}</p>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-
-                    <!-- DESCRIPTION BLOCK -->
-                    <div class="listing-description-block" style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:1rem;margin-top:1rem;">
-                        <h4 style="margin:0 0 0.5rem 0;color:#101010;font-size:1rem;">Description</h4>
-                        <p style="color:#444;margin:0;font-size:0.95rem;line-height:1.5;">${esc(listing.description || 'No description provided.')}</p>
+                    <!-- Thumbnails -->
+                    <div class="thumbnails-container" style="display:flex;gap:0.5rem;overflow-x:auto;padding:0.5rem 0;margin-top:0.5rem;">
+                        ${thumbnailHTML}
                     </div>
                 </div>
 
-                <!-- RIGHT COLUMN: BID PANEL -->
-                <div class="listing-right-col">
-                    <div class="bid-panel">
-                        <!-- Timer -->
-                        <div style="text-align:center;margin-bottom:1rem;border-bottom:1px solid #EAEAEA;padding-bottom:1rem;">
-                            <p style="font-size:0.75rem;color:#888;text-transform:uppercase;margin:0;letter-spacing:0.5px;">${isAuction ? 'Auction Ends In' : 'Fixed Price'}</p>
-                            <h3 style="font-size:2rem;font-weight:900;margin:0.3rem 0 0 0;color:#101010;line-height:1.1;" id="countdownTimer">
-                                ${isAuction ? (listing.endTime ? getTimeRemaining(listing.endTime) : 'Ends Soon') : 'Buy Now'}
-                            </h3>
-                        </div>
-
-                        <!-- Price -->
-                        <p style="font-size:0.75rem;color:#888;text-transform:uppercase;margin:0;letter-spacing:0.5px;">${isAuction ? 'Current Bid' : 'Price'}</p>
-                        <p style="font-size:2.2rem;font-weight:900;margin:0.2rem 0 0 0;color:#101010;line-height:1.1;" id="currentBidDisplay">
-                            R ${Number(listing.price || listing.currentBid || listing.startingPrice || 0).toLocaleString()}
-                        </p>
-                        <p style="font-size:0.85rem;color:#666;margin-top:0.4rem;">
-                            ${isAuction ? `${listing.bidCount || 0} bids • Reserve not met` : (listing.isNegotiable ? 'Negotiable' : 'Instant purchase')}
-                        </p>
-
-                        <!-- Bid / Buy Actions -->
-                        <div style="margin-top:1.25rem;">
-                            ${bidHtml}
-
-                            <a href="https://wa.me/${listing.hqWhatsapp}?text=${encodeURIComponent(listing.waMessage || `Hi CM Agent, I'm interested in ${esc(listing.title)} (ID: ${listing.id}). Is viewing available?`)}" 
-                                target="_blank" 
-                                style="display:flex;align-items:center;justify-content:center;gap:10px;background:#25D366;color:#fff;padding:0.85rem;border-radius:8px;font-weight:800;font-size:0.95rem;text-decoration:none;margin-top:0.5rem;transition:0.2s;">
-                                <img src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" width="20" style="filter:invert(1);"> WhatsApp CM Agent
-                            </a>
-
-                            <p style="font-size:0.7rem;color:#666;text-align:center;margin-top:0.6rem;line-height:1.4;">
-                                All chats go via CM HQ. Seller contact hidden until deposit paid.
-                            </p>
-                        </div>
-
-                        <!-- Seller Info -->
-                        <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid #EAEAEA;">
-                            <p style="font-size:0.75rem;color:#888;margin:0;text-transform:uppercase;letter-spacing:0.5px;">Seller</p>
-                            <p style="font-weight:700;color:#101010;margin:0.3rem 0 0 0;font-size:1rem;">${esc(listing.seller?.name || 'CM Agent')}</p>
-                            <a href="javascript:void(0)" onclick="viewSellerProfile('${listing.seller?.id}')" 
-                                style="color:#E30613;font-size:0.85rem;font-weight:700;text-decoration:none;display:inline-block;margin-top:0.3rem;">
-                                View Profile →
-                            </a>
-                        </div>
+                <!-- SPECS BLOCK -->
+                <div class="listing-specs-block">
+                    <h4 style="margin:0 0 1rem 0;color:#101010;font-size:1rem;">Vehicle Specs</h4>
+                    <div class="specs-grid">
+                        ${specs.map(spec => `
+                            <div class="spec-item">
+                                <p class="spec-label">${esc(spec.label)}</p>
+                                <p class="spec-value">${esc(spec.value)}</p>
+                            </div>
+                        `).join('')}
                     </div>
                 </div>
+
+                <!-- DESCRIPTION BLOCK -->
+                <div class="listing-description-block">
+                    <h4 style="margin:0 0 0.5rem 0;color:#101010;font-size:1rem;">Description</h4>
+                    <p style="color:#444;margin:0;font-size:0.95rem;line-height:1.5;">
+                        ${esc(listing.description || 'No description provided.')}
+                    </p>
+                </div>
+
+                <!-- BID PANEL -->
+                <div class="bid-panel">
+                    <!-- Timer -->
+                    <div style="text-align:center;margin-bottom:1rem;border-bottom:1px solid #EAEAEA;padding-bottom:1rem;">
+                        <p style="font-size:0.75rem;color:#888;text-transform:uppercase;margin:0;letter-spacing:0.5px;">
+                            ${isAuction ? 'Auction Ends In' : 'Fixed Price'}
+                        </p>
+                        <h3 style="font-size:2rem;font-weight:900;margin:0.3rem 0 0 0;color:#101010;line-height:1.1;" id="countdownTimer">
+                            ${isAuction ? (listing.endTime ? getTimeRemaining(listing.endTime) : 'Ends Soon') : 'Buy Now'}
+                        </h3>
+                    </div>
+
+                    <!-- Price -->
+                    <p style="font-size:0.75rem;color:#888;text-transform:uppercase;margin:0;letter-spacing:0.5px;">
+                        ${isAuction ? 'Current Bid' : 'Price'}
+                    </p>
+                    <p style="font-size:2.2rem;font-weight:900;margin:0.2rem 0 0 0;color:#101010;line-height:1.1;" id="currentBidDisplay">
+                        R ${Number(detailPrice).toLocaleString()}
+                    </p>
+                    <p style="font-size:0.85rem;color:#666;margin-top:0.4rem;">
+                        ${isAuction ? `${listing.bidCount || 0} bids • Reserve not met` : (listing.isNegotiable ? 'Negotiable' : 'Instant purchase')}
+                    </p>
+
+                    <!-- Actions -->
+                    <div style="margin-top:1.25rem;">
+                        ${bidHtml}
+
+                        <a href="https://wa.me/${listing.hqWhatsapp}?text=${encodeURIComponent(listing.waMessage || `Hi CM Agent, I'm interested in ${esc(listing.title)} (ID: ${listing.id}). Is viewing available?`)}" 
+                            target="_blank" 
+                            style="display:flex;align-items:center;justify-content:center;gap:10px;background:#25D366;color:#fff;padding:0.85rem;border-radius:8px;font-weight:800;font-size:0.95rem;text-decoration:none;margin-top:0.5rem;transition:0.2s;">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" width="20" style="filter:invert(1);"> WhatsApp CM Agent
+                        </a>
+
+                        <p style="font-size:0.7rem;color:#666;text-align:center;margin-top:0.6rem;line-height:1.4;">
+                            All chats go via CM HQ. Seller contact hidden until deposit paid.
+                        </p>
+                    </div>
+
+                    <!-- Seller Info -->
+                    <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid #EAEAEA;">
+                        <p style="font-size:0.75rem;color:#888;margin:0;text-transform:uppercase;letter-spacing:0.5px;">Seller</p>
+                        <p style="font-weight:700;color:#101010;margin:0.3rem 0 0 0;font-size:1rem;">${esc(listing.seller?.name || 'CM Agent')}</p>
+                        <a href="javascript:void(0)" onclick="viewSellerProfile('${listing.seller?.id}')" 
+                            style="color:#E30613;font-size:0.85rem;font-weight:700;text-decoration:none;display:inline-block;margin-top:0.3rem;">
+                            View Profile →
+                        </a>
+                    </div>
+                </div>
+
             </div>
         </div>
     `;

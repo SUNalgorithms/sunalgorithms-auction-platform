@@ -1336,6 +1336,255 @@ body {
         height: 60px !important;
     }
 }
+
+/* ============================================================
+   ========== LISTING DETAIL – PROFESSIONAL RESPONSIVE ========
+   ============================================================ */
+
+/* Desktop layout: gallery + specs + description on left, bid panel on right */
+.listing-detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    grid-template-areas:
+        "gallery     bid"
+        "specs       bid"
+        "description bid";
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.listing-gallery-block {
+    grid-area: gallery;
+}
+
+.listing-specs-block {
+    grid-area: specs;
+    background: white;
+    border: 1px solid #EAEAEA;
+    border-radius: 12px;
+    padding: 1rem;
+}
+
+.listing-description-block {
+    grid-area: description;
+    background: white;
+    border: 1px solid #EAEAEA;
+    border-radius: 12px;
+    padding: 1rem;
+}
+
+.bid-panel {
+    grid-area: bid;
+    background: white;
+    border: 1px solid #EAEAEA;
+    border-radius: 12px;
+    padding: 1.5rem;
+    position: sticky;
+    top: 80px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    align-self: start;
+}
+
+/* Gallery nav buttons */
+.gallery-nav-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255,255,255,0.9);
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 1.5rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    color: #101010;
+    transition: 0.2s;
+}
+.gallery-nav-btn:hover {
+    background: #fff;
+    transform: translateY(-50%) scale(1.05);
+}
+.gallery-nav-left { left: 12px; }
+.gallery-nav-right { right: 12px; }
+
+/* Gallery badges */
+.gallery-badge-type {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    background: #E30613;
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.2rem 0.7rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.gallery-badge-verified {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: #28a745;
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.2rem 0.7rem;
+    border-radius: 4px;
+}
+.gallery-badge-unverified {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: #666;
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.2rem 0.7rem;
+    border-radius: 4px;
+}
+.gallery-counter {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    background: rgba(0,0,0,0.7);
+    color: #fff;
+    padding: 0.2rem 0.7rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+}
+
+/* Specs grid */
+.specs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.5rem;
+}
+.spec-item {
+    background: #F5F5F7;
+    padding: 0.6rem 0.5rem;
+    border-radius: 8px;
+    text-align: center;
+}
+.spec-label {
+    font-size: 0.7rem;
+    color: #888;
+    text-transform: uppercase;
+    margin: 0;
+    letter-spacing: 0.5px;
+}
+.spec-value {
+    font-weight: 800;
+    color: #101010;
+    margin: 0.2rem 0 0 0;
+    font-size: 0.95rem;
+}
+
+/* Bid input row (input + button) */
+.bid-input-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+.bid-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.85rem 1rem;
+    border: 1px solid #EAEAEA;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #101010;
+    outline: none;
+    box-sizing: border-box;
+}
+.bid-submit-btn {
+    background: #E30613;
+    color: #fff;
+    padding: 0.85rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-weight: 800;
+    font-size: 0.95rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: 0.2s;
+    flex-shrink: 0;
+}
+
+/* ============================================================
+   ========== MOBILE (max-width 768px) ========================
+   ============================================================ */
+@media (max-width: 768px) {
+
+    /* Single column with NEW ORDER: gallery → bid → specs → description */
+    .listing-detail-grid {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "gallery"
+            "bid"
+            "specs"
+            "description";
+        gap: 1rem;
+    }
+
+    /* Bid panel flows naturally on mobile (no sticky) */
+    .bid-panel {
+        position: static;
+        top: auto;
+        padding: 1.25rem;
+    }
+
+    /* Smaller gallery arrows */
+    .gallery-nav-btn {
+        width: 34px;
+        height: 34px;
+        font-size: 1.3rem;
+    }
+
+    /* Smaller thumbnails */
+    .thumbnail-item {
+        width: 64px !important;
+        height: 64px !important;
+    }
+
+    /* Extra padding at bottom of page */
+    #mainContent {
+        padding-bottom: 1.5rem;
+    }
+}
+
+/* ============================================================
+   ========== VERY NARROW PHONES (max-width 400px) ============
+   ============================================================ */
+@media (max-width: 400px) {
+
+    /* Stack bid input and button vertically */
+    .bid-input-row {
+        flex-direction: column;
+    }
+    .bid-submit-btn {
+        width: 100%;
+        padding: 0.9rem;
+    }
+
+    /* Smaller gallery arrows */
+    .gallery-nav-btn {
+        width: 30px;
+        height: 30px;
+        font-size: 1.2rem;
+    }
+
+    /* Tighter page padding */
+    #mainContent {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+    }
+}
 /* ============================================================
    ========== END OF STYLES.CSS – COMPLETE =====================
    ============================================================ */
