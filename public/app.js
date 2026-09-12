@@ -1,8 +1,7 @@
 // ============================================================
-// app.js - CM Central Market (Frontend) - GUEST BROWSING VERSION
-// Guests can browse marketplace without login.
-// Protected: bid, sell, dashboard, admin → show login/register.
-// All previous fixes preserved (XSS, KYC upload, video preview, etc.)
+// app.js - CM Central Market (Frontend) - FINAL FIXED
+// Fixes: register photo upload bug (cloneNode), guest browsing,
+// KYC upload, create listing upload, XSS, video preview
 // ============================================================
 
 // ---------- GLOBAL STATE ----------
@@ -105,7 +104,6 @@ function closeModal() {
 }
 
 // ---------- AUTH GUARD ----------
-// Call this before any protected action. If user not logged in, show login.
 function requireLogin(actionLabel) {
     if (app.user && app.token) return true;
     showToast(`Please login to ${actionLabel}`, 'error');
@@ -117,7 +115,6 @@ function requireLogin(actionLabel) {
 // ========== NAVIGATION (with guard) =========================
 // ============================================================
 function navigate(page) {
-    // Protected pages: dashboard, createListing, kyc, profile, adminDashboard
     if (!app.user && ['dashboard', 'createListing', 'kyc', 'profile', 'adminDashboard'].includes(page)) {
         showToast('Please login to access this page', 'error');
         return showLogin();
@@ -245,24 +242,29 @@ function showRegister() {
             </div>
             <input type="hidden" id="regRole" value="BUYER">
         </div>
+
+        <!-- ===== ID PHOTO (input OUTSIDE drag area) ===== -->
         <div class="form-group">
-            <label for="regIdPhoto">ID Photo</label>
+            <label>ID Photo *</label>
             <div class="drag-area" id="registerIdDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#fff;">
                 <i class="fas fa-id-card" style="font-size:2rem;color:#E30613;"></i>
                 <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Click to upload ID photo</p>
-                <input type="file" id="regIdPhoto" accept="image/*" hidden>
             </div>
+            <input type="file" id="regIdPhoto" accept="image/*" hidden>
             <div id="regIdPreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
         </div>
+
+        <!-- ===== SELFIE (input OUTSIDE drag area) ===== -->
         <div class="form-group">
-            <label for="regSelfie">Selfie</label>
+            <label>Selfie *</label>
             <div class="drag-area" id="registerSelfieDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#fff;">
                 <i class="fas fa-user" style="font-size:2rem;color:#E30613;"></i>
                 <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Take a selfie with your ID</p>
-                <input type="file" id="regSelfie" accept="image/*" hidden>
             </div>
+            <input type="file" id="regSelfie" accept="image/*" hidden>
             <div id="regSelfiePreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
         </div>
+
         <button class="btn btn-primary" style="width:100%;margin-top:1rem;background:#E30613;border:none;" onclick="handleRegister()">Register</button>
         <p style="margin-top:1rem;text-align:center;color:#888;">
             Already have an account? <span style="color:#E30613;cursor:pointer;" onclick="closeModal();showLogin();">Login</span>
@@ -285,34 +287,29 @@ function showRegister() {
     setupRegisterFileDrop('registerSelfieDrop', 'regSelfie', 'regSelfiePreview');
 }
 
+// ---------- FIXED: No cloneNode, uses .onclick ----------
 function setupRegisterFileDrop(dropId, inputId, previewId) {
     const drop = document.getElementById(dropId);
     const input = document.getElementById(inputId);
     const preview = document.getElementById(previewId);
     if (!drop || !input) return;
 
-    const newDrop = drop.cloneNode(true);
-    drop.parentNode.replaceChild(newDrop, drop);
-    const newInput = input.cloneNode(true);
-    input.parentNode.replaceChild(newInput, input);
-    const newPreview = document.getElementById(previewId);
-
-    newDrop.addEventListener('click', () => newInput.click());
-    newDrop.addEventListener('dragover', (e) => { e.preventDefault(); newDrop.style.borderColor = '#E30613'; });
-    newDrop.addEventListener('dragleave', () => { newDrop.style.borderColor = '#EAEAEA'; });
-    newDrop.addEventListener('drop', (e) => {
+    drop.onclick = () => input.click();
+    drop.ondragover = (e) => { e.preventDefault(); drop.style.borderColor = '#E30613'; };
+    drop.ondragleave = () => { drop.style.borderColor = '#EAEAEA'; };
+    drop.ondrop = (e) => {
         e.preventDefault();
-        newDrop.style.borderColor = '#EAEAEA';
+        drop.style.borderColor = '#EAEAEA';
         if (e.dataTransfer.files.length) {
-            newInput.files = e.dataTransfer.files;
-            if (newPreview) newPreview.innerHTML = `<span style="color:#E30613;">✅ ${esc(e.dataTransfer.files[0].name)}</span>`;
+            input.files = e.dataTransfer.files;
+            if (preview) preview.innerHTML = `<span style="color:#E30613;">✅ ${esc(e.dataTransfer.files[0].name)}</span>`;
         }
-    });
-    newInput.addEventListener('change', () => {
-        if (newInput.files.length && newPreview) {
-            newPreview.innerHTML = `<span style="color:#E30613;">✅ ${esc(newInput.files[0].name)}</span>`;
+    };
+    input.onchange = () => {
+        if (input.files.length && preview) {
+            preview.innerHTML = `<span style="color:#E30613;">✅ ${esc(input.files[0].name)}</span>`;
         }
-    });
+    };
 }
 
 async function handleRegister() {
@@ -325,6 +322,9 @@ async function handleRegister() {
     const role = document.getElementById('regRole').value;
     const idPhotoFile = document.getElementById('regIdPhoto')?.files?.[0];
     const selfieFile = document.getElementById('regSelfie')?.files?.[0];
+
+    console.log('REGISTER: idPhoto=', !!idPhotoFile, 'selfie=', !!selfieFile, 'files sizes:',
+        idPhotoFile?.size, selfieFile?.size);
 
     if (!name || !idNumber || !email || !password) {
         return showToast('All fields required', 'error');
@@ -379,7 +379,7 @@ function logout() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     showToast('Logged out');
-    initApp(); // refresh UI as guest
+    initApp();
 }
 
 // ============================================================
@@ -410,17 +410,17 @@ async function initApp() {
         app.token = null;
     }
 
-    // ALWAYS show navbar (guest or user)
-    navbar.style.display = 'flex';
+    if (navbar) navbar.style.display = 'flex';
 
     if (app.user) {
         const isSeller = app.user.role === 'INDIVIDUAL_SELLER' || app.user.role === 'AUCTIONEER' || app.user.role === 'ADMIN';
         document.getElementById('dashboardBtn').style.display = isSeller ? 'inline' : 'none';
         document.getElementById('createListingBtn').style.display = isSeller ? 'inline' : 'none';
         document.getElementById('adminDashBtn').style.display = (app.user.role === 'ADMIN') ? 'inline' : 'none';
+        const profileBtn = document.getElementById('profileBtn');
+        if (profileBtn) profileBtn.style.display = 'inline';
         document.getElementById('userDisplay').textContent = `👤 ${esc(app.user.displayName || app.user.name)}`;
 
-        // Show login/register buttons as hidden
         const loginBtn = document.getElementById('loginNavBtn');
         const registerBtn = document.getElementById('registerNavBtn');
         const logoutBtn = document.getElementById('logoutNavBtn');
@@ -430,10 +430,11 @@ async function initApp() {
 
         connectSocket();
     } else {
-        // GUEST MODE
         document.getElementById('dashboardBtn').style.display = 'none';
         document.getElementById('createListingBtn').style.display = 'none';
         document.getElementById('adminDashBtn').style.display = 'none';
+        const profileBtn = document.getElementById('profileBtn');
+        if (profileBtn) profileBtn.style.display = 'none';
         document.getElementById('userDisplay').textContent = 'Guest';
 
         const loginBtn = document.getElementById('loginNavBtn');
@@ -444,7 +445,6 @@ async function initApp() {
         if (logoutBtn) logoutBtn.style.display = 'none';
     }
 
-    // Always load marketplace
     await fetchMarketplace();
     navigate('marketplace');
 
@@ -682,7 +682,6 @@ function renderListingDetail(listing) {
         </div>
     `).join('');
 
-    // Bid section: depends on login state
     let bidHtml;
     if (isOwnListing) {
         bidHtml = `<div style="background:#FFF3F3;padding:0.5rem;border-radius:8px;text-align:center;color:#E30613;font-weight:700;">You cannot bid on your own listing</div>`;
@@ -792,7 +791,7 @@ function changeGalleryImage(offset) {
     setGalleryImage(newIndex);
 }
 
-// ---------- BID & BUY (with login guard) ----------
+// ---------- BID & BUY ----------
 async function placeBid(listingId) {
     if (!requireLogin('place a bid')) return;
 
@@ -928,7 +927,7 @@ async function renderDashboard() {
 }
 
 // ============================================================
-// ========== KYC =============================================
+// ========== KYC (inputs OUTSIDE drag areas) =================
 // ============================================================
 function renderKYC() {
     const main = document.getElementById('mainContent');
@@ -940,30 +939,30 @@ function renderKYC() {
             <p style="color:#666;margin-bottom:1.5rem;">Upload your documents to become a verified seller.</p>
             <form id="kycForm" style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
                 <div class="form-group">
-                    <label for="kycIdFile">ID Document (Front)</label>
+                    <label>ID Document (Front)</label>
                     <div class="drag-area" id="kycIdDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#F5F5F7;">
                         <i class="fas fa-id-card" style="font-size:2rem;color:#E30613;"></i>
                         <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Upload ID photo</p>
-                        <input type="file" id="kycIdFile" accept="image/*" hidden>
                     </div>
+                    <input type="file" id="kycIdFile" accept="image/*" hidden>
                     <div id="kycIdPreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
                 </div>
                 <div class="form-group">
-                    <label for="kycAddressFile">Proof of Address</label>
+                    <label>Proof of Address</label>
                     <div class="drag-area" id="kycAddressDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#F5F5F7;">
                         <i class="fas fa-home" style="font-size:2rem;color:#E30613;"></i>
                         <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Upload utility bill or bank statement</p>
-                        <input type="file" id="kycAddressFile" accept="image/*,.pdf" hidden>
                     </div>
+                    <input type="file" id="kycAddressFile" accept="image/*,.pdf" hidden>
                     <div id="kycAddressPreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
                 </div>
                 <div class="form-group">
-                    <label for="kycSelfieFile">Selfie with ID</label>
+                    <label>Selfie with ID</label>
                     <div class="drag-area" id="kycSelfieDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#F5F5F7;">
                         <i class="fas fa-user" style="font-size:2rem;color:#E30613;"></i>
                         <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Take a selfie holding your ID</p>
-                        <input type="file" id="kycSelfieFile" accept="image/*" hidden>
                     </div>
+                    <input type="file" id="kycSelfieFile" accept="image/*" hidden>
                     <div id="kycSelfiePreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
                 </div>
                 <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;background:#E30613;border:none;">Submit for Verification</button>
@@ -1002,35 +1001,33 @@ function renderKYC() {
     });
 }
 
+// ---------- FIXED: No cloneNode, uses .onclick ----------
 function setupKycFileDrop(dropId, inputId, previewId) {
     const drop = document.getElementById(dropId);
     const input = document.getElementById(inputId);
+    const preview = document.getElementById(previewId);
     if (!drop || !input) return;
-    const newDrop = drop.cloneNode(true);
-    drop.parentNode.replaceChild(newDrop, drop);
-    const newInput = input.cloneNode(true);
-    input.parentNode.replaceChild(newInput, input);
-    const newPreview = document.getElementById(previewId);
-    newDrop.addEventListener('click', () => newInput.click());
-    newDrop.addEventListener('dragover', (e) => { e.preventDefault(); newDrop.style.borderColor = '#E30613'; });
-    newDrop.addEventListener('dragleave', () => { newDrop.style.borderColor = '#EAEAEA'; });
-    newDrop.addEventListener('drop', (e) => {
+
+    drop.onclick = () => input.click();
+    drop.ondragover = (e) => { e.preventDefault(); drop.style.borderColor = '#E30613'; };
+    drop.ondragleave = () => { drop.style.borderColor = '#EAEAEA'; };
+    drop.ondrop = (e) => {
         e.preventDefault();
-        newDrop.style.borderColor = '#EAEAEA';
+        drop.style.borderColor = '#EAEAEA';
         if (e.dataTransfer.files.length) {
-            newInput.files = e.dataTransfer.files;
-            if (newPreview) newPreview.innerHTML = `<span style="color:#E30613;">✅ ${esc(e.dataTransfer.files[0].name)}</span>`;
+            input.files = e.dataTransfer.files;
+            if (preview) preview.innerHTML = `<span style="color:#E30613;">✅ ${esc(e.dataTransfer.files[0].name)}</span>`;
         }
-    });
-    newInput.addEventListener('change', () => {
-        if (newInput.files.length && newPreview) {
-            newPreview.innerHTML = `<span style="color:#E30613;">✅ ${esc(newInput.files[0].name)}</span>`;
+    };
+    input.onchange = () => {
+        if (input.files.length && preview) {
+            preview.innerHTML = `<span style="color:#E30613;">✅ ${esc(input.files[0].name)}</span>`;
         }
-    });
+    };
 }
 
 // ============================================================
-// ========== CREATE LISTING ==================================
+// ========== CREATE LISTING (inputs OUTSIDE drag areas) ======
 // ============================================================
 function renderCreateListing() {
     const main = document.getElementById('mainContent');
@@ -1073,38 +1070,44 @@ function renderCreateListing() {
                         </select>
                     </div>
                 </div>
+
                 <div style="margin:1.5rem 0;padding:1rem;background:#FFF8F8;border-radius:12px;border:1px solid #FFE0E0;">
                     <h4 style="margin:0 0 0.8rem 0;color:#E30613;">📸 Upload Photos & Video</h4>
+
+                    <!-- Main Image -->
                     <div class="form-group">
-                        <label for="mainImageInput" style="font-weight:600;">Main Product Image <span style="color:#E30613;">*</span></label>
+                        <label style="font-weight:600;">Main Product Image <span style="color:#E30613;">*</span></label>
                         <div class="drag-area" id="mainImageDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#F5F5F7;">
                             <i class="fas fa-camera" style="font-size:2rem;color:#E30613;"></i>
                             <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Click to upload main product photo</p>
-                            <input type="file" id="mainImageInput" accept="image/*" hidden>
                         </div>
+                        <input type="file" id="mainImageInput" accept="image/*" hidden>
                         <div id="mainImagePreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
                     </div>
+
+                    <!-- Compartment Images -->
                     <div class="form-group">
-                        <label for="compartmentImageInput" style="font-weight:600;">Additional Photos <span style="color:#888;font-weight:400;">(up to 5)</span></label>
-                        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:0.5rem;" id="compartmentDropContainer">
-                            <div class="drag-area" id="compartmentImageDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1rem;text-align:center;cursor:pointer;background:#F5F5F7;min-height:80px;display:flex;flex-direction:column;align-items:center;justify-content:center;">
-                                <i class="fas fa-images" style="font-size:1.5rem;color:#E30613;"></i>
-                                <p style="margin:0;color:#666;font-size:0.7rem;">Engine, interior, damage, etc.</p>
-                                <input type="file" id="compartmentImageInput" accept="image/*" multiple hidden>
-                            </div>
+                        <label style="font-weight:600;">Additional Photos <span style="color:#888;font-weight:400;">(up to 5)</span></label>
+                        <div class="drag-area" id="compartmentImageDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#F5F5F7;">
+                            <i class="fas fa-images" style="font-size:2rem;color:#E30613;"></i>
+                            <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Engine, interior, damage, etc.</p>
                         </div>
+                        <input type="file" id="compartmentImageInput" accept="image/*" multiple hidden>
                         <div id="compartmentImagePreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;display:flex;flex-wrap:wrap;gap:0.3rem;"></div>
                     </div>
+
+                    <!-- Odometer Video -->
                     <div class="form-group">
-                        <label for="videoInput" style="font-weight:600;">Odometer Video (10 seconds)</label>
+                        <label style="font-weight:600;">Odometer Video (10 seconds)</label>
                         <div class="drag-area" id="videoDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#F5F5F7;">
                             <i class="fas fa-video" style="font-size:2rem;color:#E30613;"></i>
                             <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Upload 10-second odometer video proof</p>
-                            <input type="file" id="videoInput" accept="video/*" hidden>
                         </div>
+                        <input type="file" id="videoInput" accept="video/*" hidden>
                         <div id="videoPreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
                     </div>
                 </div>
+
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
                     <div class="form-group"><label for="listingYear">Year</label><input id="listingYear" type="number" placeholder="2021" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
                     <div class="form-group"><label for="listingKm">Kilometers</label><input id="listingKm" type="number" placeholder="85000" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
@@ -1211,28 +1214,25 @@ function renderCreateListing() {
     });
 }
 
+// ---------- FIXED: No cloneNode, uses .onclick ----------
 function setupFileDrop(dropId, inputId, previewId, mode = 'single') {
     const drop = document.getElementById(dropId);
     const input = document.getElementById(inputId);
+    const preview = document.getElementById(previewId);
     if (!drop || !input) return;
-    const newDrop = drop.cloneNode(true);
-    drop.parentNode.replaceChild(newDrop, drop);
-    const newInput = input.cloneNode(true);
-    input.parentNode.replaceChild(newInput, input);
-    const newPreview = document.getElementById(previewId);
 
-    newDrop.addEventListener('click', () => newInput.click());
-    newDrop.addEventListener('dragover', (e) => { e.preventDefault(); newDrop.style.borderColor = '#E30613'; });
-    newDrop.addEventListener('dragleave', () => { newDrop.style.borderColor = '#EAEAEA'; });
-    newDrop.addEventListener('drop', (e) => {
+    drop.onclick = () => input.click();
+    drop.ondragover = (e) => { e.preventDefault(); drop.style.borderColor = '#E30613'; };
+    drop.ondragleave = () => { drop.style.borderColor = '#EAEAEA'; };
+    drop.ondrop = (e) => {
         e.preventDefault();
-        newDrop.style.borderColor = '#EAEAEA';
+        drop.style.borderColor = '#EAEAEA';
         if (e.dataTransfer.files.length) {
-            newInput.files = e.dataTransfer.files;
-            updateFilePreview(newInput, newPreview, mode);
+            input.files = e.dataTransfer.files;
+            updateFilePreview(input, preview, mode);
         }
-    });
-    newInput.addEventListener('change', () => updateFilePreview(newInput, newPreview, mode));
+    };
+    input.onchange = () => updateFilePreview(input, preview, mode);
 }
 
 function updateFilePreview(input, preview, mode) {
@@ -1352,4 +1352,4 @@ document.addEventListener('DOMContentLoaded', () => {
     initApp();
 });
 
-console.log('✅ CM Central Market app.js loaded (GUEST BROWSING VERSION)');
+console.log('✅ CM Central Market app.js loaded (FINAL FIXED - No cloneNode bug)');
