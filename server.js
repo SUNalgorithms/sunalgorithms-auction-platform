@@ -5,24 +5,9 @@
 // ============================================================
 
 require('dotenv').config();
-const { execSync } = require('child_process');
-
-// ============================================================
-// AUTO-MIGRATION (migrate deploy first, db push as fallback)
-// ============================================================
-try {
-    console.log('📦 Running database migrations...');
-    execSync('npx prisma migrate deploy', { stdio: 'inherit' });
-    console.log('✅ Database migrations completed.');
-} catch (err) {
-    console.warn('⚠️ migrate deploy failed, trying db push...');
-    try {
-        execSync('npx prisma db push --accept-data-loss=false', { stdio: 'inherit' });
-        console.log('✅ db push completed.');
-    } catch (err2) {
-        console.error('❌ Migration failed (continuing anyway):', err2.message);
-    }
-}
+// Schema sync handled by Render Build Command:
+// npm install && npx prisma generate && npx prisma db push --skip-generate
+console.log('📦 Schema sync handled by Build Command. Starting server...');
 
 const express = require('express');
 const http = require('http');
