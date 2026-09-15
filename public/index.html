@@ -29,7 +29,7 @@
 </head>
 <body>
 
-    <!-- ===== CM LOADER (reveal animation) ===== -->
+    <!-- ===== CM LOADER ===== -->
     <div id="cm-loader" style="position:fixed; inset:0; background:#F5F5F7; z-index:99999; display:flex; align-items:center; justify-content:center; flex-direction:column; transition:opacity 0.6s ease;">
         <img src="/logo.jpeg" style="width:96px; height:96px; object-fit:contain; border-radius:18px; animation: cmPulse 1.2s infinite;">
         <div style="margin-top:18px; display:flex; gap:8px; align-items:baseline;">
@@ -41,7 +41,7 @@
     <style>@keyframes cmPulse{0%,100%{transform:scale(1)}50%{transform:scale(0.92)}}</style>
 
     <!-- ===== SINGLE NAVBAR – NO DUPLICATES ===== -->
-    <nav id="navbar" style="display:none; background:white; border-bottom:1px solid #EAEAEA; position:sticky; top:0; z-index:100; height:68px; padding:0 1.2rem; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+    <nav id="navbar" style="display:none; background:white; border-bottom:1px solid #EAEAEA; position:sticky; top:0; z-index:100; min-height:68px; padding:0.5rem 1.2rem; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
 
         <!-- Logo (click → marketplace) -->
         <div style="display:flex; gap:0.6rem; align-items:center; cursor:pointer;" onclick="navigate('marketplace')">
@@ -57,24 +57,47 @@
 
         <!-- Nav links + auth buttons -->
         <div style="display:flex; gap:0.9rem; align-items:center; flex-wrap:wrap;">
-            <span onclick="navigate('marketplace')" style="cursor:pointer; font-weight:700; font-size:0.9rem; color:#101010;">Marketplace</span>
 
-            <span onclick="navigate('dashboard')" id="dashboardBtn" style="display:none; cursor:pointer; font-weight:700; font-size:0.9rem; color:#101010;">Dashboard</span>
+            <span onclick="navigate('marketplace')" id="marketplaceNavBtn" style="cursor:pointer; font-weight:700; font-size:0.9rem; color:#101010;">
+                Marketplace
+            </span>
 
-            <span onclick="navigate('createListing')" id="createListingBtn" style="display:none; background:#E30613; color:white; padding:0.5rem 1rem; border-radius:8px; font-weight:800; cursor:pointer; font-size:0.85rem;">+ Sell</span>
+            <!-- PRIVATE SOURCE nav item -->
+            <span onclick="navigate('privateSource')" id="privateSourceBtn" class="nav-private" style="cursor:pointer; font-weight:800; font-size:0.9rem; color:#1A1A1A; display:flex; align-items:center; gap:4px;">
+                💎 <span class="private-label-full">PRIVATE</span><span class="private-label-full"> SOURCE</span><span class="private-label-short" style="display:none;">PRIVATE</span>
+            </span>
 
-            <span onclick="navigate('profile')" id="profileBtn" style="display:none; cursor:pointer; font-weight:700; font-size:0.9rem; color:#101010;">Profile</span>
+            <span onclick="navigate('dashboard')" id="dashboardBtn" style="display:none; cursor:pointer; font-weight:700; font-size:0.9rem; color:#101010;">
+                Dashboard
+            </span>
 
-            <span onclick="navigate('adminDashboard')" id="adminDashBtn" style="display:none; cursor:pointer; font-weight:700; font-size:0.9rem; color:#E30613;">Admin</span>
+            <span onclick="navigate('createListing')" id="createListingBtn" style="display:none; background:#E30613; color:white; padding:0.5rem 1rem; border-radius:8px; font-weight:800; cursor:pointer; font-size:0.85rem;">
+                + Sell
+            </span>
+
+            <span onclick="navigate('profile')" id="profileBtn" style="display:none; cursor:pointer; font-weight:700; font-size:0.9rem; color:#101010;">
+                Profile
+            </span>
+
+            <span onclick="navigate('adminDashboard')" id="adminDashBtn" style="display:none; cursor:pointer; font-weight:700; font-size:0.9rem; color:#E30613;">
+                Admin
+            </span>
 
             <span id="userDisplay" style="font-weight:700; font-size:0.85rem; color:#666;"></span>
 
-            <!-- GUEST ONLY: Login + Register -->
-            <button id="loginNavBtn" onclick="showLogin()" style="border:1px solid #E30613; color:#E30613; background:white; border-radius:8px; padding:6px 12px; font-weight:800; cursor:pointer; font-size:0.8rem; display:none;">Login</button>
-            <button id="registerNavBtn" onclick="showRegister()" style="background:#E30613; color:white; border:none; border-radius:8px; padding:6px 12px; font-weight:800; cursor:pointer; font-size:0.8rem; display:none;">Register</button>
+            <!-- GUEST ONLY -->
+            <button id="loginNavBtn" onclick="showLogin()" style="border:1px solid #E30613; color:#E30613; background:white; border-radius:8px; padding:6px 12px; font-weight:800; cursor:pointer; font-size:0.8rem; display:none;">
+                Login
+            </button>
+            <button id="registerNavBtn" onclick="showRegister()" style="background:#E30613; color:white; border:none; border-radius:8px; padding:6px 12px; font-weight:800; cursor:pointer; font-size:0.8rem; display:none;">
+                Register
+            </button>
 
-            <!-- LOGGED-IN ONLY: Logout -->
-            <button id="logoutNavBtn" onclick="logout()" style="border:1px solid #EAEAEA; color:#666; background:white; border-radius:8px; padding:6px 12px; font-weight:700; cursor:pointer; font-size:0.8rem; display:none;">Logout</button>
+            <!-- LOGGED-IN ONLY -->
+            <button id="logoutNavBtn" onclick="logout()" style="border:1px solid #EAEAEA; color:#666; background:white; border-radius:8px; padding:6px 12px; font-weight:700; cursor:pointer; font-size:0.8rem; display:none;">
+                Logout
+            </button>
+
         </div>
     </nav>
 
@@ -92,7 +115,7 @@
     <!-- ===== APP SCRIPT ===== -->
     <script src="/app.js"></script>
 
-    <!-- ===== AUTO-HIDE LOADER AFTER APP LOADS ===== -->
+    <!-- ===== AUTO-HIDE LOADER ===== -->
     <script>
         window.addEventListener('load', () => {
             setTimeout(() => {
@@ -101,5 +124,14 @@
             }, 900);
         });
     </script>
+
+    <!-- ===== MOBILE: SHORT LABEL FOR PRIVATE SOURCE ===== -->
+    <style>
+        @media (max-width: 600px) {
+            .private-label-full { display: none !important; }
+            .private-label-short { display: inline !important; }
+            #privateSourceBtn { font-size: 0.85rem !important; }
+        }
+    </style>
 </body>
 </html>

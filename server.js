@@ -1,21 +1,27 @@
 // ============================================================
-// server.js - CM Central Market - FINAL FIXED
-// Fixes: marketplace price fallback, endTime in payload,
-// multi-field register, emergency admin, safe init
+// server.js - CM Central Market - WITH PRIVATE SOURCING
+// Features: Marketplace, Private Source, KYC, Admin, Ghost Leads,
+// DNA Reports, Safe Init, R2 Fallback, Auto Migration
 // ============================================================
 
 require('dotenv').config();
 const { execSync } = require('child_process');
 
-// ------------------------------------------------------------------
-// MIGRATION – safely attempt, but do NOT exit on failure
-// ------------------------------------------------------------------
+// ============================================================
+// AUTO-MIGRATION (migrate deploy first, db push as fallback)
+// ============================================================
 try {
     console.log('📦 Running database migrations...');
     execSync('npx prisma migrate deploy', { stdio: 'inherit' });
     console.log('✅ Database migrations completed.');
 } catch (err) {
-    console.error('❌ Migration failed (continuing anyway):', err.message);
+    console.warn('⚠️ migrate deploy failed, trying db push...');
+    try {
+        execSync('npx prisma db push --accept-data-loss=false', { stdio: 'inherit' });
+        console.log('✅ db push completed.');
+    } catch (err2) {
+        console.error('❌ Migration failed (continuing anyway):', err2.message);
+    }
 }
 
 const express = require('express');
@@ -47,10 +53,12 @@ if (!process.env.JWT_SECRET) {
     process.exit(1);
 }
 const JWT_SECRET = process.env.JWT_SECRET;
-const HQ_WHATSAPP = process.env.HQ_WHATSAPP || null;
+const HQ_WHATSAPP = process.env.HQ_WHATSAPP || '27665254746';
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ? process.env.ADMIN_EMAIL.toLowerCase().trim() : null;
+const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@cmcentralmarket.co.za';
+const PRIVATE_EMAIL = process.env.PRIVATE_EMAIL || FROM_EMAIL;
+const CIPC_NUMBER = process.env.CIPC_NUMBER || '2024/XXXXXX/07';
 
-if (!HQ_WHATSAPP) console.warn('⚠️ HQ_WHATSAPP not set – WhatsApp links will use placeholder.');
 if (!ADMIN_EMAIL) console.warn('⚠️ ADMIN_EMAIL not set – emergency admin by first user only.');
 
 // ============================================================
@@ -106,16 +114,6 @@ async function uploadToR2(file, folder = 'listings') {
     return `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
 }
 
-async function deleteFromR2(key) {
-    if (!s3Client) return;
-    try {
-        const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
-        await s3Client.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));
-    } catch (e) {
-        console.warn('R2 delete failed:', e.message);
-    }
-}
-
 // ============================================================
 // SAFE INIT: TWILIO
 // ============================================================
@@ -138,7 +136,6 @@ try {
 // SAFE INIT: SENDGRID
 // ============================================================
 let SENDGRID_ENABLED = false;
-const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@cmcentralmarket.co.za';
 
 try {
     if (process.env.SENDGRID_API_KEY) {
@@ -203,6 +200,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 const bidLimiter = rateLimit({ windowMs: 1000, max: 5, message: 'Too many bids, slow down' });
+const instructLimiter = rateLimit({ windowMs: 60000, max: 3, message: 'Too many instructions. Please wait a minute.' });
 
 // ------------------------------------------------------------------
 // PRIVATE UPLOADS
@@ -236,13 +234,28 @@ function authenticate(req, res, next) {
     }
 }
 
+// Optional auth (for endpoints that work for both guests and logged-in)
+function optionalAuth(req, res, next) {
+    const h = req.headers.authorization;
+    if (h) {
+        try {
+            req.user = jwt.verify(h.split(' ')[1], JWT_SECRET);
+        } catch (e) {
+            req.user = null;
+        }
+    } else {
+        req.user = null;
+    }
+    next();
+}
+
 function adminOnly(req, res, next) {
     if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Admin only' });
     next();
 }
 
 // ============================================================
-// ========== API ROUTES =====================================
+// ========== AUTH ROUTES =====================================
 // ============================================================
 
 // ---------- REGISTER ----------
@@ -459,12 +472,12 @@ app.post('/api/kyc/upgrade', authenticate, async (req, res) => {
 });
 
 // ============================================================
-// ========== MARKETPLACE (FIXED payload) =====================
+// ========== MARKETPLACE (PUBLIC - excludes private) =========
 // ============================================================
 app.get('/api/marketplace', async (req, res) => {
     try {
         const { filter, category, search, verifiedOnly } = req.query;
-        const where = { status: 'ACTIVE' };
+        const where = { status: 'ACTIVE', isPrivate: false };  // ← EXCLUDE private listings
         if (category && category !== 'ALL') where.category = category;
         if (filter === 'AUCTION') where.listingType = 'AUCTION';
         if (filter === 'FIXED_PRICE') where.listingType = 'FIXED_PRICE';
@@ -478,7 +491,6 @@ app.get('/api/marketplace', async (req, res) => {
         });
 
         const safe = listings.map(l => {
-            // Robust price fallback chain
             let displayPrice = null;
             if (l.listingType === 'AUCTION') {
                 displayPrice = l.currentBid || l.startingPrice || l.reservePrice || null;
@@ -520,7 +532,170 @@ app.get('/api/marketplace', async (req, res) => {
 });
 
 // ============================================================
-// ========== SINGLE LISTING (FIXED payload with endTime) =====
+// ========== PRIVATE SOURCE ENDPOINTS ========================
+// ============================================================
+
+// ---------- GET PRIVATE COLLECTION (public) ----------
+app.get('/api/private/collection', async (req, res) => {
+    try {
+        const listings = await prisma.listing.findMany({
+            where: {
+                isPrivate: true,
+                status: 'ACTIVE'
+            },
+            include: {
+                seller: { select: { id: true, name: true, displayName: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        const safe = listings.map(l => ({
+            id: l.id,
+            title: l.title,
+            mainImageUrl: l.mainImageUrl,
+            imageUrls: l.imageUrls || [],
+            category: l.category,
+            listingType: l.listingType,
+            year: l.year,
+            sourceBadge: l.sourceBadge || 'Verified Private Collection',
+            privateStatus: l.privateStatus || 'Available Privately',
+            trustLine: l.trustLine || 'Papers Verified & Clear',
+            isVerified: l.isVerified,
+            seller: l.seller ? { id: l.seller.id, name: l.seller.displayName || l.seller.name } : null
+        }));
+
+        res.json({
+            cipc: CIPC_NUMBER,
+            whatsapp: HQ_WHATSAPP,
+            count: safe.length,
+            listings: safe
+        });
+    } catch (err) {
+        console.error('Private collection error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ---------- GET SINGLE PRIVATE LISTING ----------
+app.get('/api/private/collection/:id', async (req, res) => {
+    try {
+        const l = await prisma.listing.findUnique({
+            where: { id: req.params.id },
+            include: {
+                seller: { select: { id: true, name: true, displayName: true } }
+            }
+        });
+        if (!l || !l.isPrivate) return res.status(404).json({ error: 'Private listing not found' });
+
+        const cleanDesc = (l.description || '').replace(/(\d[\s-]?){10,}/g, '[contact hidden]');
+
+        res.json({
+            id: l.id,
+            title: l.title,
+            description: cleanDesc,
+            mainImageUrl: l.mainImageUrl,
+            imageUrls: l.imageUrls || [],
+            odometerVideoUrl: l.odometerVideoUrl,
+            images: l.images || [],
+            category: l.category,
+            condition: l.condition,
+            listingType: l.listingType,
+            year: l.year,
+            kilometers: l.kilometers,
+            transmission: l.transmission,
+            fuelType: l.fuelType,
+            color: l.color,
+            engineSize: l.engineSize,
+            isVerified: l.isVerified,
+            sourceBadge: l.sourceBadge || 'Verified Private Collection',
+            privateStatus: l.privateStatus || 'Available Privately',
+            trustLine: l.trustLine || 'Papers Verified & Clear',
+            // Price intentionally hidden – "Price on Request"
+            priceOnRequest: true,
+            seller: { id: l.seller.id, name: l.seller.displayName || l.seller.name || 'CM Agent' },
+            hqWhatsapp: HQ_WHATSAPP,
+            waMessage: `Hi CM Private Sourcing, I'm interested in ${l.title} (ID: ${l.id}). Please send me private details + inspection report.`
+        });
+    } catch (err) {
+        console.error('Private listing error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ---------- SUBMIT SOURCING INSTRUCTION (public) ----------
+app.post('/api/private/instruct', instructLimiter, optionalAuth, async (req, res) => {
+    try {
+        const { vehicleWanted, budgetRange, yearKmPref, urgency, whatsapp, privateEmail } = req.body;
+
+        // Validation
+        if (!vehicleWanted || !budgetRange || !urgency || !whatsapp) {
+            return res.status(400).json({ error: 'Vehicle, budget, urgency, and WhatsApp are required.' });
+        }
+
+        // Basic phone validation
+        const cleanPhone = whatsapp.replace(/\D/g, '');
+        if (cleanPhone.length < 9) {
+            return res.status(400).json({ error: 'Please enter a valid WhatsApp number.' });
+        }
+
+        const instruction = await prisma.sourcingInstruction.create({
+            data: {
+                userId: req.user ? req.user.id : null,
+                vehicleWanted: vehicleWanted.trim(),
+                budgetRange: budgetRange.trim(),
+                yearKmPref: yearKmPref ? yearKmPref.trim() : null,
+                urgency: urgency.trim(),
+                whatsapp: whatsapp.trim(),
+                privateEmail: privateEmail ? privateEmail.trim() : null,
+                status: 'NEW'
+            }
+        });
+
+        console.log(`[PRIVATE] New instruction #${instruction.id} from ${whatsapp}`);
+
+        // Auto-reply to client (WhatsApp + Email)
+        const formattedPhone = formatPhone(whatsapp);
+        const replyMsg = `Received with thanks. Your instruction is private.\n\nWe will source within your brief and contact you directly with 2-3 verified options — no public listing.\n\n— CM Private Sourcing Team`;
+
+        await sendSms(formattedPhone, replyMsg);
+
+        if (privateEmail) {
+            await sendEmail(
+                privateEmail,
+                'Your Private Sourcing Instruction — Received',
+                `<p>Received with thanks. Your instruction is private.</p>
+                 <p>We will source within your brief and contact you directly with 2-3 verified options — no public listing.</p>
+                 <p>— CM Private Sourcing Team</p>`
+            );
+        }
+
+        // Notify admin (you) if configured
+        if (ADMIN_EMAIL) {
+            await sendEmail(
+                ADMIN_EMAIL,
+                `[PRIVATE] New instruction: ${vehicleWanted}`,
+                `<p><strong>Vehicle wanted:</strong> ${vehicleWanted}</p>
+                 <p><strong>Budget:</strong> ${budgetRange}</p>
+                 <p><strong>Year/KM:</strong> ${yearKmPref || '-'}</p>
+                 <p><strong>Urgency:</strong> ${urgency}</p>
+                 <p><strong>WhatsApp:</strong> ${whatsapp}</p>
+                 <p><strong>Email:</strong> ${privateEmail || '-'}</p>
+                 <p>Instruction ID: ${instruction.id}</p>`
+            );
+        }
+
+        res.status(201).json({
+            message: 'Instruction received',
+            id: instruction.id
+        });
+    } catch (err) {
+        console.error('Instruct error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ============================================================
+// ========== SINGLE LISTING (public – but excludes private) ==
 // ============================================================
 app.get('/api/listings/:id', async (req, res) => {
     try {
@@ -529,6 +704,11 @@ app.get('/api/listings/:id', async (req, res) => {
             include: { bids: true, seller: { select: { id: true, name: true, displayName: true } } }
         });
         if (!l) return res.status(404).json({ error: 'Listing not found' });
+
+        // If private, don't expose here (redirect client to private route)
+        if (l.isPrivate) {
+            return res.status(404).json({ error: 'Listing not found' });
+        }
 
         const cleanDesc = (l.description || '').replace(/(\d[\s-]?){10,}/g, '[contact hidden]');
 
@@ -559,7 +739,7 @@ app.get('/api/listings/:id', async (req, res) => {
             isVerified: l.isVerified,
             location: 'Tokoza',
             seller: { id: l.seller.id, name: l.seller.displayName || l.seller.name || 'CM Agent' },
-            hqWhatsapp: HQ_WHATSAPP || '27600000000',
+            hqWhatsapp: HQ_WHATSAPP,
             waMessage: `Hi CM Agent, I'm interested in ${l.title} (ID: ${l.id}). Is viewing available?`
         });
     } catch (err) {
@@ -652,6 +832,7 @@ app.post('/api/listings', authenticate, memoryUpload.fields([
             imageUrls,
             odometerVideoUrl,
             images: [mainImageUrl, ...imageUrls].filter(Boolean),
+            isPrivate: false,  // new listings go to public market by default
             status: 'ACTIVE'
         };
 
@@ -668,7 +849,7 @@ app.post('/api/listings/:id/bid', authenticate, bidLimiter, async (req, res) => 
     try {
         const { amount } = req.body;
         const listing = await prisma.listing.findUnique({ where: { id: req.params.id } });
-        if (!listing || listing.listingType !== 'AUCTION' || listing.status !== 'ACTIVE') {
+        if (!listing || listing.listingType !== 'AUCTION' || listing.status !== 'ACTIVE' || listing.isPrivate) {
             return res.status(400).json({ error: 'Auction not active' });
         }
 
@@ -720,13 +901,15 @@ app.post('/api/listings/:id/view', async (req, res) => {
     }
 });
 
-// ---------- SELLER PROFILE ----------
+// ============================================================
+// ========== SELLER ENDPOINTS ================================
+// ============================================================
 app.get('/api/sellers/:sellerId', async (req, res) => {
     try {
         const seller = await prisma.user.findUnique({
             where: { id: req.params.sellerId },
             include: {
-                listings: { where: { status: 'ACTIVE' }, orderBy: { createdAt: 'desc' } },
+                listings: { where: { status: 'ACTIVE', isPrivate: false }, orderBy: { createdAt: 'desc' } },
                 ratingsReceived: true
             }
         });
@@ -801,7 +984,6 @@ app.get('/api/my-listings', authenticate, async (req, res) => {
     }
 });
 
-// ---------- GHOST LEADS ----------
 app.get('/api/seller/ghost-leads', authenticate, async (req, res) => {
     try {
         const ghosts = await prisma.ghostLead.findMany({ where: { sellerId: req.user.id }, orderBy: { capturedAt: 'desc' } });
@@ -811,7 +993,6 @@ app.get('/api/seller/ghost-leads', authenticate, async (req, res) => {
     }
 });
 
-// ---------- DNA ----------
 app.get('/api/seller/dna/:listingId', authenticate, async (req, res) => {
     try {
         const listing = await prisma.listing.findUnique({ where: { id: req.params.listingId } });
@@ -856,7 +1037,10 @@ app.get('/api/seller/ratings/:sellerId', async (req, res) => {
     }
 });
 
-// ---------- ADMIN ----------
+// ============================================================
+// ========== ADMIN ENDPOINTS =================================
+// ============================================================
+
 app.get('/api/admin/overview', authenticate, adminOnly, async (req, res) => {
     try {
         const users = await prisma.user.findMany({
@@ -866,15 +1050,113 @@ app.get('/api/admin/overview', authenticate, adminOnly, async (req, res) => {
                 status: true, idPhotoUrl: true, selfieUrl: true, createdAt: true
             }
         });
-        const listings = await prisma.listing.findMany({ orderBy: { createdAt: 'desc' } });
+        const listings = await prisma.listing.findMany({
+            where: { isPrivate: false },
+            orderBy: { createdAt: 'desc' }
+        });
+        const privateListings = await prisma.listing.findMany({
+            where: { isPrivate: true },
+            orderBy: { createdAt: 'desc' }
+        });
         const bids = await prisma.bid.findMany({ orderBy: { createdAt: 'desc' }, take: 50 });
         const totalBids = await prisma.bid.count();
-        res.json({ users, listings, bids, totalBids, hqWhatsapp: HQ_WHATSAPP || '27600000000' });
+        const instructionCount = await prisma.sourcingInstruction.count({ where: { status: 'NEW' } });
+
+        res.json({
+            users,
+            listings,
+            privateListings,
+            bids,
+            totalBids,
+            newInstructions: instructionCount,
+            hqWhatsapp: HQ_WHATSAPP,
+            cipc: CIPC_NUMBER
+        });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
+// ---------- TOGGLE PRIVATE ----------
+app.post('/api/admin/listings/:id/toggle-private', authenticate, adminOnly, async (req, res) => {
+    try {
+        const { sourceBadge, privateStatus, trustLine } = req.body;
+        const listing = await prisma.listing.findUnique({ where: { id: req.params.id } });
+        if (!listing) return res.status(404).json({ error: 'Listing not found' });
+
+        const newPrivacy = !listing.isPrivate;
+        const updated = await prisma.listing.update({
+            where: { id: req.params.id },
+            data: {
+                isPrivate: newPrivacy,
+                sourceBadge: newPrivacy ? (sourceBadge || 'Verified Private Collection') : null,
+                privateStatus: newPrivacy ? (privateStatus || 'Available Privately') : null,
+                trustLine: newPrivacy ? (trustLine || 'Papers Verified & Clear') : null
+            }
+        });
+        res.json({ message: newPrivacy ? 'Moved to Private Collection' : 'Moved to Public Marketplace', listing: updated });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ---------- UPDATE PRIVATE DETAILS ----------
+app.put('/api/admin/listings/:id/private-details', authenticate, adminOnly, async (req, res) => {
+    try {
+        const { sourceBadge, privateStatus, trustLine } = req.body;
+        const updated = await prisma.listing.update({
+            where: { id: req.params.id },
+            data: { sourceBadge, privateStatus, trustLine }
+        });
+        res.json({ message: 'Private details updated', listing: updated });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ---------- ADMIN: SOURCING INSTRUCTIONS ----------
+app.get('/api/admin/private/instructions', authenticate, adminOnly, async (req, res) => {
+    try {
+        const { status } = req.query;
+        const where = status ? { status } : {};
+        const instructions = await prisma.sourcingInstruction.findMany({
+            where,
+            include: { user: { select: { id: true, email: true, name: true } } },
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json(instructions);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.put('/api/admin/private/instructions/:id', authenticate, adminOnly, async (req, res) => {
+    try {
+        const { status, notes } = req.body;
+        const updated = await prisma.sourcingInstruction.update({
+            where: { id: req.params.id },
+            data: { status, notes: notes || undefined }
+        });
+
+        // Notify client on status change to FOUND or DELIVERED
+        if (status === 'FOUND' || status === 'DELIVERED') {
+            const msg = status === 'FOUND'
+                ? `Good news — we've found 2-3 options matching your brief. We'll contact you shortly with details. — CM Private Sourcing`
+                : `Congratulations on your new vehicle. Thank you for trusting CM Private Sourcing. — CM Team`;
+            const formatted = formatPhone(updated.whatsapp);
+            if (formatted) await sendSms(formatted, msg);
+            if (updated.privateEmail) {
+                await sendEmail(updated.privateEmail, `Private Sourcing Update — ${status}`, `<p>${msg}</p>`);
+            }
+        }
+
+        res.json({ message: 'Instruction updated', instruction: updated });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ---------- OTHER ADMIN ----------
 app.post('/api/admin/make-auctioneer', authenticate, adminOnly, async (req, res) => {
     try {
         const { userId } = req.body;
@@ -1061,7 +1343,6 @@ app.post('/api/seller/requirements', authenticate, async (req, res) => {
     }
 });
 
-// ---------- MARK PAID ----------
 app.post('/api/listings/:id/paid', authenticate, async (req, res) => {
     try {
         const listing = await prisma.listing.findUnique({ where: { id: req.params.id } });
@@ -1074,7 +1355,6 @@ app.post('/api/listings/:id/paid', authenticate, async (req, res) => {
     }
 });
 
-// ---------- SELLER ANALYTICS ----------
 app.get('/api/seller/analytics/:listingId', authenticate, async (req, res) => {
     try {
         const listing = await prisma.listing.findUnique({ where: { id: req.params.listingId } });
@@ -1104,7 +1384,6 @@ app.get('*', (req, res) => {
 // ============================================================
 // ========== GHOST BIDDER RECOVERY ===========================
 // ============================================================
-
 async function captureGhostBidders(listingId) {
     try {
         const listing = await prisma.listing.findUnique({ where: { id: listingId }, include: { bids: true } });
@@ -1175,7 +1454,6 @@ async function sendGhostRecovery(listingId) {
 // ============================================================
 // ========== DNA REPORT GENERATOR ============================
 // ============================================================
-
 async function generateAuctionDNA(listingId) {
     try {
         const listing = await prisma.listing.findUnique({
@@ -1239,14 +1517,13 @@ async function generateAuctionDNA(listingId) {
 // ============================================================
 // ========== TIMED LISTING CRON ==============================
 // ============================================================
-
 function startTimedListingCron() {
     console.log('⏰ Starting TIMED listing cron job (every 60s)');
     setInterval(async () => {
         try {
             const now = new Date();
             const listings = await prisma.listing.findMany({
-                where: { listingType: 'AUCTION', status: 'ACTIVE', endTime: { not: null } },
+                where: { listingType: 'AUCTION', status: 'ACTIVE', endTime: { not: null }, isPrivate: false },
                 include: { bids: true, seller: true }
             });
             for (const listing of listings) {
@@ -1307,7 +1584,6 @@ function startTimedListingCron() {
 // ============================================================
 // ========== SOCKET.IO =======================================
 // ============================================================
-
 io.use((socket, next) => {
     const token = socket.handshake.auth.token;
     if (!token) return next(new Error('Authentication required'));
@@ -1343,8 +1619,8 @@ io.on('connection', (socket) => {
             if (!user || !listingId || !amount) return;
 
             const listing = await prisma.listing.findUnique({ where: { id: listingId } });
-            if (listing && listing.sellerId === socket.user.id) {
-                socket.emit('error', { message: 'You cannot bid on your own listing' });
+            if (listing && (listing.sellerId === socket.user.id || listing.isPrivate)) {
+                socket.emit('error', { message: 'Cannot bid on this listing' });
                 return;
             }
 
@@ -1409,9 +1685,9 @@ io.on('connection', (socket) => {
 // ============================================================
 // ========== SERVER START ====================================
 // ============================================================
-
 server.listen(PORT, () => {
     console.log(`✅ CM Central Market running on port ${PORT}`);
+    console.log(`💎 Private Sourcing enabled (CIPC: ${CIPC_NUMBER})`);
 });
 startTimedListingCron();
 

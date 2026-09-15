@@ -7,7 +7,6 @@
     <link rel="icon" href="/logo.jpeg">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
-        /* ----- RESET & BASE ----- */
         * { margin:0; padding:0; box-sizing:border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
@@ -18,7 +17,7 @@
         }
         .container { max-width:1400px; margin:0 auto; }
 
-        /* ----- TOP BAR (Back + Logout) ----- */
+        /* ----- TOP BAR ----- */
         .topbar {
             background:white;
             border:1px solid #EAEAEA;
@@ -60,8 +59,8 @@
             border-radius:8px;
             font-weight:700;
             cursor:pointer;
-            transition:0.2s;
             font-size:0.85rem;
+            transition:0.2s;
         }
         .btn-back { background:#F5F5F7; color:#101010; border:1px solid #EAEAEA; }
         .btn-back:hover { background:#EAEAEA; }
@@ -111,20 +110,14 @@
             cursor:pointer;
             background:#101010;
             color:white;
-            transition:0.2s;
             font-size:0.9rem;
+            transition:0.2s;
         }
-        .tab-bar button.active {
-            background:#E30613;
-        }
-        .tab-bar button:hover {
-            opacity:0.85;
-        }
+        .tab-bar button.active { background:#E30613; }
+        .tab-bar button:hover { opacity:0.85; }
 
         /* ----- TABLE ----- */
-        .table-wrap {
-            overflow-x:auto;
-        }
+        .table-wrap { overflow-x:auto; }
         table {
             width:100%;
             border-collapse:collapse;
@@ -140,19 +133,6 @@
             padding:8px;
             border-bottom:1px solid #EAEAEA;
             vertical-align:middle;
-        }
-        .photo-box {
-            display:flex;
-            gap:6px;
-            align-items:center;
-            flex-wrap:wrap;
-        }
-        .photo-box img {
-            width:60px;
-            height:60px;
-            object-fit:cover;
-            border-radius:6px;
-            border:1px solid #EAEAEA;
         }
 
         /* ----- BUTTONS ----- */
@@ -175,11 +155,89 @@
         .btn-blue:hover { background:#3b8fd4; }
         .btn-orange { background:#ff9800; color:white; }
         .btn-orange:hover { background:#e68900; }
+        .btn-gold { background:#C9A961; color:white; }
+        .btn-gold:hover { background:#b8974f; }
         .btn-outline { background:transparent; border:1px solid #EAEAEA; color:#101010; }
         .btn-outline:hover { background:#F5F5F7; }
         .btn-sm { padding:3px 8px; font-size:0.7rem; }
 
         .hidden { display:none !important; }
+
+        /* ----- MODAL ----- */
+        .modal {
+            position:fixed;
+            inset:0;
+            background:rgba(0,0,0,0.6);
+            backdrop-filter:blur(4px);
+            display:none;
+            align-items:center;
+            justify-content:center;
+            z-index:9999;
+            padding:1.5rem;
+        }
+        .modal-content {
+            background:white;
+            border-radius:12px;
+            max-width:600px;
+            width:100%;
+            max-height:90vh;
+            overflow-y:auto;
+            padding:2rem;
+            position:relative;
+            box-shadow:0 8px 32px rgba(0,0,0,0.2);
+        }
+        .modal-content h3 { margin-bottom:1rem; }
+        .modal-content label { display:block; font-size:0.85rem; color:#666; margin-bottom:0.3rem; font-weight:500; }
+        .modal-content input, .modal-content select, .modal-content textarea {
+            width:100%;
+            padding:0.6rem 0.8rem;
+            border-radius:8px;
+            background:#F5F5F7;
+            border:1px solid #EAEAEA;
+            color:#101010;
+            font-size:0.95rem;
+            margin-bottom:1rem;
+            font-family:inherit;
+        }
+        .modal-content input:focus, .modal-content select:focus {
+            outline:none;
+            border-color:#E30613;
+        }
+
+        /* ----- BADGES ----- */
+        .badge-private {
+            display:inline-block;
+            background:#C9A961;
+            color:white;
+            font-size:0.65rem;
+            padding:2px 8px;
+            border-radius:4px;
+            font-weight:700;
+            letter-spacing:0.5px;
+        }
+        .badge-public {
+            display:inline-block;
+            background:#4dabf7;
+            color:white;
+            font-size:0.65rem;
+            padding:2px 8px;
+            border-radius:4px;
+            font-weight:700;
+            letter-spacing:0.5px;
+        }
+        .badge-status {
+            display:inline-block;
+            font-size:0.65rem;
+            padding:2px 8px;
+            border-radius:4px;
+            font-weight:700;
+            letter-spacing:0.5px;
+        }
+        .status-NEW { background:#E30613; color:white; }
+        .status-SOURCING { background:#ff9800; color:white; }
+        .status-FOUND { background:#4dabf7; color:white; }
+        .status-DELIVERED { background:#28a745; color:white; }
+        .status-CANCELLED { background:#666; color:white; }
 
         /* ----- RESPONSIVE ----- */
         @media(max-width:768px) {
@@ -187,8 +245,8 @@
             .tab-bar button { flex:1; text-align:center; font-size:0.8rem; padding:0.5rem 0.8rem; }
             table { font-size:0.75rem; }
             td, th { padding:5px 4px; }
-            .photo-box img { width:40px; height:40px; }
             .topbar .brand h1 { font-size:1rem; }
+            .modal-content { padding:1.25rem; }
         }
         @media(max-width:480px) {
             .stats { grid-template-columns:1fr; }
@@ -217,22 +275,27 @@
         <button data-tab="users" onclick="switchTab('users')">👥 Users</button>
         <button data-tab="kyc" onclick="switchTab('kyc')">📋 KYC Pending</button>
         <button data-tab="listings" onclick="switchTab('listings')">🚗 Listings</button>
+        <button data-tab="private" onclick="switchTab('private')">💎 Private</button>
+        <button data-tab="instructions" onclick="switchTab('instructions')">📥 Instructions</button>
         <button data-tab="bids" onclick="switchTab('bids')">💰 Bids</button>
         <button data-tab="reports" onclick="switchTab('reports')">⚠️ Reports</button>
     </div>
 
-    <!-- ===== TAB CONTENT ===== -->
+    <!-- ===== DASHBOARD ===== -->
     <div id="dashboard" class="tab-content">
         <div id="stats" class="stats">Loading...</div>
         <div class="card">
             <h3>Quick Actions</h3>
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
                 <button class="btn btn-black" onclick="switchTab('kyc')">Review KYC</button>
+                <button class="btn btn-gold" onclick="switchTab('private')">Private Collection</button>
+                <button class="btn btn-black" onclick="switchTab('instructions')">Sourcing Instructions</button>
                 <button class="btn btn-black" onclick="switchTab('reports')">View Reports</button>
             </div>
         </div>
     </div>
 
+    <!-- ===== USERS ===== -->
     <div id="users" class="tab-content hidden">
         <div class="card">
             <h3>All Users</h3>
@@ -250,6 +313,7 @@
         </div>
     </div>
 
+    <!-- ===== KYC ===== -->
     <div id="kyc" class="tab-content hidden">
         <div class="card">
             <h3>KYC Verification Requests</h3>
@@ -263,9 +327,10 @@
         </div>
     </div>
 
+    <!-- ===== LISTINGS ===== -->
     <div id="listings" class="tab-content hidden">
         <div class="card">
-            <h3>All Listings</h3>
+            <h3>Public Listings (Marketplace)</h3>
             <div class="table-wrap">
                 <table>
                     <thead><tr><th>Title</th><th>Price</th><th>Type</th><th>Verified</th><th>Status</th><th>Actions</th></tr></thead>
@@ -275,6 +340,57 @@
         </div>
     </div>
 
+    <!-- ===== PRIVATE COLLECTION ===== -->
+    <div id="private" class="tab-content hidden">
+        <div class="card">
+            <h3>💎 Private Collection</h3>
+            <p style="color:#666;font-size:0.9rem;margin-bottom:0.75rem;">
+                Vehicles in the Private Sourcing page. Not visible in public Marketplace.
+            </p>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Title</th><th>Source Badge</th><th>Status</th><th>Trust Line</th><th>Actions</th></tr></thead>
+                    <tbody id="privateTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== SOURCING INSTRUCTIONS ===== -->
+    <div id="instructions" class="tab-content hidden">
+        <div class="card">
+            <h3>📥 Private Sourcing Instructions</h3>
+            <div style="margin-bottom:0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap;">
+                <select id="instructionFilter" onchange="loadInstructions()" style="padding:0.5rem 0.8rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;font-size:0.9rem;">
+                    <option value="">All Statuses</option>
+                    <option value="NEW">NEW</option>
+                    <option value="SOURCING">SOURCING</option>
+                    <option value="FOUND">FOUND</option>
+                    <option value="DELIVERED">DELIVERED</option>
+                    <option value="CANCELLED">CANCELLED</option>
+                </select>
+                <button class="btn btn-outline" onclick="loadInstructions()">Refresh</button>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Vehicle Wanted</th>
+                            <th>Budget</th>
+                            <th>Urgency</th>
+                            <th>WhatsApp</th>
+                            <th>Status</th>
+                            <th>Received</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="instructionsTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== BIDS ===== -->
     <div id="bids" class="tab-content hidden">
         <div class="card">
             <h3>Recent Bids</h3>
@@ -287,6 +403,7 @@
         </div>
     </div>
 
+    <!-- ===== REPORTS ===== -->
     <div id="reports" class="tab-content hidden">
         <div class="card">
             <h3>Pending Reports</h3>
@@ -300,379 +417,586 @@
     </div>
 </div>
 
+<!-- ===== MODAL ===== -->
+<div id="adminModal" class="modal">
+    <div class="modal-content" id="adminModalContent"></div>
+</div>
+
 <script>
-    // ============================================================
-    // HELPERS
-    // ============================================================
+// ============================================================
+// HELPERS
+// ============================================================
+function esc(s) {
+    if (!s) return '';
+    return String(s).replace(/[&<>"']/g, function(m) {
+        var map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+        return map[m];
+    });
+}
 
-    // ---------- HTML ESCAPE (XSS protection) ----------
-    function esc(s) {
-        if (!s) return '';
-        return String(s).replace(/[&<>"']/g, function(m) {
-            var map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-            return map[m];
-        });
+function showToast(msg, type) {
+    var t = document.getElementById('toast') || (function() {
+        var el = document.createElement('div');
+        el.id = 'toast';
+        el.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#101010;color:white;padding:0.8rem 1.5rem;border-radius:9999px;font-weight:600;z-index:99999;display:none;max-width:90%;';
+        document.body.appendChild(el);
+        return el;
+    })();
+    t.textContent = msg;
+    t.style.display = 'block';
+    t.style.borderColor = type === 'error' ? '#ff4444' : '#00ff88';
+    t.style.background = type === 'error' ? 'rgba(255,0,0,0.2)' : 'rgba(0,255,136,0.1)';
+    clearTimeout(t._hide);
+    t._hide = setTimeout(function(){ t.style.display = 'none'; }, 4000);
+}
+
+function getToken() { return localStorage.getItem('token'); }
+
+async function adminApi(endpoint, method, body) {
+    var token = getToken();
+    if (!token) { showToast('Please login first', 'error'); return null; }
+    var opts = {
+        method: method || 'GET',
+        headers: { 'Authorization': 'Bearer ' + token }
+    };
+    if (body) {
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(body);
     }
-
-    // ---------- TOAST ----------
-    function showToast(msg, type) {
-        var t = document.getElementById('toast') || (function() {
-            var el = document.createElement('div');
-            el.id = 'toast';
-            el.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#101010;color:white;padding:0.8rem 1.5rem;border-radius:9999px;font-weight:600;z-index:9999;display:none;max-width:90%;';
-            document.body.appendChild(el);
-            return el;
-        })();
-        t.textContent = msg;
-        t.style.display = 'block';
-        t.style.borderColor = type === 'error' ? '#ff4444' : '#00ff88';
-        t.style.background = type === 'error' ? 'rgba(255,0,0,0.2)' : 'rgba(0,255,136,0.1)';
-        clearTimeout(t._hide);
-        t._hide = setTimeout(function(){ t.style.display = 'none'; }, 4000);
-    }
-
-    // ---------- GET TOKEN ----------
-    function getToken() {
-        return localStorage.getItem('token');
-    }
-
-    // ---------- API CALL ----------
-    async function adminApi(endpoint, method, body) {
-        var token = getToken();
-        if (!token) { showToast('Please login first', 'error'); return null; }
-        var opts = {
-            method: method || 'GET',
-            headers: { 'Authorization': 'Bearer ' + token }
-        };
-        if (body) {
-            if (body instanceof FormData) {
-                opts.body = body;
-            } else {
-                opts.headers['Content-Type'] = 'application/json';
-                opts.body = JSON.stringify(body);
-            }
-        }
-        try {
-            var res = await fetch(endpoint, opts);
-            var data = await res.json();
-            if (!res.ok) {
-                showToast(data.error || 'Request failed', 'error');
-                return null;
-            }
-            return data;
-        } catch (e) {
-            showToast(e.message, 'error');
+    try {
+        var res = await fetch(endpoint, opts);
+        var data = await res.json();
+        if (!res.ok) {
+            showToast(data.error || 'Request failed', 'error');
             return null;
         }
+        return data;
+    } catch (e) {
+        showToast(e.message, 'error');
+        return null;
     }
+}
 
-    // ---------- LOGOUT ----------
-    function logoutAdmin() {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        window.location.href = '/';
+function logoutAdmin() {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = '/';
+}
+
+// ============================================================
+// STATE
+// ============================================================
+var allData = null;
+var currentTab = 'dashboard';
+
+// ============================================================
+// MODAL
+// ============================================================
+function openAdminModal(html) {
+    document.getElementById('adminModalContent').innerHTML = html;
+    document.getElementById('adminModal').style.display = 'flex';
+}
+function closeAdminModal() {
+    document.getElementById('adminModal').style.display = 'none';
+}
+
+// ============================================================
+// TAB SWITCHING
+// ============================================================
+function switchTab(tabId) {
+    currentTab = tabId;
+    document.querySelectorAll('.tab-content').forEach(function(el) {
+        el.classList.add('hidden');
+    });
+    var target = document.getElementById(tabId);
+    if (target) target.classList.remove('hidden');
+
+    document.querySelectorAll('.tab-bar button').forEach(function(btn) {
+        btn.classList.remove('active');
+        if (btn.dataset.tab === tabId) btn.classList.add('active');
+    });
+
+    renderTab(tabId);
+}
+
+function renderTab(tabId) {
+    switch (tabId) {
+        case 'dashboard': renderStats(); break;
+        case 'users': renderUsers(); break;
+        case 'kyc': renderKyc(); break;
+        case 'listings': renderListings(); break;
+        case 'private': renderPrivate(); break;
+        case 'instructions': loadInstructions(); break;
+        case 'bids': renderBids(); break;
+        case 'reports': renderReports(); break;
     }
+}
 
-    // ============================================================
-    // STATE
-    // ============================================================
-    var allData = null;
-    var currentTab = 'dashboard';
-
-    // ============================================================
-    // TAB SWITCHING
-    // ============================================================
-    function switchTab(tabId) {
-        currentTab = tabId;
-        // Hide all tab contents
-        document.querySelectorAll('.tab-content').forEach(function(el) {
-            el.classList.add('hidden');
-        });
-        var target = document.getElementById(tabId);
-        if (target) target.classList.remove('hidden');
-
-        // Update active button
-        document.querySelectorAll('.tab-bar button').forEach(function(btn) {
-            btn.classList.remove('active');
-            if (btn.dataset.tab === tabId) btn.classList.add('active');
-        });
-
-        // Render content
-        renderTab(tabId);
+// ============================================================
+// LOAD
+// ============================================================
+async function loadAdminData() {
+    var token = getToken();
+    if (!token) {
+        document.body.innerHTML = '<h2 style="text-align:center;margin-top:4rem;">Please login first. <a href="/">Go home</a></h2>';
+        return;
     }
+    var data = await adminApi('/api/admin/overview');
+    if (!data) return;
+    allData = data;
+    renderTab(currentTab);
+}
 
-    function renderTab(tabId) {
-        if (!allData) return;
-        switch (tabId) {
-            case 'dashboard': renderStats(); break;
-            case 'users': renderUsers(); break;
-            case 'kyc': renderKyc(); break;
-            case 'listings': renderListings(); break;
-            case 'bids': renderBids(); break;
-            case 'reports': renderReports(); break;
-        }
-    }
+// ============================================================
+// RENDER: STATS
+// ============================================================
+function renderStats() {
+    if (!allData) return;
+    var statsHtml = '';
+    var items = [
+        { label: 'Total Users', value: allData.users.length },
+        { label: 'Public Listings', value: allData.listings.length },
+        { label: 'Private Cars', value: (allData.privateListings || []).length, gold: true },
+        { label: 'New Instructions', value: allData.newInstructions || 0, gold: true },
+        { label: 'Total Bids', value: allData.totalBids || 0 },
+        { label: 'HQ WhatsApp', value: allData.hqWhatsapp || 'Not set' }
+    ];
+    items.forEach(function(item) {
+        var style = item.gold ? ' style="background:#FFF8E1;border-color:#C9A961;"' : '';
+        statsHtml += '<div class="stat"' + style + '><h2>' + esc(item.value) + '</h2><p>' + esc(item.label) + '</p></div>';
+    });
+    document.getElementById('stats').innerHTML = statsHtml;
+}
 
-    // ============================================================
-    // LOAD DATA
-    // ============================================================
-    async function loadAdminData() {
-        var token = getToken();
-        if (!token) {
-            document.body.innerHTML = '<h2 style="text-align:center;margin-top:4rem;">Please login first.</h2>';
-            return;
-        }
-        var data = await adminApi('/api/admin/overview');
-        if (!data) return;
-        allData = data;
-        renderTab(currentTab);
-    }
+// ============================================================
+// RENDER: USERS
+// ============================================================
+function renderUsers() {
+    if (!allData) return;
+    var search = (document.getElementById('userSearch')?.value || '').toLowerCase();
+    var users = allData.users.filter(function(u) {
+        return u.email.toLowerCase().includes(search);
+    });
 
-    // ============================================================
-    // RENDER: STATS
-    // ============================================================
-    function renderStats() {
-        if (!allData) return;
-        var statsHtml = '';
-        var items = [
-            { label: 'Total Users', value: allData.users.length },
-            { label: 'Total Listings', value: allData.listings.length },
-            { label: 'Total Bids', value: allData.totalBids || allData.bids.length },
-            { label: 'HQ WhatsApp', value: allData.hqWhatsapp || 'Not set' }
-        ];
-        items.forEach(function(item) {
-            statsHtml += '<div class="stat"><h2>' + esc(item.value) + '</h2><p>' + esc(item.label) + '</p></div>';
-        });
-        document.getElementById('stats').innerHTML = statsHtml;
-    }
+    var html = users.map(function(u) {
+        var isAdmin = u.role === 'ADMIN';
+        var isAuctioneer = u.role === 'AUCTIONEER';
+        var isBanned = u.status === 'BANNED_FRAUD';
+        var roleDisplay = esc(u.role);
+        if (isAdmin) roleDisplay += ' ⭐';
+        var kycDisplay = esc(u.kycStatus || 'NONE');
+        if (u.canSell) kycDisplay += ' ✅';
+        var statusDisplay = isBanned ? '🚫 Banned' : '✅ Active';
 
-    // ============================================================
-    // RENDER: USERS
-    // ============================================================
-    function renderUsers() {
-        if (!allData) return;
-        var search = (document.getElementById('userSearch')?.value || '').toLowerCase();
-        var users = allData.users.filter(function(u) {
-            return u.email.toLowerCase().includes(search);
-        });
-
-        var html = users.map(function(u) {
-            var isAdmin = u.role === 'ADMIN';
-            var isAuctioneer = u.role === 'AUCTIONEER';
-            var isBanned = u.status === 'BANNED_FRAUD';
-            var roleDisplay = esc(u.role);
-            if (isAdmin) roleDisplay += ' ⭐';
-            var kycDisplay = esc(u.kycStatus || 'NONE');
-            if (u.canSell) kycDisplay += ' ✅';
-            var statusDisplay = isBanned ? '🚫 Banned' : '✅ Active';
-
-            var actionBtns = '';
-            if (!isAdmin) {
-                if (!isAuctioneer) {
-                    actionBtns += '<button class="btn btn-black btn-sm" onclick="makeAuctioneer(\'' + u.id + '\')">Make Auctioneer</button> ';
-                } else {
-                    actionBtns += '<span style="color:#28a745;">✓ Auctioneer</span> ';
-                }
-                if (!isBanned) {
-                    actionBtns += '<button class="btn btn-orange btn-sm" onclick="blockUser(\'' + u.id + '\')">Block</button>';
-                } else {
-                    actionBtns += '<button class="btn btn-green btn-sm" onclick="unblockUser(\'' + u.id + '\')">Unblock</button>';
-                }
+        var actionBtns = '';
+        if (!isAdmin) {
+            if (!isAuctioneer) {
+                actionBtns += '<button class="btn btn-black btn-sm" onclick="makeAuctioneer(\'' + u.id + '\')">Make Auctioneer</button> ';
             } else {
-                actionBtns = '👑 Admin';
+                actionBtns += '<span style="color:#28a745;">✓ Auctioneer</span> ';
             }
+            if (!isBanned) {
+                actionBtns += '<button class="btn btn-orange btn-sm" onclick="blockUser(\'' + u.id + '\')">Block</button>';
+            } else {
+                actionBtns += '<button class="btn btn-green btn-sm" onclick="unblockUser(\'' + u.id + '\')">Unblock</button>';
+            }
+        } else {
+            actionBtns = '👑 Admin';
+        }
 
+        return '<tr>' +
+            '<td>' + esc(u.email) + '</td>' +
+            '<td>' + roleDisplay + '</td>' +
+            '<td>' + kycDisplay + '</td>' +
+            '<td>' + statusDisplay + '</td>' +
+            '<td>' + actionBtns + '</td>' +
+            '</tr>';
+    }).join('');
+
+    if (!html) html = '<tr><td colspan="5" style="text-align:center;color:#888;">No users found</td></tr>';
+    document.getElementById('usersTable').innerHTML = html;
+}
+function filterUsers() { renderUsers(); }
+
+// ============================================================
+// RENDER: KYC
+// ============================================================
+function renderKyc() {
+    if (!allData) return;
+    var pending = allData.users.filter(function(u) {
+        return u.idPhotoUrl && u.kycStatus !== 'VERIFIED';
+    });
+
+    var html = pending.map(function(u) {
+        var idPhoto = u.idPhotoUrl ? '<button class="btn btn-blue btn-sm" onclick="window.open(\'' + esc(u.idPhotoUrl) + '\',\'_blank\')">📷 View ID</button>' : 'No ID';
+        var selfie = u.selfieUrl ? '<button class="btn btn-blue btn-sm" onclick="window.open(\'' + esc(u.selfieUrl) + '\',\'_blank\')">📷 View Selfie</button>' : 'No Selfie';
+
+        return '<tr>' +
+            '<td>' + esc(u.email) + '</td>' +
+            '<td>' + idPhoto + '</td>' +
+            '<td>' + selfie + '</td>' +
+            '<td>' + esc(u.kycStatus || 'NONE') + '</td>' +
+            '<td>' +
+                '<button class="btn btn-green btn-sm" onclick="approveKyc(\'' + u.id + '\')">Approve</button> ' +
+                '<button class="btn btn-red btn-sm" onclick="rejectKyc(\'' + u.id + '\')">Reject</button>' +
+            '</td>' +
+            '</tr>';
+    }).join('');
+
+    if (!html) html = '<tr><td colspan="5" style="text-align:center;color:#888;">No pending KYC requests</td></tr>';
+    document.getElementById('kycTable').innerHTML = html;
+}
+
+// ============================================================
+// RENDER: LISTINGS (Public)
+// ============================================================
+function renderListings() {
+    if (!allData) return;
+    var listings = allData.listings || [];
+
+    var html = listings.map(function(l) {
+        var verified = l.isVerified ? '<span style="color:#28a745;font-weight:bold;">✓ GREEN</span>' : '<span style="color:#888;">GREY</span>';
+        var price = 'R' + (l.price || l.currentBid || l.startingPrice || 0).toLocaleString();
+        var status = esc(l.status || 'ACTIVE');
+        var actions = '';
+        if (!l.isVerified) {
+            actions += '<button class="btn btn-green btn-sm" onclick="verifyListing(\'' + l.id + '\')">Verify</button> ';
+        }
+        actions += '<button class="btn btn-gold btn-sm" onclick="openPrivateModal(\'' + l.id + '\')">💎 Make Private</button> ';
+        if (l.status === 'ACTIVE') {
+            actions += '<button class="btn btn-black btn-sm" onclick="endListing(\'' + l.id + '\')">End</button>';
+        }
+
+        return '<tr>' +
+            '<td>' + esc(l.title) + '</td>' +
+            '<td>' + price + '</td>' +
+            '<td>' + esc(l.listingType || 'FIXED_PRICE') + '</td>' +
+            '<td>' + verified + '</td>' +
+            '<td>' + status + '</td>' +
+            '<td>' + actions + '</td>' +
+            '</tr>';
+    }).join('');
+
+    if (!html) html = '<tr><td colspan="6" style="text-align:center;color:#888;">No public listings</td></tr>';
+    document.getElementById('listingsTable').innerHTML = html;
+}
+
+// ============================================================
+// RENDER: PRIVATE COLLECTION
+// ============================================================
+function renderPrivate() {
+    if (!allData) return;
+    var listings = allData.privateListings || [];
+
+    var html = listings.map(function(l) {
+        var badge = '<span class="badge-private">' + esc(l.sourceBadge || 'Verified') + '</span>';
+        var status = esc(l.privateStatus || 'Available Privately');
+        var trust = esc(l.trustLine || '-');
+
+        var actions = '';
+        actions += '<button class="btn btn-blue btn-sm" onclick="editPrivateDetails(\'' + l.id + '\')">Edit</button> ';
+        actions += '<button class="btn btn-black btn-sm" onclick="togglePrivate(\'' + l.id + '\')">← Back to Public</button>';
+
+        return '<tr>' +
+            '<td>' + esc(l.title) + '</td>' +
+            '<td>' + badge + '</td>' +
+            '<td>' + status + '</td>' +
+            '<td style="font-size:0.8rem;color:#666;">' + trust + '</td>' +
+            '<td>' + actions + '</td>' +
+            '</tr>';
+    }).join('');
+
+    if (!html) html = '<tr><td colspan="5" style="text-align:center;color:#888;">No private listings. Move cars here from the Listings tab.</td></tr>';
+    document.getElementById('privateTable').innerHTML = html;
+}
+
+// ============================================================
+// RENDER: BIDS
+// ============================================================
+function renderBids() {
+    if (!allData) return;
+    var bids = allData.bids || [];
+    var html = bids.map(function(b) {
+        return '<tr>' +
+            '<td>' + esc(b.bidderId || '?') + '</td>' +
+            '<td>' + esc(b.listingId || '?') + '</td>' +
+            '<td>R' + Number(b.amount || 0).toLocaleString() + '</td>' +
+            '<td>' + (b.createdAt ? new Date(b.createdAt).toLocaleString() : '—') + '</td>' +
+            '</tr>';
+    }).join('');
+
+    if (!html) html = '<tr><td colspan="4" style="text-align:center;color:#888;">No bids</td></tr>';
+    document.getElementById('bidsTable').innerHTML = html;
+}
+
+// ============================================================
+// RENDER: REPORTS
+// ============================================================
+function renderReports() {
+    adminApi('/api/admin/reports').then(function(data) {
+        if (!data) return;
+        var html = data.map(function(r) {
             return '<tr>' +
-                '<td>' + esc(u.email) + '</td>' +
-                '<td>' + roleDisplay + '</td>' +
-                '<td>' + kycDisplay + '</td>' +
-                '<td>' + statusDisplay + '</td>' +
-                '<td>' + actionBtns + '</td>' +
-                '</tr>';
-        }).join('');
-
-        if (!html) html = '<tr><td colspan="5" style="text-align:center;color:#888;">No users found</td></tr>';
-        document.getElementById('usersTable').innerHTML = html;
-    }
-
-    function filterUsers() { renderUsers(); }
-
-    // ============================================================
-    // RENDER: KYC PENDING (only users with ID photo + not verified)
-    // ============================================================
-    function renderKyc() {
-        if (!allData) return;
-        var pending = allData.users.filter(function(u) {
-            return u.idPhotoUrl && u.kycStatus !== 'VERIFIED';
-        });
-
-        var html = pending.map(function(u) {
-            var idPhoto = u.idPhotoUrl ? '<button class="btn btn-blue btn-sm" onclick="window.open(\'' + esc(u.idPhotoUrl) + '\',\'_blank\')">📷 View ID</button>' : 'No ID';
-            var selfie = u.selfieUrl ? '<button class="btn btn-blue btn-sm" onclick="window.open(\'' + esc(u.selfieUrl) + '\',\'_blank\')">📷 View Selfie</button>' : 'No Selfie';
-
-            return '<tr>' +
-                '<td>' + esc(u.email) + '</td>' +
-                '<td>' + idPhoto + '</td>' +
-                '<td>' + selfie + '</td>' +
-                '<td>' + esc(u.kycStatus || 'NONE') + '</td>' +
+                '<td>' + esc(r.buyerName || r.buyerId || '?') + '</td>' +
+                '<td>' + esc(r.sellerName || r.sellerId || '?') + '</td>' +
+                '<td>' + esc(r.listingTitle || r.listingId || '?') + '</td>' +
+                '<td>R' + Number(r.amount || 0).toLocaleString() + '</td>' +
                 '<td>' +
-                    '<button class="btn btn-green btn-sm" onclick="approveKyc(\'' + u.id + '\')">Approve</button> ' +
-                    '<button class="btn btn-red btn-sm" onclick="rejectKyc(\'' + u.id + '\')">Reject</button>' +
+                    '<button class="btn btn-green btn-sm" onclick="resolveReport(\'' + r.id + '\')">Resolve</button> ' +
+                    '<button class="btn btn-outline btn-sm" onclick="dismissReport(\'' + r.id + '\')">Dismiss</button>' +
                 '</td>' +
                 '</tr>';
         }).join('');
-
-        if (!html) html = '<tr><td colspan="5" style="text-align:center;color:#888;">No pending KYC requests</td></tr>';
-        document.getElementById('kycTable').innerHTML = html;
-    }
-
-    // ============================================================
-    // RENDER: LISTINGS
-    // ============================================================
-    function renderListings() {
-        if (!allData) return;
-        var html = allData.listings.map(function(l) {
-            var verified = l.isVerified ? '<span style="color:#28a745;font-weight:bold;">✓ GREEN</span>' : '<span style="color:#888;">GREY</span>';
-            var price = 'R' + (l.price || l.currentBid || l.startingPrice || 0).toLocaleString();
-            var status = esc(l.status || 'ACTIVE');
-            var actions = '';
-            if (!l.isVerified) {
-                actions += '<button class="btn btn-green btn-sm" onclick="verifyListing(\'' + l.id + '\')">Verify</button> ';
-            }
-            if (l.status === 'ACTIVE') {
-                actions += '<button class="btn btn-black btn-sm" onclick="endListing(\'' + l.id + '\')">End</button>';
-            }
-            if (!actions) actions = '—';
-
-            return '<tr>' +
-                '<td>' + esc(l.title) + '</td>' +
-                '<td>' + price + '</td>' +
-                '<td>' + esc(l.listingType || 'FIXED_PRICE') + '</td>' +
-                '<td>' + verified + '</td>' +
-                '<td>' + status + '</td>' +
-                '<td>' + actions + '</td>' +
-                '</tr>';
-        }).join('');
-
-        if (!html) html = '<tr><td colspan="6" style="text-align:center;color:#888;">No listings</td></tr>';
-        document.getElementById('listingsTable').innerHTML = html;
-    }
-
-    // ============================================================
-    // RENDER: BIDS
-    // ============================================================
-    function renderBids() {
-        if (!allData) return;
-        var bids = allData.bids || [];
-        var html = bids.map(function(b) {
-            return '<tr>' +
-                '<td>' + esc(b.bidderId || '?') + '</td>' +
-                '<td>' + esc(b.listingId || '?') + '</td>' +
-                '<td>R' + Number(b.amount || 0).toLocaleString() + '</td>' +
-                '<td>' + (b.createdAt ? new Date(b.createdAt).toLocaleString() : '—') + '</td>' +
-                '</tr>';
-        }).join('');
-
-        if (!html) html = '<tr><td colspan="4" style="text-align:center;color:#888;">No bids</td></tr>';
-        document.getElementById('bidsTable').innerHTML = html;
-    }
-
-    // ============================================================
-    // RENDER: REPORTS
-    // ============================================================
-    function renderReports() {
-        if (!allData) return;
-        // Reports not in overview, we need to fetch separately
-        adminApi('/api/admin/reports').then(function(data) {
-            if (!data) return;
-            var html = data.map(function(r) {
-                return '<tr>' +
-                    '<td>' + esc(r.buyerName || r.buyerId || '?') + '</td>' +
-                    '<td>' + esc(r.sellerName || r.sellerId || '?') + '</td>' +
-                    '<td>' + esc(r.listingTitle || r.listingId || '?') + '</td>' +
-                    '<td>R' + Number(r.amount || 0).toLocaleString() + '</td>' +
-                    '<td>' +
-                        '<button class="btn btn-green btn-sm" onclick="resolveReport(\'' + r.id + '\')">Resolve</button> ' +
-                        '<button class="btn btn-outline btn-sm" onclick="dismissReport(\'' + r.id + '\')">Dismiss</button>' +
-                    '</td>' +
-                    '</tr>';
-            }).join('');
-            if (!html) html = '<tr><td colspan="5" style="text-align:center;color:#888;">No pending reports</td></tr>';
-            document.getElementById('reportsTable').innerHTML = html;
-        });
-    }
-
-    // ============================================================
-    // ACTIONS (with res.ok check)
-    // ============================================================
-
-    async function makeAuctioneer(userId) {
-        if (!confirm('Make this user an AUCTIONEER?')) return;
-        var result = await adminApi('/api/admin/make-auctioneer', 'POST', { userId: userId });
-        if (result) { showToast('User promoted to Auctioneer!', 'info'); loadAdminData(); }
-    }
-
-    async function approveKyc(userId) {
-        if (!confirm('Approve KYC for this user?')) return;
-        var result = await adminApi('/api/admin/approve-kyc/' + userId, 'POST');
-        if (result) { showToast('KYC Approved!', 'info'); loadAdminData(); }
-    }
-
-    async function rejectKyc(userId) {
-        if (!confirm('Reject KYC for this user?')) return;
-        var result = await adminApi('/api/admin/reject-kyc/' + userId, 'POST');
-        if (result) { showToast('KYC Rejected!', 'info'); loadAdminData(); }
-    }
-
-    async function blockUser(userId) {
-        if (!confirm('Block this user?')) return;
-        var result = await adminApi('/api/admin/block-user/' + userId, 'POST');
-        if (result) { showToast('User blocked!', 'info'); loadAdminData(); }
-    }
-
-    async function unblockUser(userId) {
-        if (!confirm('Unblock this user?')) return;
-        var result = await adminApi('/api/admin/unblock-user/' + userId, 'POST');
-        if (result) { showToast('User unblocked!', 'info'); loadAdminData(); }
-    }
-
-    async function verifyListing(listingId) {
-        if (!confirm('Verify this listing as CM Verified?')) return;
-        var result = await adminApi('/api/admin/verify-listing/' + listingId, 'POST');
-        if (result) { showToast('Listing Verified!', 'info'); loadAdminData(); }
-    }
-
-    async function endListing(listingId) {
-        if (!confirm('End this listing?')) return;
-        var result = await adminApi('/api/admin/end-listing/' + listingId, 'POST');
-        if (result) { showToast('Listing Ended!', 'info'); loadAdminData(); }
-    }
-
-    async function resolveReport(reportId) {
-        if (!confirm('Resolve this report?')) return;
-        var result = await adminApi('/api/admin/report/' + reportId + '/resolve', 'POST');
-        if (result) { showToast('Report resolved!', 'info'); renderTab('reports'); }
-    }
-
-    async function dismissReport(reportId) {
-        if (!confirm('Dismiss this report?')) return;
-        var result = await adminApi('/api/admin/report/' + reportId + '/dismiss', 'POST');
-        if (result) { showToast('Report dismissed!', 'info'); renderTab('reports'); }
-    }
-
-    // ============================================================
-    // INIT
-    // ============================================================
-    document.addEventListener('DOMContentLoaded', function() {
-        var token = getToken();
-        if (!token) {
-            document.body.innerHTML = '<h2 style="text-align:center;margin-top:4rem;">Please login first. <a href="/">Go to Home</a></h2>';
-            return;
-        }
-        loadAdminData();
+        if (!html) html = '<tr><td colspan="5" style="text-align:center;color:#888;">No pending reports</td></tr>';
+        document.getElementById('reportsTable').innerHTML = html;
     });
+}
 
-    console.log('✅ CM Central Market admin.html loaded (FIXED LAUNCH VERSION)');
+// ============================================================
+// PRIVATE: MODAL TO MAKE A LISTING PRIVATE
+// ============================================================
+function openPrivateModal(listingId) {
+    var listing = (allData.listings || []).find(function(l) { return l.id === listingId; });
+    var title = listing ? listing.title : '';
+
+    openAdminModal(`
+        <h3>💎 Move to Private Collection</h3>
+        <p style="color:#666;font-size:0.9rem;margin-bottom:1.25rem;">
+            <strong>${esc(title)}</strong><br>
+            This will remove it from Public Marketplace and add it to Private Sourcing.
+        </p>
+
+        <label>Source Badge</label>
+        <select id="pmSourceBadge">
+            <option value="Corporate Fleet Return">Corporate Fleet Return</option>
+            <option value="Central Market Private Collection [Verified]">Central Market Private Collection [Verified]</option>
+            <option value="Private Client Instruction [Off-Market]">Private Client Instruction [Off-Market]</option>
+            <option value="1 Owner + FSH">1 Owner + FSH</option>
+            <option value="Verified Private Collection">Verified Private Collection</option>
+        </select>
+
+        <label>Private Status</label>
+        <select id="pmStatus">
+            <option value="Available Privately">Available Privately</option>
+            <option value="Under Instruction">Under Instruction</option>
+            <option value="Sourced & Delivered">Sourced & Delivered</option>
+        </select>
+
+        <label>Trust Line (short 3-5 words)</label>
+        <input id="pmTrustLine" value="Papers Verified & Clear" placeholder="e.g. No Accident History">
+
+        <div style="display:flex;gap:0.5rem;margin-top:1rem;">
+            <button class="btn btn-gold" style="padding:0.7rem 1.2rem;font-size:0.9rem;" onclick="confirmMakePrivate('${listingId}')">💎 Make Private</button>
+            <button class="btn btn-outline" style="padding:0.7rem 1.2rem;font-size:0.9rem;" onclick="closeAdminModal()">Cancel</button>
+        </div>
+    `);
+}
+
+async function confirmMakePrivate(listingId) {
+    var sourceBadge = document.getElementById('pmSourceBadge').value;
+    var privateStatus = document.getElementById('pmStatus').value;
+    var trustLine = document.getElementById('pmTrustLine').value;
+
+    var result = await adminApi('/api/admin/listings/' + listingId + '/toggle-private', 'POST', {
+        sourceBadge: sourceBadge,
+        privateStatus: privateStatus,
+        trustLine: trustLine
+    });
+    if (result) {
+        showToast(result.message || 'Moved to Private', 'info');
+        closeAdminModal();
+        loadAdminData();
+    }
+}
+
+// ============================================================
+// PRIVATE: EDIT DETAILS
+// ============================================================
+function editPrivateDetails(listingId) {
+    var listing = (allData.privateListings || []).find(function(l) { return l.id === listingId; });
+    if (!listing) return;
+
+    openAdminModal(`
+        <h3>💎 Edit Private Details</h3>
+        <p style="color:#666;font-size:0.9rem;margin-bottom:1.25rem;"><strong>${esc(listing.title)}</strong></p>
+
+        <label>Source Badge</label>
+        <select id="epSourceBadge">
+            <option value="Corporate Fleet Return" ${listing.sourceBadge === 'Corporate Fleet Return' ? 'selected' : ''}>Corporate Fleet Return</option>
+            <option value="Central Market Private Collection [Verified]" ${listing.sourceBadge === 'Central Market Private Collection [Verified]' ? 'selected' : ''}>Central Market Private Collection [Verified]</option>
+            <option value="Private Client Instruction [Off-Market]" ${listing.sourceBadge === 'Private Client Instruction [Off-Market]' ? 'selected' : ''}>Private Client Instruction [Off-Market]</option>
+            <option value="1 Owner + FSH" ${listing.sourceBadge === '1 Owner + FSH' ? 'selected' : ''}>1 Owner + FSH</option>
+            <option value="Verified Private Collection" ${listing.sourceBadge === 'Verified Private Collection' ? 'selected' : ''}>Verified Private Collection</option>
+        </select>
+
+        <label>Private Status</label>
+        <select id="epStatus">
+            <option value="Available Privately" ${listing.privateStatus === 'Available Privately' ? 'selected' : ''}>Available Privately</option>
+            <option value="Under Instruction" ${listing.privateStatus === 'Under Instruction' ? 'selected' : ''}>Under Instruction</option>
+            <option value="Sourced & Delivered" ${listing.privateStatus === 'Sourced & Delivered' ? 'selected' : ''}>Sourced & Delivered</option>
+        </select>
+
+        <label>Trust Line</label>
+        <input id="epTrustLine" value="${esc(listing.trustLine || '')}" placeholder="e.g. No Accident History">
+
+        <div style="display:flex;gap:0.5rem;margin-top:1rem;">
+            <button class="btn btn-gold" style="padding:0.7rem 1.2rem;font-size:0.9rem;" onclick="saveEditPrivateDetails('${listingId}')">Save</button>
+            <button class="btn btn-outline" style="padding:0.7rem 1.2rem;font-size:0.9rem;" onclick="closeAdminModal()">Cancel</button>
+        </div>
+    `);
+}
+
+async function saveEditPrivateDetails(listingId) {
+    var sourceBadge = document.getElementById('epSourceBadge').value;
+    var privateStatus = document.getElementById('epStatus').value;
+    var trustLine = document.getElementById('epTrustLine').value;
+
+    var result = await adminApi('/api/admin/listings/' + listingId + '/private-details', 'PUT', {
+        sourceBadge: sourceBadge,
+        privateStatus: privateStatus,
+        trustLine: trustLine
+    });
+    if (result) {
+        showToast('Private details updated', 'info');
+        closeAdminModal();
+        loadAdminData();
+    }
+}
+
+async function togglePrivate(listingId) {
+    if (!confirm('Move this car back to Public Marketplace?')) return;
+    var result = await adminApi('/api/admin/listings/' + listingId + '/toggle-private', 'POST', {});
+    if (result) {
+        showToast(result.message || 'Moved', 'info');
+        loadAdminData();
+    }
+}
+
+// ============================================================
+// INSTRUCTIONS
+// ============================================================
+async function loadInstructions() {
+    var status = document.getElementById('instructionFilter')?.value || '';
+    var url = '/api/admin/private/instructions' + (status ? '?status=' + status : '');
+    var data = await adminApi(url);
+    if (!data) {
+        document.getElementById('instructionsTable').innerHTML = '<tr><td colspan="7" style="text-align:center;color:#888;">Could not load instructions</td></tr>';
+        return;
+    }
+
+    var html = data.map(function(i) {
+        var statusClass = 'status-' + (i.status || 'NEW');
+        var statusBadge = '<span class="badge-status ' + statusClass + '">' + esc(i.status || 'NEW') + '</span>';
+        var actions = '';
+        if (i.status === 'NEW') {
+            actions = '<button class="btn btn-orange btn-sm" onclick="updateInstruction(\'' + i.id + '\',\'SOURCING\')">Start Sourcing</button>';
+        } else if (i.status === 'SOURCING') {
+            actions = '<button class="btn btn-blue btn-sm" onclick="updateInstruction(\'' + i.id + '\',\'FOUND\')">Found</button>';
+        } else if (i.status === 'FOUND') {
+            actions = '<button class="btn btn-green btn-sm" onclick="updateInstruction(\'' + i.id + '\',\'DELIVERED\')">Delivered</button>';
+        } else {
+            actions = '<span style="color:#888;font-size:0.75rem;">Complete</span>';
+        }
+        actions += ' <button class="btn btn-outline btn-sm" onclick="viewInstruction(\'' + i.id + '\')">View</button>';
+
+        return '<tr>' +
+            '<td>' + esc(i.vehicleWanted) + '</td>' +
+            '<td>' + esc(i.budgetRange) + '</td>' +
+            '<td>' + esc(i.urgency) + '</td>' +
+            '<td>' + esc(i.whatsapp) + '</td>' +
+            '<td>' + statusBadge + '</td>' +
+            '<td style="font-size:0.75rem;">' + (i.createdAt ? new Date(i.createdAt).toLocaleDateString() : '-') + '</td>' +
+            '<td>' + actions + '</td>' +
+            '</tr>';
+    }).join('');
+
+    if (!html) html = '<tr><td colspan="7" style="text-align:center;color:#888;">No instructions</td></tr>';
+    document.getElementById('instructionsTable').innerHTML = html;
+}
+
+async function updateInstruction(id, newStatus) {
+    if (!confirm('Change status to ' + newStatus + '?')) return;
+    var result = await adminApi('/api/admin/private/instructions/' + id, 'PUT', { status: newStatus });
+    if (result) {
+        showToast('Status updated to ' + newStatus, 'info');
+        loadInstructions();
+    }
+}
+
+function viewInstruction(id) {
+    showToast('View full instruction via API or DB', 'info');
+}
+
+// ============================================================
+// ACTION HANDLERS
+// ============================================================
+async function makeAuctioneer(userId) {
+    if (!confirm('Make this user an AUCTIONEER?')) return;
+    var result = await adminApi('/api/admin/make-auctioneer', 'POST', { userId: userId });
+    if (result) { showToast('Promoted to Auctioneer', 'info'); loadAdminData(); }
+}
+
+async function approveKyc(userId) {
+    if (!confirm('Approve KYC for this user?')) return;
+    var result = await adminApi('/api/admin/approve-kyc/' + userId, 'POST');
+    if (result) { showToast('KYC Approved', 'info'); loadAdminData(); }
+}
+
+async function rejectKyc(userId) {
+    if (!confirm('Reject KYC for this user?')) return;
+    var result = await adminApi('/api/admin/reject-kyc/' + userId, 'POST');
+    if (result) { showToast('KYC Rejected', 'info'); loadAdminData(); }
+}
+
+async function blockUser(userId) {
+    if (!confirm('Block this user?')) return;
+    var result = await adminApi('/api/admin/block-user/' + userId, 'POST');
+    if (result) { showToast('User blocked', 'info'); loadAdminData(); }
+}
+
+async function unblockUser(userId) {
+    if (!confirm('Unblock this user?')) return;
+    var result = await adminApi('/api/admin/unblock-user/' + userId, 'POST');
+    if (result) { showToast('User unblocked', 'info'); loadAdminData(); }
+}
+
+async function verifyListing(listingId) {
+    if (!confirm('Verify this listing as CM Verified?')) return;
+    var result = await adminApi('/api/admin/verify-listing/' + listingId, 'POST');
+    if (result) { showToast('Listing Verified', 'info'); loadAdminData(); }
+}
+
+async function endListing(listingId) {
+    if (!confirm('End this listing?')) return;
+    var result = await adminApi('/api/admin/end-listing/' + listingId, 'POST');
+    if (result) { showToast('Listing Ended', 'info'); loadAdminData(); }
+}
+
+async function resolveReport(reportId) {
+    if (!confirm('Resolve this report?')) return;
+    var result = await adminApi('/api/admin/report/' + reportId + '/resolve', 'POST');
+    if (result) { showToast('Report resolved', 'info'); renderTab('reports'); }
+}
+
+async function dismissReport(reportId) {
+    if (!confirm('Dismiss this report?')) return;
+    var result = await adminApi('/api/admin/report/' + reportId + '/dismiss', 'POST');
+    if (result) { showToast('Report dismissed', 'info'); renderTab('reports'); }
+}
+
+// ============================================================
+// INIT
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+    var token = getToken();
+    if (!token) {
+        document.body.innerHTML = '<h2 style="text-align:center;margin-top:4rem;">Please login first. <a href="/">Go to Home</a></h2>';
+        return;
+    }
+    loadAdminData();
+});
+
+console.log('✅ CM Admin loaded (with Private Sourcing)');
 </script>
 </body>
 </html>

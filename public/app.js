@@ -1,10 +1,8 @@
 // ============================================================
-// app.js - CM Central Market (Frontend) - FINAL FIXED
-// Fixes: register photo upload bug (cloneNode), guest browsing,
-// KYC upload, create listing upload, XSS, video preview
+// app.js - CM Central Market - WITH PRIVATE SOURCING
+// Marketplace + Private Source + Guest browsing + KYC + Admin
 // ============================================================
 
-// ---------- GLOBAL STATE ----------
 const app = {
     user: null,
     token: null,
@@ -14,6 +12,7 @@ const app = {
     listings: [],
     sellerListings: [],
     marketplace: [],
+    privateCollection: [],
     selectedCategory: 'All',
     selectedType: 'All',
     selectedSort: 'newest',
@@ -42,7 +41,7 @@ const app = {
     filterPanelVisible: false
 };
 
-// ---------- HTML ESCAPE (XSS protection) ----------
+// ---------- XSS ESCAPE ----------
 function esc(s) {
     if (!s) return '';
     return String(s).replace(/[&<>"']/g, function(m) {
@@ -51,7 +50,7 @@ function esc(s) {
     });
 }
 
-// ---------- TOAST (with fallback) ----------
+// ---------- TOAST ----------
 function showToast(message, type = 'info') {
     let toast = document.getElementById('toast');
     if (!toast) {
@@ -65,17 +64,13 @@ function showToast(message, type = 'info') {
     toast.style.borderColor = type === 'error' ? '#ff4444' : '#00ff88';
     toast.style.background = type === 'error' ? 'rgba(255,0,0,0.2)' : 'rgba(0,255,136,0.1)';
     clearTimeout(toast._hide);
-    toast._hide = setTimeout(() => {
-        toast.style.display = 'none';
-    }, 4000);
+    toast._hide = setTimeout(() => { toast.style.display = 'none'; }, 4000);
 }
 
 // ---------- API WRAPPER ----------
 async function api(endpoint, method = 'GET', body = null) {
     const options = { method, headers: {} };
-    if (app.token) {
-        options.headers['Authorization'] = `Bearer ${app.token}`;
-    }
+    if (app.token) options.headers['Authorization'] = `Bearer ${app.token}`;
     if (body) {
         if (body instanceof FormData) {
             options.body = body;
@@ -86,24 +81,20 @@ async function api(endpoint, method = 'GET', body = null) {
     }
     const res = await fetch(endpoint, options);
     const data = await res.json();
-    if (!res.ok) {
-        throw new Error(data.error || 'API request failed');
-    }
+    if (!res.ok) throw new Error(data.error || 'API request failed');
     return data;
 }
 
 // ---------- MODAL ----------
 function openModal(content) {
-    const modal = document.getElementById('modal');
-    const contentEl = document.getElementById('modalContent');
-    contentEl.innerHTML = content;
-    modal.style.display = 'flex';
+    document.getElementById('modalContent').innerHTML = content;
+    document.getElementById('modal').style.display = 'flex';
 }
 function closeModal() {
     document.getElementById('modal').style.display = 'none';
 }
 
-// ---------- AUTH GUARD ----------
+// ---------- LOGIN GUARD ----------
 function requireLogin(actionLabel) {
     if (app.user && app.token) return true;
     showToast(`Please login to ${actionLabel}`, 'error');
@@ -112,17 +103,23 @@ function requireLogin(actionLabel) {
 }
 
 // ============================================================
-// ========== NAVIGATION (with guard) =========================
+// ========== NAVIGATION (with private theme switch) ==========
 // ============================================================
 function navigate(page) {
+    // Protected pages
     if (!app.user && ['dashboard', 'createListing', 'kyc', 'profile', 'adminDashboard'].includes(page)) {
         showToast('Please login to access this page', 'error');
         return showLogin();
     }
 
     app.currentPage = page;
+
+    // Toggle private theme
+    document.body.classList.toggle('private-theme', page === 'privateSource');
+
     switch (page) {
         case 'marketplace': renderMarketplace(); break;
+        case 'privateSource': renderPrivateSource(); break;
         case 'dashboard': renderDashboard(); break;
         case 'createListing': renderCreateListing(); break;
         case 'kyc': renderKYC(); break;
@@ -157,11 +154,10 @@ function showLogin() {
 async function handleLogin() {
     const email = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
-    console.log('🔐 Login attempt:', email);
     if (!email || !password) return showToast('Email and password required', 'error');
 
-    const loginBtn = document.querySelector('#modalContent .btn-primary');
-    if (loginBtn) { loginBtn.disabled = true; loginBtn.textContent = 'Logging in...'; }
+    const btn = document.querySelector('#modalContent .btn-primary');
+    if (btn) { btn.disabled = true; btn.textContent = 'Logging in...'; }
 
     try {
         const controller = new AbortController();
@@ -175,9 +171,7 @@ async function handleLogin() {
         });
         clearTimeout(timeoutId);
 
-        console.log('📨 Response status:', res.status);
         const data = await res.json();
-        console.log('📦 Response data:', data);
         if (!res.ok) throw new Error(data.error);
 
         app.token = data.token;
@@ -188,14 +182,10 @@ async function handleLogin() {
         await initApp();
         showToast(`Welcome, ${esc(app.user?.displayName || app.user?.name)}!`);
     } catch (err) {
-        console.error('❌ Login error:', err);
-        if (err.name === 'AbortError') {
-            showToast('Request timed out. Please try again.', 'error');
-        } else {
-            showToast(err.message, 'error');
-        }
+        console.error('Login error:', err);
+        showToast(err.name === 'AbortError' ? 'Request timed out.' : err.message, 'error');
     } finally {
-        if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = 'Login'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'Login'; }
     }
 }
 
@@ -230,20 +220,18 @@ function showRegister() {
         <div class="form-group">
             <label>Role</label>
             <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:0.3rem;">
-                <button type="button" class="role-btn" data-role="BUYER" style="flex:1;padding:0.6rem;border:2px solid #EAEAEA;border-radius:8px;background:#fff;color:#101010;cursor:pointer;transition:0.2s;">
-                    <strong>Buyer</strong><br><small>Bid & buy everything</small>
+                <button type="button" class="role-btn" data-role="BUYER" style="flex:1;padding:0.6rem;border:2px solid #EAEAEA;border-radius:8px;background:#fff;color:#101010;cursor:pointer;">
+                    <strong>Buyer</strong><br><small>Bid & buy</small>
                 </button>
-                <button type="button" class="role-btn" data-role="INDIVIDUAL_SELLER" style="flex:1;padding:0.6rem;border:2px solid #EAEAEA;border-radius:8px;background:#fff;color:#101010;cursor:pointer;transition:0.2s;">
-                    <strong>Individual Seller</strong><br><small>Sell your own items</small>
+                <button type="button" class="role-btn" data-role="INDIVIDUAL_SELLER" style="flex:1;padding:0.6rem;border:2px solid #EAEAEA;border-radius:8px;background:#fff;color:#101010;cursor:pointer;">
+                    <strong>Individual Seller</strong><br><small>Sell your own</small>
                 </button>
-                <button type="button" class="role-btn" data-role="AUCTIONEER" style="flex:1;padding:0.6rem;border:2px solid #EAEAEA;border-radius:8px;background:#fff;color:#101010;cursor:pointer;transition:0.2s;">
-                    <strong>Auctioneer</strong><br><small>Pro auctions (Invite only)</small>
+                <button type="button" class="role-btn" data-role="AUCTIONEER" style="flex:1;padding:0.6rem;border:2px solid #EAEAEA;border-radius:8px;background:#fff;color:#101010;cursor:pointer;">
+                    <strong>Auctioneer</strong><br><small>Invite only</small>
                 </button>
             </div>
             <input type="hidden" id="regRole" value="BUYER">
         </div>
-
-        <!-- ===== ID PHOTO (input OUTSIDE drag area) ===== -->
         <div class="form-group">
             <label>ID Photo *</label>
             <div class="drag-area" id="registerIdDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#fff;">
@@ -253,8 +241,6 @@ function showRegister() {
             <input type="file" id="regIdPhoto" accept="image/*" hidden>
             <div id="regIdPreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
         </div>
-
-        <!-- ===== SELFIE (input OUTSIDE drag area) ===== -->
         <div class="form-group">
             <label>Selfie *</label>
             <div class="drag-area" id="registerSelfieDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#fff;">
@@ -264,14 +250,12 @@ function showRegister() {
             <input type="file" id="regSelfie" accept="image/*" hidden>
             <div id="regSelfiePreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
         </div>
-
         <button class="btn btn-primary" style="width:100%;margin-top:1rem;background:#E30613;border:none;" onclick="handleRegister()">Register</button>
         <p style="margin-top:1rem;text-align:center;color:#888;">
             Already have an account? <span style="color:#E30613;cursor:pointer;" onclick="closeModal();showLogin();">Login</span>
         </p>
     `);
 
-    // Role selection
     document.querySelectorAll('.role-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const role = this.dataset.role;
@@ -287,7 +271,6 @@ function showRegister() {
     setupRegisterFileDrop('registerSelfieDrop', 'regSelfie', 'regSelfiePreview');
 }
 
-// ---------- FIXED: No cloneNode, uses .onclick ----------
 function setupRegisterFileDrop(dropId, inputId, previewId) {
     const drop = document.getElementById(dropId);
     const input = document.getElementById(inputId);
@@ -323,18 +306,11 @@ async function handleRegister() {
     const idPhotoFile = document.getElementById('regIdPhoto')?.files?.[0];
     const selfieFile = document.getElementById('regSelfie')?.files?.[0];
 
-    console.log('REGISTER: idPhoto=', !!idPhotoFile, 'selfie=', !!selfieFile, 'files sizes:',
-        idPhotoFile?.size, selfieFile?.size);
+    if (!name || !idNumber || !email || !password) return showToast('All fields required', 'error');
+    if (!idPhotoFile || !selfieFile) return showToast('Please upload your ID photo and a selfie', 'error');
 
-    if (!name || !idNumber || !email || !password) {
-        return showToast('All fields required', 'error');
-    }
-    if (!idPhotoFile || !selfieFile) {
-        return showToast('Please upload your ID photo and a selfie', 'error');
-    }
-
-    const regBtn = document.querySelector('#modalContent .btn-primary');
-    if (regBtn) { regBtn.disabled = true; regBtn.textContent = 'Registering...'; }
+    const btn = document.querySelector('#modalContent .btn-primary');
+    if (btn) { btn.disabled = true; btn.textContent = 'Registering...'; }
 
     try {
         const formData = new FormData();
@@ -355,6 +331,7 @@ async function handleRegister() {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
+
         app.token = data.token;
         app.user = data.user;
         localStorage.setItem('token', app.token);
@@ -365,25 +342,23 @@ async function handleRegister() {
     } catch (err) {
         showToast(err.message, 'error');
     } finally {
-        if (regBtn) { regBtn.disabled = false; regBtn.textContent = 'Register'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'Register'; }
     }
 }
 
 function logout() {
-    if (app.socket) {
-        app.socket.disconnect();
-        app.socket = null;
-    }
+    if (app.socket) { app.socket.disconnect(); app.socket = null; }
     app.user = null;
     app.token = null;
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    document.body.classList.remove('private-theme');
     showToast('Logged out');
     initApp();
 }
 
 // ============================================================
-// ========== INIT APP (GUEST-FRIENDLY) =======================
+// ========== INIT APP ========================================
 // ============================================================
 async function initApp() {
     app.deviceId = localStorage.getItem('deviceId') || Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -399,15 +374,12 @@ async function initApp() {
             app.user = user;
             localStorage.setItem('user', JSON.stringify(user));
         } catch (err) {
-            console.warn('Session invalid, continuing as guest:', err.message);
+            console.warn('Session invalid:', err.message);
             app.user = null;
             app.token = null;
             localStorage.removeItem('token');
             localStorage.removeItem('user');
         }
-    } else {
-        app.user = null;
-        app.token = null;
     }
 
     if (navbar) navbar.style.display = 'flex';
@@ -421,11 +393,11 @@ async function initApp() {
         if (profileBtn) profileBtn.style.display = 'inline';
         document.getElementById('userDisplay').textContent = `👤 ${esc(app.user.displayName || app.user.name)}`;
 
-        const loginBtn = document.getElementById('loginNavBtn');
-        const registerBtn = document.getElementById('registerNavBtn');
+        ['loginNavBtn', 'registerNavBtn'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = 'none';
+        });
         const logoutBtn = document.getElementById('logoutNavBtn');
-        if (loginBtn) loginBtn.style.display = 'none';
-        if (registerBtn) registerBtn.style.display = 'none';
         if (logoutBtn) logoutBtn.style.display = 'inline-block';
 
         connectSocket();
@@ -464,7 +436,7 @@ function connectSocket() {
         app.socket.on('connect_error', (err) => console.error('Socket error:', err.message));
         app.socket.on('marketplaceUpdated', () => fetchMarketplace());
         app.socket.on('bidUpdate', (data) => {
-            showToast(`New bid on ${esc(data.listingId)}: R${Number(data.currentBid).toLocaleString()}`, 'info');
+            showToast(`New bid: R${Number(data.currentBid).toLocaleString()}`, 'info');
             fetchMarketplace();
         });
         app.socket.on('error', (data) => showToast(data.message, 'error'));
@@ -512,28 +484,28 @@ async function renderMarketplace() {
                 { id: 'AUCTION', label: '🔨 Live Auctions' },
                 { id: 'FIXED_PRICE', label: '🏷️ Fixed Price' }
             ].map(c => `
-                <button onclick="setMarketplaceFilter('filter','${c.id}')" style="white-space:nowrap;padding:0.5rem 1.2rem;border-radius:9999px;font-size:0.9rem;font-weight:700;border:1px solid ${filters.filter === c.id ? '#101010' : '#EAEAEA'};background:${filters.filter === c.id ? '#101010' : 'white'};color:${filters.filter === c.id ? 'white' : '#666'};cursor:pointer;transition:0.2s;">
+                <button onclick="setMarketplaceFilter('filter','${c.id}')" style="white-space:nowrap;padding:0.5rem 1.2rem;border-radius:9999px;font-size:0.9rem;font-weight:700;border:1px solid ${filters.filter === c.id ? '#101010' : '#EAEAEA'};background:${filters.filter === c.id ? '#101010' : 'white'};color:${filters.filter === c.id ? 'white' : '#666'};cursor:pointer;">
                     ${c.label}
                 </button>
             `).join('')}
-            <button onclick="setMarketplaceFilter('verifiedOnly', !${filters.verifiedOnly})" style="white-space:nowrap;padding:0.5rem 1.2rem;border-radius:9999px;font-size:0.9rem;font-weight:700;border:1px solid ${filters.verifiedOnly ? '#28a745' : '#EAEAEA'};background:${filters.verifiedOnly ? '#28a745' : 'white'};color:${filters.verifiedOnly ? 'white' : '#666'};cursor:pointer;transition:0.2s;">
+            <button onclick="setMarketplaceFilter('verifiedOnly', !${filters.verifiedOnly})" style="white-space:nowrap;padding:0.5rem 1.2rem;border-radius:9999px;font-size:0.9rem;font-weight:700;border:1px solid ${filters.verifiedOnly ? '#28a745' : '#EAEAEA'};background:${filters.verifiedOnly ? '#28a745' : 'white'};color:${filters.verifiedOnly ? 'white' : '#666'};cursor:pointer;">
                 ✓ CM Verified only
             </button>
         </div>
         <div id="categoryChips" style="display:${app.filterPanelVisible ? 'flex' : 'none'}; flex-wrap:wrap; gap:0.5rem; margin-bottom:1rem; overflow-x:auto; padding-bottom:0.25rem; width:100%;">
             ${categories.map(c => `
-                <button onclick="setMarketplaceFilter('category','${c}')" style="white-space:nowrap;padding:0.3rem 1rem;border-radius:9999px;font-size:0.85rem;font-weight:600;border:1px solid ${filters.category === c ? '#101010' : '#EAEAEA'};background:${filters.category === c ? '#F5F5F7' : 'white'};color:${filters.category === c ? '#101010' : '#666'};cursor:pointer;transition:0.2s;">
+                <button onclick="setMarketplaceFilter('category','${c}')" style="white-space:nowrap;padding:0.3rem 1rem;border-radius:9999px;font-size:0.85rem;font-weight:600;border:1px solid ${filters.category === c ? '#101010' : '#EAEAEA'};background:${filters.category === c ? '#F5F5F7' : 'white'};color:${filters.category === c ? '#101010' : '#666'};cursor:pointer;">
                     ${c}
                 </button>
             `).join('')}
         </div>
     `;
 
-    let html = `
+    main.innerHTML = `
         <div style="max-width:1400px;margin:0 auto;padding:0 1rem;background:#F5F5F7;min-height:100vh;">
             <div style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:0.75rem 1rem;display:flex;gap:0.5rem;margin-bottom:0.75rem;box-shadow:0 2px 8px rgba(0,0,0,0.05);flex-wrap:wrap;align-items:center;">
                 <input id="marketplaceSearch" value="${esc(filters.search)}" placeholder="Search bike, car, TLB..." style="flex:1;min-width:160px;padding:0.6rem 1rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;font-size:0.95rem;outline:none;">
-                <button onclick="applyMarketplaceFilters()" style="background:#E30613;color:#fff;padding:0.6rem 1.2rem;border:none;border-radius:8px;font-weight:700;cursor:pointer;transition:0.2s;">Search</button>
+                <button onclick="applyMarketplaceFilters()" style="background:#E30613;color:#fff;padding:0.6rem 1.2rem;border:none;border-radius:8px;font-weight:700;cursor:pointer;">Search</button>
                 <button onclick="toggleFilterPanel()" style="background:#101010;color:#fff;padding:0.6rem 1rem;border:none;border-radius:8px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
                     <i class="fas fa-sliders-h"></i> Filter
                 </button>
@@ -552,50 +524,250 @@ async function renderMarketplace() {
                 ${filtered.length > 0 ? filtered.map(item => renderAuctionCard(item)).join('') : `
                     <div style="grid-column:1/-1;text-align:center;padding:3rem 0;">
                         <p style="font-size:1.2rem;font-weight:600;color:#666;">No listings found</p>
-                        <p style="font-size:0.9rem;color:#888;">Try adjusting your filters</p>
                     </div>
                 `}
             </div>
         </div>
     `;
-    main.innerHTML = html;
 }
 
 function toggleFilterPanel() {
     app.filterPanelVisible = !app.filterPanelVisible;
     renderMarketplace();
 }
-
 function setMarketplaceFilter(key, value) {
     if (!app._marketplaceFilters) app._marketplaceFilters = { filter: 'ALL', category: 'ALL', search: '', verifiedOnly: false, sort: 'recent' };
     app._marketplaceFilters[key] = value;
     renderMarketplace();
 }
 function applyMarketplaceFilters() {
-    const search = document.getElementById('marketplaceSearch')?.value || '';
-    app._marketplaceFilters.search = search;
+    app._marketplaceFilters.search = document.getElementById('marketplaceSearch')?.value || '';
     renderMarketplace();
 }
 
-// ---------- RENDER AUCTION CARD ----------
+// ============================================================
+// ========== PRIVATE SOURCE ==================================
+// ============================================================
+
+async function fetchPrivateCollection() {
+    try {
+        const data = await api('/api/private/collection');
+        app.privateCollection = data;
+        return data;
+    } catch (err) {
+        console.error('Failed to fetch private collection:', err);
+        return { listings: [], cipc: '2024/XXXXXX/07', whatsapp: '27665254746' };
+    }
+}
+
+async function renderPrivateSource() {
+    const main = document.getElementById('mainContent');
+    const data = await fetchPrivateCollection();
+    const listings = data.listings || [];
+    const cipc = data.cipc || '2024/XXXXXX/07';
+    const whatsapp = data.whatsapp || '27665254746';
+
+    main.innerHTML = `
+        <div style="max-width:1200px;margin:0 auto;padding:2rem 1rem;">
+
+            <!-- BACK LINK -->
+            <a href="javascript:void(0)" onclick="navigate('marketplace')" style="color:#9CA3AF;font-size:0.85rem;text-decoration:none;display:inline-block;margin-bottom:1.5rem;letter-spacing:0.5px;">
+                ← Back to Marketplace
+            </a>
+
+            <!-- HEADER -->
+            <div style="text-align:center;margin-bottom:2rem;">
+                <p style="font-size:0.75rem;color:#9CA3AF;letter-spacing:3px;text-transform:uppercase;margin:0 0 0.5rem 0;">
+                    💎 By Instruction Only
+                </p>
+                <h1 style="font-size:2.5rem;font-weight:300;color:#1A1A1A;margin:0 0 1rem 0;letter-spacing:-0.5px;">
+                    Private Sourcing
+                </h1>
+                <p style="color:#6B6B6B;font-size:1rem;line-height:1.6;max-width:600px;margin:0 auto;">
+                    For clients who don't have time for public auctions.<br>
+                    We source clean, 1-owner vehicles quietly through our verified network.
+                </p>
+            </div>
+
+            <!-- TRUST BADGES -->
+            <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:1.5rem;padding:1rem 0;border-top:1px solid #E5E5E0;border-bottom:1px solid #E5E5E0;margin-bottom:2rem;font-size:0.8rem;color:#6B6B6B;">
+                <span>✅ CIPC Registered: ${esc(cipc)}</span>
+                <span>🛡️ Papers Verified & Clear</span>
+                <span>🚛 500+ Vehicles Sourced</span>
+                <span>🤝 Trusted by Fleet Clients</span>
+                <span>📍 Soweto HQ — Sandton Viewing</span>
+            </div>
+
+            <!-- INSTRUCT FORM -->
+            <div class="private-card" style="padding:2rem;margin-bottom:2rem;">
+                <h2 style="font-size:1.5rem;font-weight:400;color:#1A1A1A;margin:0 0 0.5rem 0;">Instruct Us To Find Your Vehicle</h2>
+                <p style="color:#9CA3AF;font-size:0.9rem;margin:0 0 1.5rem 0;">5 fields. No public bidding. WhatsApp & email only.</p>
+
+                <form id="privateInstructionForm">
+                    <div class="form-group">
+                        <label style="color:#6B6B6B;font-size:0.85rem;font-weight:500;">What vehicle are you looking for? *</label>
+                        <input id="piVehicleWanted" placeholder="e.g. 2023 Lexus RX 500h, White" style="width:100%;padding:0.85rem 1rem;border:1px solid #E5E5E0;border-radius:8px;background:#FAFAF8;color:#1A1A1A;font-size:0.95rem;outline:none;">
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                        <div class="form-group">
+                            <label style="color:#6B6B6B;font-size:0.85rem;font-weight:500;">Budget Range *</label>
+                            <select id="piBudget" style="width:100%;padding:0.85rem 1rem;border:1px solid #E5E5E0;border-radius:8px;background:#FAFAF8;color:#1A1A1A;font-size:0.95rem;outline:none;">
+                                <option value="">Select budget</option>
+                                <option value="R300k-R500k">R300k – R500k</option>
+                                <option value="R500k-R800k">R500k – R800k</option>
+                                <option value="R800k-R1.2M">R800k – R1.2M</option>
+                                <option value="R1.2M+">R1.2M+</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label style="color:#6B6B6B;font-size:0.85rem;font-weight:500;">Year / KM Preference</label>
+                            <input id="piYearKm" placeholder="e.g. 2022+, under 50,000km" style="width:100%;padding:0.85rem 1rem;border:1px solid #E5E5E0;border-radius:8px;background:#FAFAF8;color:#1A1A1A;font-size:0.95rem;outline:none;">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="color:#6B6B6B;font-size:0.85rem;font-weight:500;">How urgently? *</label>
+                        <select id="piUrgency" style="width:100%;padding:0.85rem 1rem;border:1px solid #E5E5E0;border-radius:8px;background:#FAFAF8;color:#1A1A1A;font-size:0.95rem;outline:none;">
+                            <option value="">Select urgency</option>
+                            <option value="Within 7 days">Within 7 days</option>
+                            <option value="Within 14 days">Within 14 days</option>
+                            <option value="No rush — find the right one">No rush — find the right one</option>
+                        </select>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                        <div class="form-group">
+                            <label style="color:#6B6B6B;font-size:0.85rem;font-weight:500;">WhatsApp Number *</label>
+                            <input id="piWhatsapp" placeholder="0821234567" style="width:100%;padding:0.85rem 1rem;border:1px solid #E5E5E0;border-radius:8px;background:#FAFAF8;color:#1A1A1A;font-size:0.95rem;outline:none;">
+                        </div>
+                        <div class="form-group">
+                            <label style="color:#6B6B6B;font-size:0.85rem;font-weight:500;">Private Email</label>
+                            <input id="piEmail" type="email" placeholder="you@example.com" style="width:100%;padding:0.85rem 1rem;border:1px solid #E5E5E0;border-radius:8px;background:#FAFAF8;color:#1A1A1A;font-size:0.95rem;outline:none;">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-private" style="width:100%;margin-top:1rem;padding:1rem;background:#1A1A1A;color:#fff;border:none;border-radius:8px;font-weight:700;letter-spacing:1px;cursor:pointer;font-size:0.9rem;text-transform:uppercase;">
+                        Send Private Instruction
+                    </button>
+                    <p style="font-size:0.7rem;color:#9CA3AF;text-align:center;margin-top:0.75rem;line-height:1.5;">
+                        Your instruction is private. We never post it publicly. Replies via WhatsApp & email only.
+                    </p>
+                </form>
+            </div>
+
+            <!-- PRIVATE COLLECTION -->
+            <div style="margin-bottom:2rem;">
+                <h2 style="font-size:1.25rem;font-weight:400;color:#1A1A1A;margin:0 0 0.5rem 0;">Private Collection</h2>
+                <p style="color:#9CA3AF;font-size:0.85rem;margin:0 0 1.5rem 0;">Selected vehicles — Price on Request</p>
+
+                ${listings.length > 0 ? `
+                    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.5rem;">
+                        ${listings.map(item => renderPrivateCard(item)).join('')}
+                    </div>
+                ` : `
+                    <div class="private-card" style="padding:3rem;text-align:center;color:#9CA3AF;">
+                        <p style="margin:0 0 0.5rem 0;font-size:1rem;">No vehicles currently available in Private Collection</p>
+                        <p style="margin:0;font-size:0.85rem;">Submit your instruction above — we'll source it for you.</p>
+                    </div>
+                `}
+            </div>
+
+            <!-- FOOTER TRUST -->
+            <div style="text-align:center;padding:1.5rem 0;border-top:1px solid #E5E5E0;font-size:0.75rem;color:#9CA3AF;line-height:1.7;">
+                Registration & compliance docs available on request via WhatsApp.<br>
+                No public bidding. All inspections done privately.
+            </div>
+        </div>
+    `;
+
+    document.getElementById('privateInstructionForm').addEventListener('submit', submitPrivateInstruction);
+}
+
+function renderPrivateCard(item) {
+    const imageUrl = item.mainImageUrl || (item.imageUrls && item.imageUrls[0]) || '/logo.jpeg';
+    const title = esc(item.title);
+    const sourceBadge = esc(item.sourceBadge || 'Verified Private Collection');
+    const trustLine = esc(item.trustLine || 'Papers Verified & Clear');
+    const status = esc(item.privateStatus || 'Available Privately');
+    const waMsg = encodeURIComponent(`Hi CM Private Sourcing, I'm interested in ${item.title} (ID: ${item.id}). Please send private details + inspection report.`);
+    const waNumber = '27665254746';
+
+    return `
+        <div class="private-card" style="overflow:hidden;">
+            <div style="aspect-ratio:4/3;background:#000;overflow:hidden;">
+                <img src="${imageUrl}" alt="${title}" style="width:100%;height:100%;object-fit:cover;" onerror="this.src='/logo.jpeg'">
+            </div>
+            <div style="padding:1.25rem;">
+                <p style="font-size:0.65rem;color:#9CA3AF;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 0.5rem 0;">
+                    ${sourceBadge}
+                </p>
+                <h3 style="font-size:1.1rem;font-weight:500;color:#1A1A1A;margin:0 0 0.5rem 0;line-height:1.3;">
+                    ${title}
+                </h3>
+                <p style="font-size:0.8rem;color:#6B6B6B;margin:0 0 0.5rem 0;">${trustLine}</p>
+                <p style="font-size:0.75rem;color:#9CA3AF;margin:0 0 1rem 0;">${status}</p>
+                <p style="font-size:0.9rem;font-weight:600;color:#1A1A1A;margin:0 0 1rem 0;">Price on Request</p>
+                <a href="https://wa.me/${waNumber}?text=${waMsg}" target="_blank" style="display:block;text-align:center;background:#1A1A1A;color:#fff;padding:0.75rem;border-radius:8px;font-weight:600;font-size:0.85rem;text-decoration:none;letter-spacing:0.5px;">
+                    VIEW PRIVATELY →
+                </a>
+            </div>
+        </div>
+    `;
+}
+
+async function submitPrivateInstruction(e) {
+    e.preventDefault();
+    const vehicleWanted = document.getElementById('piVehicleWanted').value.trim();
+    const budgetRange = document.getElementById('piBudget').value;
+    const yearKmPref = document.getElementById('piYearKm').value.trim();
+    const urgency = document.getElementById('piUrgency').value;
+    const whatsapp = document.getElementById('piWhatsapp').value.trim();
+    const privateEmail = document.getElementById('piEmail').value.trim();
+
+    if (!vehicleWanted || !budgetRange || !urgency || !whatsapp) {
+        return showToast('Please fill all required fields', 'error');
+    }
+
+    const btn = document.querySelector('#privateInstructionForm .btn-private');
+    if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
+
+    try {
+        const res = await fetch('/api/private/instruct', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(app.token ? { 'Authorization': `Bearer ${app.token}` } : {})
+            },
+            body: JSON.stringify({ vehicleWanted, budgetRange, yearKmPref, urgency, whatsapp, privateEmail })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        showToast('Instruction received — check your WhatsApp', 'info');
+        document.getElementById('privateInstructionForm').reset();
+    } catch (err) {
+        showToast(err.message, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Send Private Instruction'; }
+    }
+}
+
+// ============================================================
+// ========== AUCTION CARD ====================================
+// ============================================================
 function renderAuctionCard(item) {
     const isAuction = item.listingType === 'AUCTION';
     const endTime = item.endTime || null;
     const isLive = isAuction && (!endTime || new Date(endTime) > new Date());
     const isEnded = isAuction && endTime && new Date(endTime) <= new Date();
 
-    // Robust price fallback – server sends displayPrice, but we recompute for safety
     let displayPrice = 0;
-    if (item.displayPrice) {
-        displayPrice = item.displayPrice;
-    } else if (isAuction) {
-        displayPrice = item.currentBid || item.startingPrice || item.reservePrice || 0;
-    } else {
-        displayPrice = item.price || 0;
-    }
+    if (item.displayPrice) displayPrice = item.displayPrice;
+    else if (isAuction) displayPrice = item.currentBid || item.startingPrice || item.reservePrice || 0;
+    else displayPrice = item.price || 0;
 
     const priceDisplay = `R ${Number(displayPrice).toLocaleString()}`;
-
     const timeDisplay = isAuction
         ? (endTime ? getTimeRemaining(endTime) : 'No end time')
         : (item.isNegotiable ? 'Negotiable' : 'Buy Now');
@@ -603,21 +775,16 @@ function renderAuctionCard(item) {
     const imageUrl = item.mainImageUrl || (item.images && item.images.length > 0 ? item.images[0] : '/logo.jpeg');
     const sellerName = esc(item.seller?.displayName || item.seller?.name || 'CM Agent');
     const sellerId = item.seller?.id || '';
-
     const specLine = item.year || item.kilometers
         ? `${item.year || ''} • ${item.kilometers ? Number(item.kilometers).toLocaleString() + ' km' : ''}`
         : item.category || '';
-
-    const verifiedBadge = item.isVerified
-        ? `<span style="background:#28a745;color:white;font-size:0.65rem;padding:2px 6px;border-radius:4px;margin-left:6px;">✓ VERIFIED</span>`
-        : '';
-
+    const verifiedBadge = item.isVerified ? `<span style="background:#28a745;color:white;font-size:0.65rem;padding:2px 6px;border-radius:4px;margin-left:6px;">✓ VERIFIED</span>` : '';
     const title = esc(item.title);
 
     return `
-        <div class="auction-card-item" data-listing-id="${item.id}" onclick="viewListingDetail('${item.id}')" style="background:white;border:1px solid #EAEAEA;border-radius:12px;overflow:hidden;transition:var(--transition);cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+        <div class="auction-card-item" onclick="viewListingDetail('${item.id}')" style="background:white;border:1px solid #EAEAEA;border-radius:12px;overflow:hidden;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
             <div style="position:relative;aspect-ratio:4/3;background:#F5F5F7;overflow:hidden;">
-                <img src="${imageUrl}" alt="${title}" style="width:100%;height:100%;object-fit:cover;transition:transform 0.5s;" onerror="this.src='/logo.jpeg'">
+                <img src="${imageUrl}" alt="${title}" style="width:100%;height:100%;object-fit:cover;" onerror="this.src='/logo.jpeg'">
                 ${isAuction && isLive ? `<span style="position:absolute;top:0.75rem;left:0.75rem;background:#E30613;color:#fff;font-size:0.7rem;font-weight:700;padding:0.15rem 0.6rem;border-radius:4px;text-transform:uppercase;">LIVE</span>` : ''}
                 ${isAuction && isEnded ? `<span style="position:absolute;top:0.75rem;left:0.75rem;background:#666;color:#fff;font-size:0.7rem;font-weight:700;padding:0.15rem 0.6rem;border-radius:4px;text-transform:uppercase;">ENDED</span>` : ''}
                 ${!isAuction ? `<span style="position:absolute;top:0.75rem;left:0.75rem;background:#101010;color:#fff;font-size:0.7rem;font-weight:700;padding:0.15rem 0.6rem;border-radius:4px;text-transform:uppercase;">FIXED</span>` : ''}
@@ -692,12 +859,15 @@ function renderListingDetail(listing) {
 
     const thumbnailHTML = galleryImages.map((img, idx) => `
         <div class="thumbnail-item ${idx === 0 ? 'active' : ''}" 
-             id="thumb_${idx}" 
              onclick="setGalleryImage(${idx})" 
              style="flex-shrink:0;width:80px;height:80px;border-radius:8px;overflow:hidden;border:2px solid ${idx === 0 ? '#E30613' : 'transparent'};opacity:${idx === 0 ? 1 : 0.7};cursor:pointer;">
             <img src="${img}" style="width:100%;height:100%;object-fit:cover;" onerror="this.src='/logo.jpeg'">
         </div>
     `).join('');
+
+    const detailPrice = isAuction
+        ? (listing.currentBid || listing.startingPrice || listing.reservePrice || 0)
+        : (listing.price || 0);
 
     let bidHtml;
     if (isOwnListing) {
@@ -705,68 +875,68 @@ function renderListingDetail(listing) {
     } else if (isAuction) {
         bidHtml = `
             <div class="bid-input-row">
-                <input type="number" id="bidAmountInput" 
-                    value="${(Number(listing.currentBid || listing.startingPrice || listing.reservePrice || 0) + 1000)}" 
-                    class="bid-input">
-                <button onclick="placeBid('${listing.id}')" class="bid-submit-btn">
-                    Place Bid
-                </button>
+                <input type="number" id="bidAmountInput" value="${(Number(detailPrice) + 1000)}" class="bid-input">
+                <button onclick="placeBid('${listing.id}')" class="bid-submit-btn">Place Bid</button>
             </div>
         `;
     } else {
         bidHtml = `
-            <button onclick="buyNow('${listing.id}')" 
-                style="width:100%;background:#E30613;color:#fff;padding:0.9rem;border:none;border-radius:8px;font-weight:800;font-size:1rem;cursor:pointer;transition:0.2s;">
+            <button onclick="buyNow('${listing.id}')" style="width:100%;background:#E30613;color:#fff;padding:0.9rem;border:none;border-radius:8px;font-weight:800;font-size:1rem;cursor:pointer;">
                 Buy Now at R ${Number(listing.price || 0).toLocaleString()}
             </button>
         `;
     }
 
-    // Price fallback for detail page
-    const detailPrice = isAuction
-        ? (listing.currentBid || listing.startingPrice || listing.reservePrice || 0)
-        : (listing.price || 0);
-
     main.innerHTML = `
-        <div style="max-width:1400px;margin:0 auto;padding:1rem;background:#F5F5F7;min-height:100vh;">
+        <div class="listing-detail-page">
+            <button class="back-btn" onclick="navigate('marketplace')">← Back to Marketplace</button>
 
-            <!-- Back button -->
-            <button class="back-btn" onclick="navigate('marketplace')" 
-                style="background:white;border:1px solid #EAEAEA;padding:0.5rem 1rem;border-radius:8px;color:#666;cursor:pointer;margin-bottom:1rem;font-size:0.9rem;">
-                ← Back to Marketplace
-            </button>
-
-            <!-- ===== MAIN GRID (all blocks are direct children) ===== -->
             <div class="listing-detail-grid">
+                <!-- BID PANEL -->
+                <div class="bid-panel">
+                    <div class="bid-panel-header">
+                        <p class="bid-panel-label">${isAuction ? 'Auction Ends In' : 'Fixed Price'}</p>
+                        <h3 class="bid-timer" id="countdownTimer">
+                            ${isAuction ? (listing.endTime ? getTimeRemaining(listing.endTime) : 'Ends Soon') : 'Buy Now'}
+                        </h3>
+                    </div>
+                    <p class="bid-panel-label">${isAuction ? 'Current Bid' : 'Price'}</p>
+                    <p class="bid-price" id="currentBidDisplay">R ${Number(detailPrice).toLocaleString()}</p>
+                    <p class="bid-subtext">
+                        ${isAuction ? `${listing.bidCount || 0} bids • Reserve not met` : (listing.isNegotiable ? 'Negotiable' : 'Instant purchase')}
+                    </p>
+                    <div class="bid-actions">
+                        ${bidHtml}
+                        <a href="https://wa.me/${listing.hqWhatsapp}?text=${encodeURIComponent(listing.waMessage || `Hi CM Agent, I'm interested in ${esc(listing.title)}`)}" target="_blank" class="wa-btn">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" width="20" style="filter:invert(1);"> WhatsApp CM Agent
+                        </a>
+                        <p class="bid-note">All chats go via CM HQ. Seller contact hidden until deposit paid.</p>
+                    </div>
+                    <div class="bid-seller">
+                        <p class="bid-panel-label">Seller</p>
+                        <p class="seller-name">${esc(listing.seller?.name || 'CM Agent')}</p>
+                        <a href="javascript:void(0)" onclick="viewSellerProfile('${listing.seller?.id}')" class="seller-link">View Profile →</a>
+                    </div>
+                </div>
 
-                <!-- GALLERY BLOCK -->
+                <!-- GALLERY -->
                 <div class="listing-gallery-block">
                     <div style="background:#000;border-radius:12px;overflow:hidden;position:relative;">
                         <div style="position:relative;width:100%;aspect-ratio:16/10;">
                             <img id="mainGalleryImage" src="${galleryImages[0]}" style="width:100%;height:100%;object-fit:contain;">
                             <button onclick="changeGalleryImage(-1)" class="gallery-nav-btn gallery-nav-left">‹</button>
                             <button onclick="changeGalleryImage(1)" class="gallery-nav-btn gallery-nav-right">›</button>
-                            <div class="gallery-badge-type">
-                                ${isAuction ? '● LIVE AUCTION' : 'FIXED PRICE'}
-                            </div>
-                            ${listing.isVerified 
-                                ? `<div class="gallery-badge-verified">✓ CM VERIFIED</div>` 
-                                : `<div class="gallery-badge-unverified">UNVERIFIED</div>`}
-                            <div id="galleryCounter" class="gallery-counter">
-                                1 / ${galleryImages.length}
-                            </div>
+                            <div class="gallery-badge-type">${isAuction ? '● LIVE AUCTION' : 'FIXED PRICE'}</div>
+                            ${listing.isVerified ? `<div class="gallery-badge-verified">✓ CM VERIFIED</div>` : `<div class="gallery-badge-unverified">UNVERIFIED</div>`}
+                            <div id="galleryCounter" class="gallery-counter">1 / ${galleryImages.length}</div>
                         </div>
                     </div>
-
-                    <!-- Thumbnails -->
-                    <div class="thumbnails-container" style="display:flex;gap:0.5rem;overflow-x:auto;padding:0.5rem 0;margin-top:0.5rem;">
-                        ${thumbnailHTML}
-                    </div>
+                    <div class="thumbnails-container">${thumbnailHTML}</div>
                 </div>
 
-                <!-- SPECS BLOCK -->
+                <!-- SPECS -->
                 <div class="listing-specs-block">
-                    <h4 style="margin:0 0 1rem 0;color:#101010;font-size:1rem;">Vehicle Specs</h4>
+                    <h4 class="block-title">Vehicle Specs</h4>
                     <div class="specs-grid">
                         ${specs.map(spec => `
                             <div class="spec-item">
@@ -777,63 +947,11 @@ function renderListingDetail(listing) {
                     </div>
                 </div>
 
-                <!-- DESCRIPTION BLOCK -->
+                <!-- DESCRIPTION -->
                 <div class="listing-description-block">
-                    <h4 style="margin:0 0 0.5rem 0;color:#101010;font-size:1rem;">Description</h4>
-                    <p style="color:#444;margin:0;font-size:0.95rem;line-height:1.5;">
-                        ${esc(listing.description || 'No description provided.')}
-                    </p>
+                    <h4 class="block-title">Description</h4>
+                    <p class="description-text">${esc(listing.description || 'No description provided.')}</p>
                 </div>
-
-                <!-- BID PANEL -->
-                <div class="bid-panel">
-                    <!-- Timer -->
-                    <div style="text-align:center;margin-bottom:1rem;border-bottom:1px solid #EAEAEA;padding-bottom:1rem;">
-                        <p style="font-size:0.75rem;color:#888;text-transform:uppercase;margin:0;letter-spacing:0.5px;">
-                            ${isAuction ? 'Auction Ends In' : 'Fixed Price'}
-                        </p>
-                        <h3 style="font-size:2rem;font-weight:900;margin:0.3rem 0 0 0;color:#101010;line-height:1.1;" id="countdownTimer">
-                            ${isAuction ? (listing.endTime ? getTimeRemaining(listing.endTime) : 'Ends Soon') : 'Buy Now'}
-                        </h3>
-                    </div>
-
-                    <!-- Price -->
-                    <p style="font-size:0.75rem;color:#888;text-transform:uppercase;margin:0;letter-spacing:0.5px;">
-                        ${isAuction ? 'Current Bid' : 'Price'}
-                    </p>
-                    <p style="font-size:2.2rem;font-weight:900;margin:0.2rem 0 0 0;color:#101010;line-height:1.1;" id="currentBidDisplay">
-                        R ${Number(detailPrice).toLocaleString()}
-                    </p>
-                    <p style="font-size:0.85rem;color:#666;margin-top:0.4rem;">
-                        ${isAuction ? `${listing.bidCount || 0} bids • Reserve not met` : (listing.isNegotiable ? 'Negotiable' : 'Instant purchase')}
-                    </p>
-
-                    <!-- Actions -->
-                    <div style="margin-top:1.25rem;">
-                        ${bidHtml}
-
-                        <a href="https://wa.me/${listing.hqWhatsapp}?text=${encodeURIComponent(listing.waMessage || `Hi CM Agent, I'm interested in ${esc(listing.title)} (ID: ${listing.id}). Is viewing available?`)}" 
-                            target="_blank" 
-                            style="display:flex;align-items:center;justify-content:center;gap:10px;background:#25D366;color:#fff;padding:0.85rem;border-radius:8px;font-weight:800;font-size:0.95rem;text-decoration:none;margin-top:0.5rem;transition:0.2s;">
-                            <img src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" width="20" style="filter:invert(1);"> WhatsApp CM Agent
-                        </a>
-
-                        <p style="font-size:0.7rem;color:#666;text-align:center;margin-top:0.6rem;line-height:1.4;">
-                            All chats go via CM HQ. Seller contact hidden until deposit paid.
-                        </p>
-                    </div>
-
-                    <!-- Seller Info -->
-                    <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid #EAEAEA;">
-                        <p style="font-size:0.75rem;color:#888;margin:0;text-transform:uppercase;letter-spacing:0.5px;">Seller</p>
-                        <p style="font-weight:700;color:#101010;margin:0.3rem 0 0 0;font-size:1rem;">${esc(listing.seller?.name || 'CM Agent')}</p>
-                        <a href="javascript:void(0)" onclick="viewSellerProfile('${listing.seller?.id}')" 
-                            style="color:#E30613;font-size:0.85rem;font-weight:700;text-decoration:none;display:inline-block;margin-top:0.3rem;">
-                            View Profile →
-                        </a>
-                    </div>
-                </div>
-
             </div>
         </div>
     `;
@@ -859,13 +977,11 @@ function changeGalleryImage(offset) {
 // ---------- BID & BUY ----------
 async function placeBid(listingId) {
     if (!requireLogin('place a bid')) return;
-
     const listing = app._currentListing;
     if (listing && listing.seller && app.user.id === listing.seller.id) {
         return showToast('You cannot bid on your own listing', 'error');
     }
-    const amountInput = document.getElementById('bidAmountInput');
-    const amount = parseFloat(amountInput?.value);
+    const amount = parseFloat(document.getElementById('bidAmountInput')?.value);
     if (!amount || amount <= 0) return showToast('Enter a valid bid amount', 'error');
 
     const currentBid = listing?.currentBid || listing?.startingPrice || 0;
@@ -874,7 +990,7 @@ async function placeBid(listingId) {
     }
     try {
         const data = await api(`/api/listings/${listingId}/bid`, 'POST', { amount });
-        showToast(`Bid placed! Current bid: R${Number(data.currentBid).toLocaleString()}`, 'info');
+        showToast(`Bid placed! Current: R${Number(data.currentBid).toLocaleString()}`, 'info');
         document.getElementById('currentBidDisplay').innerText = `R ${Number(data.currentBid).toLocaleString()}`;
         document.getElementById('bidAmountInput').value = Number(data.currentBid) + 1000;
     } catch (err) {
@@ -904,20 +1020,16 @@ function renderSellerProfile(seller) {
     const avatar = seller.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(seller.displayName || seller.name)}&background=E30613&color=fff&size=128`;
     const name = esc(seller.displayName || seller.name);
     main.innerHTML = `
-        <div style="max-width:1200px;margin:0 auto;padding:1rem;background:#F5F5F7;min-height:100vh;">
-            <button onclick="navigate('marketplace')" style="background:white;border:1px solid #EAEAEA;padding:0.5rem 1rem;border-radius:8px;color:#666;cursor:pointer;margin-bottom:1rem;">← Back to Marketplace</button>
-            <div style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:1.5rem;display:flex;gap:1.5rem;flex-wrap:wrap;align-items:center;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+        <div style="max-width:1200px;margin:0 auto;padding:1rem;">
+            <button onclick="navigate('marketplace')" class="back-btn">← Back to Marketplace</button>
+            <div class="card" style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:center;padding:1.5rem;">
                 <img src="${avatar}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;">
                 <div style="flex:1;">
                     <h1 style="font-size:1.8rem;font-weight:700;margin:0;color:#101010;">${name}</h1>
-                    <p style="color:#666;margin:0.2rem 0;">${esc(seller.role)} • Joined ${new Date(seller.joinedDate).toLocaleDateString()} • ${seller.listings?.length || 0} listings</p>
-                    <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
-                        <button style="border:1px solid #EAEAEA;padding:0.3rem 1rem;border-radius:8px;background:white;color:#101010;cursor:pointer;">Chat</button>
-                        <button style="border:1px solid #EAEAEA;padding:0.3rem 1rem;border-radius:8px;background:white;color:#666;cursor:pointer;">Report</button>
-                    </div>
+                    <p style="color:#666;margin:0.2rem 0;">${esc(seller.role)} • Joined ${new Date(seller.joinedDate).toLocaleDateString()}</p>
                 </div>
             </div>
-            <h2 style="font-weight:700;font-size:1.2rem;margin:1.5rem 0 1rem 0;color:#101010;">Listings from ${name}</h2>
+            <h2 style="font-weight:700;font-size:1.2rem;margin:1.5rem 0 1rem 0;">Listings from ${name}</h2>
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.25rem;">
                 ${seller.listings && seller.listings.length > 0 ? seller.listings.map(item => renderAuctionCard(item)).join('') : `<p style="color:#666;grid-column:1/-1;text-align:center;">No active listings</p>`}
             </div>
@@ -934,103 +1046,84 @@ async function renderDashboard() {
 
     const isSeller = (app.user.role === 'INDIVIDUAL_SELLER' || app.user.role === 'AUCTIONEER');
     if (!isSeller && app.user.role !== 'ADMIN') {
-        main.innerHTML = `
-            <div style="max-width:800px;margin:0 auto;padding:2rem;text-align:center;background:#F5F5F7;min-height:100vh;">
-                <h2 style="color:#101010;">Access Denied</h2>
-                <p style="color:#666;">This page is for Individual Sellers and Auctioneers only.</p>
-                <button class="btn btn-primary" style="background:#E30613;border:none;" onclick="navigate('marketplace')">Go to Marketplace</button>
-            </div>`;
+        main.innerHTML = `<div style="max-width:800px;margin:0 auto;padding:2rem;text-align:center;">
+            <h2>Access Denied</h2>
+            <p style="color:#666;">This page is for Individual Sellers and Auctioneers only.</p>
+            <button class="btn btn-primary" onclick="navigate('marketplace')">Go to Marketplace</button>
+        </div>`;
         return;
     }
 
     const canSell = app.user.canSell === true;
     const kycOk = app.user.kycStatus === 'VERIFIED';
     if (!canSell || !kycOk) {
-        main.innerHTML = `
-            <div style="max-width:700px;margin:0 auto;padding:2rem;background:#F5F5F7;min-height:100vh;">
-                <div style="background:#FFF8E1;border:1px solid #FFC107;padding:1.5rem;border-radius:12px;">
-                    <h3 style="color:#FF9800;">⚠️ You need to verify to sell</h3>
-                    <p style="color:#666;margin-bottom:1rem;">Upgrade your KYC to start listing items. This builds trust with buyers.</p>
-                    <button class="btn btn-primary" style="background:#E30613;border:none;" onclick="navigate('kyc')">Upgrade KYC</button>
-                </div>
-            </div>`;
+        main.innerHTML = `<div style="max-width:700px;margin:0 auto;padding:2rem;">
+            <div style="background:#FFF8E1;border:1px solid #FFC107;padding:1.5rem;border-radius:12px;">
+                <h3 style="color:#FF9800;">⚠️ You need to verify to sell</h3>
+                <p style="color:#666;margin-bottom:1rem;">Upgrade your KYC to start listing items.</p>
+                <button class="btn btn-primary" onclick="navigate('kyc')">Upgrade KYC</button>
+            </div>
+        </div>`;
         return;
     }
 
     try {
-        const stats = await api('/api/seller/dashboard');
         const allListings = await api('/api/my-listings');
         const myActive = allListings.filter(l => l.sellerId === app.user.id || l.seller?.id === app.user.id);
 
         main.innerHTML = `
-            <div style="max-width:1200px;margin:0 auto;padding:1rem;background:#F5F5F7;min-height:100vh;">
+            <div style="max-width:1200px;margin:0 auto;padding:1rem;">
                 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
-                    <div style="display:flex;align-items:center;gap:12px;">
-                        <img src="/logo.jpeg" style="width:40px;height:40px;border-radius:8px;object-fit:contain;">
-                        <div>
-                            <h2 style="margin:0;font-weight:900;color:#101010;">Welcome, ${esc(app.user.displayName || app.user.name)}</h2>
-                            <p style="margin:0;color:#666;font-size:0.9rem;">CM Central Market Dashboard</p>
-                        </div>
-                    </div>
+                    <h2 style="margin:0;font-weight:900;">Welcome, ${esc(app.user.displayName || app.user.name)}</h2>
                     <button onclick="navigate('createListing')" style="background:#E30613;color:white;border:none;padding:0.7rem 1.2rem;border-radius:8px;font-weight:800;cursor:pointer;">+ Sell Vehicle</button>
                 </div>
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:2rem;">
-                    <div class="dash-stat"><p class="label">Active Listings</p><p class="value">${myActive.filter(l => l.status === 'ACTIVE').length}</p></div>
-                    <div class="dash-stat"><p class="label">Total Views</p><p class="value">${myActive.reduce((s, l) => s + (l.views || 0), 0)}</p></div>
-                    <div class="dash-stat"><p class="label">Bids Received</p><p class="value">${myActive.reduce((s, l) => s + (l.bids?.length || 0), 0)}</p></div>
+                    <div class="dash-stat"><p class="label">Active</p><p class="value">${myActive.filter(l => l.status === 'ACTIVE').length}</p></div>
+                    <div class="dash-stat"><p class="label">Views</p><p class="value">${myActive.reduce((s, l) => s + (l.views || 0), 0)}</p></div>
+                    <div class="dash-stat"><p class="label">Bids</p><p class="value">${myActive.reduce((s, l) => s + (l.bids?.length || 0), 0)}</p></div>
                     <div class="dash-stat"><p class="label">Sold</p><p class="value">${myActive.filter(l => l.status === 'SOLD').length}</p></div>
                 </div>
-                <h3 style="margin-bottom:1rem;color:#101010;">My Listings</h3>
-                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.25rem;">
-                    ${myActive.length > 0 ? myActive.map(item => renderAuctionCard(item)).join('') : `<p style="color:#666;grid-column:1/-1;background:white;padding:2rem;border-radius:12px;text-align:center;border:1px dashed #EAEAEA;">No active listings. Start selling!</p>`}
+                <h3>My Listings</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.25rem;margin-top:1rem;">
+                    ${myActive.length > 0 ? myActive.map(item => renderAuctionCard(item)).join('') : `<p style="color:#666;grid-column:1/-1;text-align:center;padding:2rem;">No listings yet.</p>`}
                 </div>
             </div>`;
     } catch (err) {
         showToast(err.message, 'error');
-        main.innerHTML = `<p style="color:#666;text-align:center;padding:2rem;">Error loading dashboard.</p>`;
     }
 }
 
 // ============================================================
-// ========== KYC (inputs OUTSIDE drag areas) =================
+// ========== KYC =============================================
 // ============================================================
 function renderKYC() {
     const main = document.getElementById('mainContent');
     if (!app.user) return showLogin();
 
     main.innerHTML = `
-        <div style="max-width:600px;margin:0 auto;padding:2rem;background:#F5F5F7;min-height:100vh;">
-            <h2 style="color:#101010;">Upgrade KYC</h2>
+        <div style="max-width:600px;margin:0 auto;padding:2rem;">
+            <h2>Upgrade KYC</h2>
             <p style="color:#666;margin-bottom:1.5rem;">Upload your documents to become a verified seller.</p>
-            <form id="kycForm" style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+            <form id="kycForm" style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:1.5rem;">
                 <div class="form-group">
-                    <label>ID Document (Front)</label>
-                    <div class="drag-area" id="kycIdDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#F5F5F7;">
-                        <i class="fas fa-id-card" style="font-size:2rem;color:#E30613;"></i>
-                        <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Upload ID photo</p>
-                    </div>
+                    <label>ID Document</label>
+                    <div class="drag-area" id="kycIdDrop"><i class="fas fa-id-card"></i><p>Upload ID photo</p></div>
                     <input type="file" id="kycIdFile" accept="image/*" hidden>
                     <div id="kycIdPreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
                 </div>
                 <div class="form-group">
                     <label>Proof of Address</label>
-                    <div class="drag-area" id="kycAddressDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#F5F5F7;">
-                        <i class="fas fa-home" style="font-size:2rem;color:#E30613;"></i>
-                        <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Upload utility bill or bank statement</p>
-                    </div>
+                    <div class="drag-area" id="kycAddressDrop"><i class="fas fa-home"></i><p>Utility bill / bank statement</p></div>
                     <input type="file" id="kycAddressFile" accept="image/*,.pdf" hidden>
                     <div id="kycAddressPreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
                 </div>
                 <div class="form-group">
                     <label>Selfie with ID</label>
-                    <div class="drag-area" id="kycSelfieDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#F5F5F7;">
-                        <i class="fas fa-user" style="font-size:2rem;color:#E30613;"></i>
-                        <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Take a selfie holding your ID</p>
-                    </div>
+                    <div class="drag-area" id="kycSelfieDrop"><i class="fas fa-user"></i><p>Take a selfie holding your ID</p></div>
                     <input type="file" id="kycSelfieFile" accept="image/*" hidden>
                     <div id="kycSelfiePreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;background:#E30613;border:none;">Submit for Verification</button>
+                <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;background:#E30613;border:none;">Submit</button>
             </form>
         </div>`;
 
@@ -1043,9 +1136,7 @@ function renderKYC() {
         const idFile = document.getElementById('kycIdFile')?.files?.[0];
         const addressFile = document.getElementById('kycAddressFile')?.files?.[0];
         const selfieFile = document.getElementById('kycSelfieFile')?.files?.[0];
-        if (!idFile || !selfieFile) {
-            return showToast('Please upload ID photo and selfie', 'error');
-        }
+        if (!idFile || !selfieFile) return showToast('Please upload ID photo and selfie', 'error');
         try {
             const fd = new FormData();
             fd.append('idDocument', idFile);
@@ -1058,7 +1149,7 @@ function renderKYC() {
             });
             if (!res.ok) throw new Error('Upload failed');
             await api('/api/kyc/upgrade', 'POST', { targetLevel: 2 });
-            showToast('KYC submitted! Our team will review.', 'info');
+            showToast('KYC submitted!', 'info');
             navigate('dashboard');
         } catch (err) {
             showToast(err.message, 'error');
@@ -1066,13 +1157,11 @@ function renderKYC() {
     });
 }
 
-// ---------- FIXED: No cloneNode, uses .onclick ----------
 function setupKycFileDrop(dropId, inputId, previewId) {
     const drop = document.getElementById(dropId);
     const input = document.getElementById(inputId);
     const preview = document.getElementById(previewId);
     if (!drop || !input) return;
-
     drop.onclick = () => input.click();
     drop.ondragover = (e) => { e.preventDefault(); drop.style.borderColor = '#E30613'; };
     drop.ondragleave = () => { drop.style.borderColor = '#EAEAEA'; };
@@ -1092,116 +1181,90 @@ function setupKycFileDrop(dropId, inputId, previewId) {
 }
 
 // ============================================================
-// ========== CREATE LISTING (inputs OUTSIDE drag areas) ======
+// ========== CREATE LISTING ==================================
 // ============================================================
 function renderCreateListing() {
     const main = document.getElementById('mainContent');
     if (!app.user) return showLogin();
     if (!app.user.canSell && app.user.role !== 'ADMIN') {
-        main.innerHTML = `
-            <div style="max-width:600px;margin:0 auto;padding:2rem;text-align:center;background:#F5F5F7;min-height:100vh;">
-                <h2 style="color:#101010;">Access Denied</h2>
-                <p style="color:#666;">You need to be KYC verified to list items.</p>
-                <button class="btn btn-primary" style="background:#E30613;border:none;" onclick="navigate('kyc')">Upgrade KYC</button>
-            </div>`;
+        main.innerHTML = `<div style="max-width:600px;margin:0 auto;padding:2rem;text-align:center;">
+            <h2>Access Denied</h2>
+            <p style="color:#666;">You need KYC verification to list.</p>
+            <button class="btn btn-primary" onclick="navigate('kyc')">Upgrade KYC</button>
+        </div>`;
         return;
     }
 
     main.innerHTML = `
-        <div style="max-width:700px;margin:0 auto;padding:1rem;background:#F5F5F7;min-height:100vh;">
-            <h2 style="color:#101010;">Sell Something</h2>
-            <p style="color:#666;margin-bottom:1rem;">Upload photos and video of your vehicle</p>
-            <form id="createListingForm" enctype="multipart/form-data" style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+        <div style="max-width:700px;margin:0 auto;padding:1rem;">
+            <h2>Sell Something</h2>
+            <form id="createListingForm" enctype="multipart/form-data" style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:1.5rem;margin-top:1rem;">
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;padding:0.25rem;background:#F5F5F7;border-radius:12px;margin-bottom:1rem;">
-                    <button type="button" class="listing-type-btn active" data-type="AUCTION" style="padding:0.6rem;border:none;border-radius:8px;font-weight:700;background:white;color:#101010;cursor:pointer;">🔨 Auction</button>
-                    <button type="button" class="listing-type-btn" data-type="FIXED_PRICE" style="padding:0.6rem;border:none;border-radius:8px;font-weight:700;background:transparent;color:#666;cursor:pointer;">🏷️ Fixed Price</button>
+                    <button type="button" class="listing-type-btn active" data-type="AUCTION" style="padding:0.6rem;border:none;border-radius:8px;font-weight:700;background:white;cursor:pointer;">🔨 Auction</button>
+                    <button type="button" class="listing-type-btn" data-type="FIXED_PRICE" style="padding:0.6rem;border:none;border-radius:8px;font-weight:700;background:transparent;cursor:pointer;">🏷️ Fixed Price</button>
                 </div>
                 <input type="hidden" id="listingType" value="AUCTION">
-                <div class="form-group">
-                    <label for="listingTitle">Title *</label>
-                    <input id="listingTitle" placeholder="e.g. Toyota Hilux 2.8 GD-6 2021" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
-                </div>
+
+                <div class="form-group"><label>Title *</label><input id="listingTitle" placeholder="Toyota Hilux 2021"></div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-                    <div class="form-group">
-                        <label for="listingCategory">Category *</label>
-                        <select id="listingCategory" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
-                            <option>Vehicles</option><option>Motorcycles</option><option>TLB/Machinery</option><option>Other</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="listingCondition">Condition *</label>
-                        <select id="listingCondition" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
-                            <option>USED</option><option>NEW</option><option>FOR_PARTS</option>
-                        </select>
-                    </div>
+                    <div class="form-group"><label>Category</label><select id="listingCategory"><option>Vehicles</option><option>Motorcycles</option><option>TLB/Machinery</option><option>Other</option></select></div>
+                    <div class="form-group"><label>Condition</label><select id="listingCondition"><option>USED</option><option>NEW</option><option>FOR_PARTS</option></select></div>
                 </div>
 
-                <div style="margin:1.5rem 0;padding:1rem;background:#FFF8F8;border-radius:12px;border:1px solid #FFE0E0;">
-                    <h4 style="margin:0 0 0.8rem 0;color:#E30613;">📸 Upload Photos & Video</h4>
-
-                    <!-- Main Image -->
+                <div style="margin:1.5rem 0;padding:1rem;background:#FFF8F8;border-radius:12px;">
+                    <h4 style="color:#E30613;margin-bottom:0.8rem;">📸 Upload Photos & Video</h4>
                     <div class="form-group">
-                        <label style="font-weight:600;">Main Product Image <span style="color:#E30613;">*</span></label>
-                        <div class="drag-area" id="mainImageDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#F5F5F7;">
-                            <i class="fas fa-camera" style="font-size:2rem;color:#E30613;"></i>
-                            <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Click to upload main product photo</p>
-                        </div>
+                        <label>Main Image *</label>
+                        <div class="drag-area" id="mainImageDrop"><i class="fas fa-camera"></i><p>Main product photo</p></div>
                         <input type="file" id="mainImageInput" accept="image/*" hidden>
                         <div id="mainImagePreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
                     </div>
-
-                    <!-- Compartment Images -->
                     <div class="form-group">
-                        <label style="font-weight:600;">Additional Photos <span style="color:#888;font-weight:400;">(up to 5)</span></label>
-                        <div class="drag-area" id="compartmentImageDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#F5F5F7;">
-                            <i class="fas fa-images" style="font-size:2rem;color:#E30613;"></i>
-                            <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Engine, interior, damage, etc.</p>
-                        </div>
+                        <label>Additional Photos (up to 5)</label>
+                        <div class="drag-area" id="compartmentImageDrop"><i class="fas fa-images"></i><p>Engine, interior, etc.</p></div>
                         <input type="file" id="compartmentImageInput" accept="image/*" multiple hidden>
-                        <div id="compartmentImagePreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;display:flex;flex-wrap:wrap;gap:0.3rem;"></div>
+                        <div id="compartmentImagePreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
                     </div>
-
-                    <!-- Odometer Video -->
                     <div class="form-group">
-                        <label style="font-weight:600;">Odometer Video (10 seconds)</label>
-                        <div class="drag-area" id="videoDrop" style="border:2px dashed #EAEAEA;border-radius:12px;padding:1.5rem;text-align:center;cursor:pointer;background:#F5F5F7;">
-                            <i class="fas fa-video" style="font-size:2rem;color:#E30613;"></i>
-                            <p style="margin:0.3rem 0;color:#666;font-size:0.85rem;">Upload 10-second odometer video proof</p>
-                        </div>
+                        <label>Odometer Video</label>
+                        <div class="drag-area" id="videoDrop"><i class="fas fa-video"></i><p>10-second video</p></div>
                         <input type="file" id="videoInput" accept="video/*" hidden>
                         <div id="videoPreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
                     </div>
                 </div>
 
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-                    <div class="form-group"><label for="listingYear">Year</label><input id="listingYear" type="number" placeholder="2021" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
-                    <div class="form-group"><label for="listingKm">Kilometers</label><input id="listingKm" type="number" placeholder="85000" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
+                    <div class="form-group"><label>Year</label><input id="listingYear" type="number" placeholder="2021"></div>
+                    <div class="form-group"><label>Kilometers</label><input id="listingKm" type="number" placeholder="85000"></div>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;">
-                    <div class="form-group"><label for="listingColor">Color</label><input id="listingColor" placeholder="White" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
-                    <div class="form-group"><label for="listingEngine">Engine</label><input id="listingEngine" placeholder="2.8L" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
-                    <div class="form-group"><label for="listingTrans">Transmission</label><select id="listingTrans" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"><option>Manual</option><option>Automatic</option></select></div>
+                    <div class="form-group"><label>Color</label><input id="listingColor" placeholder="White"></div>
+                    <div class="form-group"><label>Engine</label><input id="listingEngine" placeholder="2.8L"></div>
+                    <div class="form-group"><label>Transmission</label><select id="listingTrans"><option>Manual</option><option>Automatic</option></select></div>
                 </div>
+
                 <div id="auctionFields">
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-                        <div class="form-group"><label for="listingStartPrice">Starting Price (R)</label><input id="listingStartPrice" type="number" placeholder="50000" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
-                        <div class="form-group"><label for="listingReservePrice">Reserve Price (R)</label><input id="listingReservePrice" type="number" placeholder="60000" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
+                        <div class="form-group"><label>Starting Price (R)</label><input id="listingStartPrice" type="number"></div>
+                        <div class="form-group"><label>Reserve Price (R)</label><input id="listingReservePrice" type="number"></div>
                     </div>
-                    <div class="form-group"><label for="listingDuration">Duration</label><select id="listingDuration" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"><option value="1d">1 Day</option><option value="3d">3 Days</option><option value="7d" selected>7 Days</option></select></div>
+                    <div class="form-group"><label>Duration</label><select id="listingDuration"><option value="1">1 Day</option><option value="3">3 Days</option><option value="7" selected>7 Days</option></select></div>
                 </div>
                 <div id="fixedFields" style="display:none;">
-                    <div class="form-group"><label for="listingPrice">Price (R)</label><input id="listingPrice" type="number" placeholder="120000" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
+                    <div class="form-group"><label>Price (R)</label><input id="listingPrice" type="number"></div>
                 </div>
-                <div class="form-group"><label for="listingDescription">Description</label><textarea id="listingDescription" rows="4" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;resize:vertical;"></textarea></div>
+
+                <div class="form-group"><label>Description</label><textarea id="listingDescription" rows="4"></textarea></div>
+
                 <div style="background:#FFF3F3;border:1px solid #FFCFCF;padding:1rem;border-radius:12px;margin-bottom:1rem;">
-                    <h4 style="margin:0 0 0.8rem 0;color:#E30613;">CM Verification</h4>
-                    <div class="form-group"><label for="listingVin">VIN Number</label><input id="listingVin" placeholder="17 characters" style="width:100%;padding:0.6rem;border-radius:8px;background:#fff;border:1px solid #EAEAEA;color:#101010;"></div>
-                    <div class="form-group"><label for="listingEngineNo">Engine Number</label><input id="listingEngineNo" placeholder="e.g. 2GD-123456" style="width:100%;padding:0.6rem;border-radius:8px;background:#fff;border:1px solid #EAEAEA;color:#101010;"></div>
-                    <label style="font-size:0.8rem;display:flex;gap:8px;margin-top:8px;color:#101010;">
+                    <h4 style="color:#E30613;margin-bottom:0.8rem;">CM Verification</h4>
+                    <div class="form-group"><label>VIN</label><input id="listingVin" placeholder="17 characters"></div>
+                    <div class="form-group"><label>Engine Number</label><input id="listingEngineNo"></div>
+                    <label style="font-size:0.8rem;display:flex;gap:8px;margin-top:8px;">
                         <input type="checkbox" id="listingDeclare"> I declare this car is not stolen and km is true.
                     </label>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;background:#E30613;border:none;color:#fff;">Publish</button>
+                <button type="submit" class="btn btn-primary" style="width:100%;background:#E30613;border:none;">Publish</button>
             </form>
         </div>`;
 
@@ -1213,8 +1276,8 @@ function renderCreateListing() {
         btn.addEventListener('click', function() {
             const type = this.dataset.type;
             document.getElementById('listingType').value = type;
-            document.querySelectorAll('.listing-type-btn').forEach(b => { b.style.background = 'transparent'; b.style.color = '#666'; b.classList.remove('active'); });
-            this.style.background = 'white'; this.style.color = '#101010'; this.classList.add('active');
+            document.querySelectorAll('.listing-type-btn').forEach(b => { b.style.background = 'transparent'; b.classList.remove('active'); });
+            this.style.background = 'white'; this.classList.add('active');
             document.getElementById('auctionFields').style.display = type === 'AUCTION' ? 'block' : 'none';
             document.getElementById('fixedFields').style.display = type === 'FIXED_PRICE' ? 'block' : 'none';
         });
@@ -1222,40 +1285,17 @@ function renderCreateListing() {
 
     document.getElementById('createListingForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        if (!document.getElementById('listingDeclare').checked) {
-            return showToast('You must declare the vehicle is not stolen.', 'error');
-        }
+        if (!document.getElementById('listingDeclare').checked) return showToast('You must declare', 'error');
         const vin = document.getElementById('listingVin').value.trim();
-        if (vin && vin.length !== 17) return showToast('VIN must be exactly 17 characters', 'error');
-
+        if (vin && vin.length !== 17) return showToast('VIN must be 17 chars', 'error');
         const mainInput = document.getElementById('mainImageInput');
-        if (!mainInput.files || mainInput.files.length === 0) {
-            return showToast('Please upload a main product image', 'error');
-        }
+        if (!mainInput.files || mainInput.files.length === 0) return showToast('Main image required', 'error');
 
         const fd = new FormData();
-        fd.append('title', document.getElementById('listingTitle').value);
-        fd.append('category', document.getElementById('listingCategory').value);
-        fd.append('condition', document.getElementById('listingCondition').value);
-        fd.append('year', document.getElementById('listingYear').value);
-        fd.append('kilometers', document.getElementById('listingKm').value);
-        fd.append('color', document.getElementById('listingColor').value);
-        fd.append('engineSize', document.getElementById('listingEngine').value);
-        fd.append('transmission', document.getElementById('listingTrans').value);
-        fd.append('listingType', document.getElementById('listingType').value);
-        fd.append('description', document.getElementById('listingDescription').value);
-        fd.append('vinNumber', vin);
-        fd.append('engineNumber', document.getElementById('listingEngineNo').value.trim());
-
-        const sp = document.getElementById('listingStartPrice');
-        if (sp) fd.append('startingPrice', sp.value);
-        const rp = document.getElementById('listingReservePrice');
-        if (rp) fd.append('reservePrice', rp.value);
-        const pr = document.getElementById('listingPrice');
-        if (pr) fd.append('price', pr.value);
-        const du = document.getElementById('listingDuration');
-        if (du) fd.append('duration', du.value);
-
+        ['title', 'category', 'condition', 'year', 'kilometers', 'color', 'engineSize', 'transmission', 'listingType', 'description', 'vinNumber', 'engineNumber', 'startingPrice', 'reservePrice', 'price', 'duration'].forEach(k => {
+            const el = document.getElementById('listing' + k.charAt(0).toUpperCase() + k.slice(1));
+            if (el && el.value) fd.append(k, el.value);
+        });
         fd.append('mainImage', mainInput.files[0]);
         const compInput = document.getElementById('compartmentImageInput');
         if (compInput.files) for (let i = 0; i < Math.min(compInput.files.length, 5); i++) fd.append('compartmentImages', compInput.files[i]);
@@ -1269,23 +1309,20 @@ function renderCreateListing() {
                 body: fd
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Failed');
+            if (!res.ok) throw new Error(data.error);
             showToast('Listing published!', 'info');
             navigate('dashboard');
-            fetchMarketplace();
         } catch (err) {
             showToast(err.message, 'error');
         }
     });
 }
 
-// ---------- FIXED: No cloneNode, uses .onclick ----------
 function setupFileDrop(dropId, inputId, previewId, mode = 'single') {
     const drop = document.getElementById(dropId);
     const input = document.getElementById(inputId);
     const preview = document.getElementById(previewId);
     if (!drop || !input) return;
-
     drop.onclick = () => input.click();
     drop.ondragover = (e) => { e.preventDefault(); drop.style.borderColor = '#E30613'; };
     drop.ondragleave = () => { drop.style.borderColor = '#EAEAEA'; };
@@ -1314,17 +1351,15 @@ function updateFilePreview(input, preview, mode) {
         const file = files[0];
         const reader = new FileReader();
         reader.onload = (e) => {
-            preview.innerHTML = `
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <img src="${e.target.result}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid #EAEAEA;">
-                    <span style="color:#E30613;">✅ ${esc(file.name)}</span>
-                </div>
-            `;
+            preview.innerHTML = `<div style="display:flex;gap:8px;align-items:center;">
+                <img src="${e.target.result}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;">
+                <span style="color:#E30613;">✅ ${esc(file.name)}</span>
+            </div>`;
         };
         reader.readAsDataURL(file);
     } else {
         const names = Array.from(files).map(f => esc(f.name));
-        preview.innerHTML = names.map(n => `<span style="background:#F5F5F7;padding:0.2rem 0.6rem;border-radius:4px;font-size:0.75rem;color:#101010;">📷 ${n}</span>`).join('');
+        preview.innerHTML = names.map(n => `<span style="background:#F5F5F7;padding:0.2rem 0.6rem;border-radius:4px;font-size:0.75rem;">📷 ${n}</span>`).join('');
     }
 }
 
@@ -1337,13 +1372,13 @@ function renderProfile() {
     const user = app.user;
     const avatar = user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || user.name)}&background=E30613&color=fff&size=128`;
     main.innerHTML = `
-        <div style="max-width:800px;margin:0 auto;padding:1rem;background:#F5F5F7;min-height:100vh;">
-            <h2 style="color:#101010;">Your Profile</h2>
-            <div style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:1.5rem;margin-bottom:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+        <div style="max-width:800px;margin:0 auto;padding:1rem;">
+            <h2>Your Profile</h2>
+            <div class="card" style="padding:1.5rem;margin-top:1rem;">
                 <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
                     <img src="${avatar}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;">
                     <div style="flex:1;">
-                        <p style="font-size:1.2rem;font-weight:700;margin:0;color:#101010;">${esc(user.displayName || user.name)}</p>
+                        <p style="font-size:1.2rem;font-weight:700;margin:0;">${esc(user.displayName || user.name)}</p>
                         <p style="color:#666;margin:0;">${esc(user.email)} • ${esc(user.role)}</p>
                         <p style="color:#666;margin:0;font-size:0.9rem;">KYC: ${esc(user.kycStatus || 'NONE')} ${user.canSell ? '✅ Can Sell' : ''}</p>
                     </div>
@@ -1362,10 +1397,10 @@ function editProfile() {
     openModal(`
         <span class="close-modal" onclick="closeModal()">&times;</span>
         <h3>Edit Profile</h3>
-        <div class="form-group"><label for="editDisplayName">Display Name</label><input id="editDisplayName" value="${esc(user.displayName || '')}" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
-        <div class="form-group"><label for="editBio">Bio</label><textarea id="editBio" rows="3" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;resize:vertical;">${esc(user.bio || '')}</textarea></div>
-        <div class="form-group"><label for="editAvatar">Avatar URL</label><input id="editAvatar" value="${esc(user.avatar || '')}" placeholder="https://example.com/avatar.jpg" style="width:100%;padding:0.6rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;"></div>
-        <button class="btn btn-primary" style="width:100%;background:#E30613;border:none;" onclick="saveProfile()">Save Changes</button>
+        <div class="form-group"><label>Display Name</label><input id="editDisplayName" value="${esc(user.displayName || '')}"></div>
+        <div class="form-group"><label>Bio</label><textarea id="editBio" rows="3">${esc(user.bio || '')}</textarea></div>
+        <div class="form-group"><label>Avatar URL</label><input id="editAvatar" value="${esc(user.avatar || '')}"></div>
+        <button class="btn btn-primary" style="width:100%;background:#E30613;border:none;" onclick="saveProfile()">Save</button>
     `);
 }
 
@@ -1397,7 +1432,7 @@ function renderAdminDashboard() {
 }
 
 // ============================================================
-// ========== DEVICE FINGERPRINT ==============================
+// ========== START ===========================================
 // ============================================================
 if (typeof Fingerprint2 !== 'undefined') {
     Fingerprint2.get(function(components) {
@@ -1410,11 +1445,8 @@ if (typeof Fingerprint2 !== 'undefined') {
     app.deviceId = localStorage.getItem('deviceId') || 'unknown';
 }
 
-// ============================================================
-// ========== START APP =======================================
-// ============================================================
 document.addEventListener('DOMContentLoaded', () => {
     initApp();
 });
 
-console.log('✅ CM Central Market app.js loaded (FINAL FIXED - No cloneNode bug)');
+console.log('✅ CM app.js loaded (with Private Sourcing)');
