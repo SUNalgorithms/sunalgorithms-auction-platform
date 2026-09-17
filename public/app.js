@@ -394,12 +394,10 @@ async function initApp() {
 
     if (navbar) navbar.style.display = 'flex';
 
-    // Helper: set display on both desktop + mobile versions of an element
+        // Helper: set display (with null check)
     const setBoth = (id, display) => {
         const el = document.getElementById(id);
         if (el) el.style.display = display;
-        const elM = document.getElementById(id + 'Mobile');
-        if (elM) elM.style.display = display;
     };
 
     if (app.user) {

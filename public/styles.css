@@ -1,7 +1,7 @@
 /* ============================================================
    CM Central Market - Complete Stylesheet
-   Brand: Red #E30613 | Black #101010 | Grey #F5F5F7
-   Clean rebuild - no duplicates
+   Brand: Red #E30613 | Black #101010 | Grey #F5F5F7 | Gold #C9A961
+   Clean rebuild – no duplicates
    ============================================================ */
 
 /* ============================================================
@@ -72,44 +72,199 @@ body {
    ============================================================ */
 #navbar {
     display: none;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.5rem 1.2rem;
-    background: var(--wbc-white);
-    border-bottom: 1px solid var(--wbc-border);
+    background: #FFFFFF;
+    border-bottom: 1px solid #EAEAEA;
     position: sticky;
     top: 0;
     z-index: 100;
-    min-height: 68px;
+    padding: 0.6rem 1.2rem;
     flex-wrap: wrap;
-    gap: 0.5rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem 1rem;
+    min-height: 68px;
 }
 
-#userDisplay {
-    color: var(--wbc-black);
+/* ---------- LOGO ---------- */
+.nav-logo {
+    display: flex;
+    gap: 0.55rem;
+    align-items: center;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.nav-logo-img {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+.nav-logo-text {
+    line-height: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+}
+.nav-logo-title {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    white-space: nowrap;
+}
+.nav-logo-cm {
+    font-weight: 900;
+    font-size: 18px;
+    color: #101010;
+    letter-spacing: -0.5px;
+    white-space: nowrap;
+}
+.nav-logo-market {
+    font-weight: 800;
+    font-size: 11px;
+    color: #101010;
+    letter-spacing: 1.5px;
+    white-space: nowrap;
+}
+.nav-logo-sub {
+    font-weight: 700;
+    font-size: 7.5px;
+    color: #E30613;
+    letter-spacing: 3px;
+    white-space: nowrap;
+}
+
+/* ---------- NAV LINKS ROW ---------- */
+.nav-links {
+    display: flex;
+    gap: 0.9rem 1.1rem;
+    align-items: center;
+    flex-wrap: wrap;
+    flex: 1;
+    justify-content: flex-end;
+    min-width: 0;
+}
+
+.nav-link {
+    cursor: pointer;
+    font-weight: 700;
     font-size: 0.9rem;
-    font-weight: 600;
+    color: #101010;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: 0.15s;
 }
+.nav-link:hover { color: #E30613; }
 
-/* Private Source nav link */
 .nav-private {
-    position: relative;
-    transition: 0.2s;
-    letter-spacing: 0.5px;
+    font-weight: 800;
+    color: #1A1A1A;
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 .nav-private:hover { color: var(--gold) !important; }
-.nav-private::after {
-    content: '';
-    position: absolute;
-    bottom: -4px;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: var(--gold);
-    transform: scaleX(0);
-    transition: transform 0.2s;
+
+.nav-live {
+    font-weight: 800;
+    color: #E30613;
+    display: flex;
+    align-items: center;
+    gap: 5px;
 }
-.nav-private:hover::after { transform: scaleX(1); }
+.nav-live:hover { color: #c00510 !important; }
+
+.nav-admin {
+    color: #E30613;
+    font-weight: 800;
+}
+
+.nav-user {
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: #666;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.nav-link-sell {
+    cursor: pointer;
+    background: #E30613;
+    color: #FFF !important;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-weight: 800;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: 0.2s;
+}
+.nav-link-sell:hover { background: #c00510; color: #FFF !important; }
+
+.nav-btn-outline {
+    border: 1px solid #E30613;
+    color: #E30613;
+    background: #FFF;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-weight: 800;
+    cursor: pointer;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: 0.15s;
+}
+.nav-btn-outline:hover { background: #FFF3F3; }
+
+.nav-btn-primary {
+    background: #E30613;
+    color: #FFF;
+    border: none;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-weight: 800;
+    cursor: pointer;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: 0.15s;
+}
+.nav-btn-primary:hover { background: #c00510; }
+
+.nav-btn-outline-gray {
+    border: 1px solid #EAEAEA;
+    color: #666;
+    background: #FFF;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: 0.15s;
+}
+.nav-btn-outline-gray:hover { background: #F5F5F7; }
+
+/* Label switches (PRIVATE SOURCE / LIVE ROOM) */
+.label-full { display: inline; }
+.label-short { display: none; }
+
+/* Live dot (pulsing) */
+.live-dot {
+    width: 8px;
+    height: 8px;
+    background: #E30613;
+    border-radius: 50%;
+    display: inline-block;
+    animation: livePulse 1.5s infinite;
+    flex-shrink: 0;
+}
+@keyframes livePulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.75); }
+}
 
 /* ============================================================
    ========== 4. BUTTONS ======================================
@@ -150,7 +305,7 @@ body {
 .btn-sm { padding: 0.2rem 0.8rem; font-size: 0.8rem; }
 .btn-block { width: 100%; justify-content: center; }
 
-/* Private Source button */
+/* Private Source button (Woolworths style) */
 .btn-private {
     background: #1A1A1A;
     color: #FFFFFF;
@@ -359,7 +514,7 @@ body {
 }
 
 /* ============================================================
-   ========== 12. GALLERY (MAIN + THUMBNAILS) =================
+   ========== 12. GALLERY =====================================
    ============================================================ */
 .gallery-nav-btn {
     position: absolute;
@@ -469,7 +624,7 @@ body {
 .thumbnail-item img { width: 100%; height: 100%; object-fit: cover; }
 
 /* ============================================================
-   ========== 13. LISTING DETAIL – MAIN GRID ==================
+   ========== 13. LISTING DETAIL GRID =========================
    ============================================================ */
 .listing-detail-page {
     max-width: 1400px;
@@ -479,7 +634,6 @@ body {
     min-height: 100vh;
 }
 
-/* Desktop grid: gallery + specs + desc on left, bid panel on right */
 .listing-detail-grid {
     display: grid;
     grid-template-columns: 1fr 380px;
@@ -490,7 +644,6 @@ body {
     gap: 1.5rem;
     align-items: start;
 }
-
 .listing-gallery-block     { grid-area: gallery; }
 .listing-specs-block       { grid-area: specs; }
 .listing-description-block { grid-area: description; }
@@ -510,7 +663,6 @@ body {
     font-size: 1rem;
 }
 
-/* Specs grid */
 .specs-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -536,7 +688,6 @@ body {
     margin: 0.2rem 0 0 0;
     font-size: 0.95rem;
 }
-
 .description-text {
     color: #444;
     margin: 0;
@@ -557,14 +708,12 @@ body {
     box-shadow: 0 4px 12px rgba(0,0,0,0.05);
     align-self: start;
 }
-
 .bid-panel-header {
     text-align: center;
     margin-bottom: 1rem;
     border-bottom: 1px solid #EAEAEA;
     padding-bottom: 1rem;
 }
-
 .bid-panel-label {
     font-size: 0.75rem;
     color: #888;
@@ -572,7 +721,6 @@ body {
     margin: 0;
     letter-spacing: 0.5px;
 }
-
 .bid-timer {
     font-size: 2rem;
     font-weight: 900;
@@ -580,7 +728,6 @@ body {
     color: #101010;
     line-height: 1.1;
 }
-
 .bid-price {
     font-size: 2.2rem;
     font-weight: 900;
@@ -588,13 +735,11 @@ body {
     color: #101010;
     line-height: 1.1;
 }
-
 .bid-subtext {
     font-size: 0.85rem;
     color: #666;
     margin-top: 0.4rem;
 }
-
 .bid-actions { margin-top: 1.25rem; }
 
 .bid-input-row {
@@ -654,7 +799,6 @@ body {
     margin-top: 0.6rem;
     line-height: 1.4;
 }
-
 .bid-seller {
     margin-top: 1.25rem;
     padding-top: 1rem;
@@ -729,50 +873,44 @@ body {
 }
 
 /* ============================================================
-   ========== 17. PRIVATE SOURCE – PRIVATE THEME ==============
+   ========== 17. PRIVATE SOURCE THEME ========================
    ============================================================ */
-body.private-theme {
-    background: #F8F7F4;
-}
+body.private-theme { background: #F8F7F4; }
 
 body.private-theme #mainContent {
     background: #F8F7F4;
     max-width: 100%;
     padding: 0;
 }
-
 body.private-theme #navbar {
     background: #1A1A1A;
     border-bottom: 1px solid #2A2A2A;
 }
-body.private-theme #navbar span { color: #E5E5E0; }
-body.private-theme #navbar span:hover { color: #FFFFFF; }
-body.private-theme #navbar .nav-private {
-    color: var(--gold) !important;
-    font-weight: 800;
-}
-body.private-theme #navbar #userDisplay { color: #9CA3AF !important; }
-body.private-theme #navbar #loginNavBtn {
+body.private-theme #navbar .nav-link { color: #E5E5E0; }
+body.private-theme #navbar .nav-link:hover { color: #FFFFFF; }
+body.private-theme #navbar .nav-private { color: var(--gold) !important; font-weight: 800; }
+body.private-theme #navbar .nav-user { color: #9CA3AF !important; }
+body.private-theme #navbar .nav-logo-cm,
+body.private-theme #navbar .nav-logo-market { color: #FFFFFF; }
+body.private-theme #navbar .nav-btn-outline {
     border-color: var(--gold);
     color: var(--gold);
     background: transparent;
 }
-body.private-theme #navbar #loginNavBtn:hover {
+body.private-theme #navbar .nav-btn-primary {
     background: var(--gold);
     color: #1A1A1A;
 }
-body.private-theme #navbar #registerNavBtn {
-    background: var(--gold);
-    color: #1A1A1A;
-    border: none;
-}
-body.private-theme #navbar #logoutNavBtn {
+body.private-theme #navbar .nav-btn-outline-gray {
     border-color: #3A3A3A;
     color: #9CA3AF;
     background: transparent;
 }
+body.private-theme #navbar .nav-link-sell {
+    background: var(--gold);
+    color: #1A1A1A !important;
+}
 
-/* Private card */
 .private-card {
     background: #FFFFFF;
     border: 1px solid #E5E5E0;
@@ -786,7 +924,6 @@ body.private-theme #navbar #logoutNavBtn {
     transform: translateY(-2px);
 }
 
-/* Private theme form inputs */
 body.private-theme .form-group label { color: #6B6B6B; }
 body.private-theme .form-group input,
 body.private-theme .form-group select,
@@ -807,104 +944,219 @@ body.private-theme #toast {
     border-color: var(--gold);
     color: #FFFFFF;
 }
-body.private-theme .modal-content {
-    background: #FFFFFF;
-    border-radius: 16px;
-}
+body.private-theme .modal-content { background: #FFFFFF; border-radius: 16px; }
 
 /* ============================================================
-   ========== 18. ANIMATIONS ==================================
+   ========== 18. LIVE AUCTION ROOM THEME =====================
    ============================================================ */
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+body.live-theme { background: #1A1A1A; }
+
+body.live-theme #mainContent {
+    background: #1A1A1A;
+    color: #FFFFFF;
+    max-width: 1400px;
+    padding: 1rem;
 }
-@keyframes pulse-dot {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.3; transform: scale(0.7); }
+body.live-theme #navbar {
+    background: #101010;
+    border-bottom: 1px solid #2A2A2A;
+}
+body.live-theme #navbar .nav-link { color: #E5E5E0; }
+body.live-theme #navbar .nav-link:hover { color: #FFFFFF; }
+body.live-theme #navbar .nav-live { color: #E30613 !important; font-weight: 900; }
+body.live-theme #navbar .nav-user { color: #9CA3AF !important; }
+body.live-theme #navbar .nav-logo-cm,
+body.live-theme #navbar .nav-logo-market { color: #FFFFFF; }
+body.live-theme #navbar .nav-btn-outline {
+    border-color: #E30613;
+    color: #E30613;
+    background: transparent;
+}
+body.live-theme #navbar .nav-btn-primary { background: #E30613; color: #FFFFFF; }
+body.live-theme #navbar .nav-btn-outline-gray {
+    border-color: #3A3A3A;
+    color: #9CA3AF;
+    background: transparent;
+}
+
+.live-grid {
+    display: grid;
+    grid-template-columns: 1.6fr 1fr;
+    gap: 1rem;
+    align-items: start;
+}
+.live-left {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+.live-right {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+.live-video-wrap {
+    position: relative;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    aspect-ratio: 16 / 10;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+.live-video-wrap video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+}
+
+.live-bid-btn {
+    background: #E30613;
+    color: #FFFFFF;
+    border: none;
+    padding: 0.85rem 1.5rem;
+    border-radius: 10px;
+    font-weight: 900;
+    font-size: 1rem;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    transition: 0.2s;
+}
+.live-bid-btn:hover {
+    background: #c00510;
+    transform: scale(1.02);
+}
+
+.live-chat-bubble-system {
+    color: #E30613;
+    font-weight: 700;
+    font-size: 0.8rem;
+    text-align: center;
+    margin: 0.35rem 0;
+}
+.live-chat-bubble-user {
+    font-size: 0.85rem;
+    margin: 0.4rem 0;
+    color: #FFFFFF;
+}
+.live-chat-bubble-user strong {
+    color: var(--gold);
+    font-weight: 800;
+}
+
+.live-viewer-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    color: #9CA3AF;
+    padding: 4px 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 20px;
+}
+
+body.live-theme .card,
+body.live-theme .private-card {
+    background: #232323;
+    border-color: #333;
+    color: #FFFFFF;
+}
+body.live-theme .card h3,
+body.live-theme .block-title { color: #FFFFFF; }
+body.live-theme .form-group label { color: #9CA3AF; }
+body.live-theme .form-group input,
+body.live-theme .form-group select,
+body.live-theme .form-group textarea {
+    background: #1A1A1A;
+    border: 1px solid #333;
+    color: #FFFFFF;
+}
+body.live-theme .form-group input:focus,
+body.live-theme .form-group select:focus {
+    border-color: #E30613;
+    box-shadow: 0 0 0 3px rgba(227, 6, 19, 0.15);
+}
+body.live-theme #toast {
+    background: #101010;
+    border-color: #E30613;
+    color: #FFFFFF;
 }
 
 /* ============================================================
-   ========== 19. RESPONSIVE – MOBILE (max-width 768px) =======
-   ========== ONLY ONE mobile block. Nothing above overrides.
+   ========== 19. RESPONSIVE – TABLET (max-width 900px) =======
+   ============================================================ */
+@media (max-width: 900px) {
+    .listing-detail-grid {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "gallery"
+            "bid"
+            "specs"
+            "description";
+    }
+    .live-grid { grid-template-columns: 1fr; }
+    .live-video-wrap { aspect-ratio: 4 / 3; }
+}
+
+/* ============================================================
+   ========== 20. RESPONSIVE – MOBILE (max-width 768px) =======
    ============================================================ */
 @media (max-width: 768px) {
 
-    /* ---------- NAVBAR: single row, scrollable ---------- */
+    /* ---------- NAVBAR: 2-row flex layout ---------- */
     #navbar {
-        flex-wrap: nowrap !important;
-        padding: 0.5rem 0.75rem !important;
-        gap: 0.5rem !important;
-        height: 60px !important;
-        min-height: 60px !important;
-        max-height: 60px !important;
-        overflow: hidden !important;
+        padding: 0.55rem 0.75rem !important;
+        gap: 0.5rem 0.75rem !important;
+        align-items: flex-start;
     }
 
-    /* Logo shrinks */
-    #navbar > div:first-child {
-        flex-shrink: 0 !important;
-        max-width: 100px !important;
-        overflow: hidden !important;
+    /* Logo row gets its own line */
+    .nav-logo {
+        flex: 0 0 100%;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid #F0F0F0;
     }
-    #navbar > div:first-child img {
-        width: 30px !important;
-        height: 30px !important;
-    }
-    #navbar > div:first-child span {
-        font-size: 0.7rem !important;
-    }
+    .nav-logo-img { width: 34px; height: 34px; }
+    .nav-logo-cm { font-size: 16px; }
+    .nav-logo-market { font-size: 10px; letter-spacing: 1.2px; }
+    .nav-logo-sub { font-size: 7px; letter-spacing: 2.5px; }
 
-    /* Links row scrolls horizontally */
-    #navbar > div:nth-child(2) {
-        display: flex !important;
-        flex-wrap: nowrap !important;
-        overflow-x: auto !important;
-        overflow-y: hidden !important;
-        gap: 0.6rem !important;
-        flex: 1 1 auto !important;
-        min-width: 0 !important;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
-        padding-bottom: 2px;
+    /* Nav links: full width, wrap as needed */
+    .nav-links {
+        flex: 0 0 100%;
+        justify-content: flex-start;
+        gap: 0.7rem 1rem;
     }
-    #navbar > div:nth-child(2)::-webkit-scrollbar { display: none; }
-
-    #navbar > div:nth-child(2) > span,
-    #navbar > div:nth-child(2) > button {
-        flex-shrink: 0 !important;
-        font-size: 0.78rem !important;
-        padding: 0.35rem 0.5rem !important;
-        white-space: nowrap !important;
+    .nav-link { font-size: 0.85rem !important; }
+    .nav-link-sell { font-size: 0.8rem; padding: 0.4rem 0.9rem; }
+    .nav-btn-outline,
+    .nav-btn-primary,
+    .nav-btn-outline-gray {
+        padding: 5px 10px;
+        font-size: 0.75rem;
     }
+    .nav-user { font-size: 0.8rem; }
 
-    #navbar #loginNavBtn,
-    #navbar #registerNavBtn,
-    #navbar #logoutNavBtn {
-        padding: 0.35rem 0.7rem !important;
-        font-size: 0.72rem !important;
-    }
-
-    #navbar #userDisplay { font-size: 0.72rem !important; }
+    /* Switch to short labels for PRIVATE SOURCE and LIVE ROOM */
+    .label-full { display: none !important; }
+    .label-short { display: inline !important; }
 
     /* ---------- MAIN CONTENT ---------- */
     #mainContent { padding: 1rem 0.75rem; }
     .listing-detail-page { padding: 0.75rem; }
 
-    /* ---------- LISTING DETAIL: FLIP ORDER ---------- */
-    /* Gallery first, then specs, then description, then bid panel LAST */
+    /* ---------- LISTING DETAIL: mobile order ---------- */
     .listing-detail-grid {
         display: flex !important;
         flex-direction: column !important;
         gap: 1rem !important;
     }
-
     .listing-gallery-block     { order: 1 !important; }
     .listing-specs-block       { order: 2 !important; }
     .listing-description-block { order: 3 !important; }
     .bid-panel                 { order: 4 !important; }
 
-    /* Bid panel becomes a normal card at the bottom */
     .bid-panel {
         position: static !important;
         top: auto !important;
@@ -914,11 +1166,9 @@ body.private-theme .modal-content {
         box-sizing: border-box !important;
         box-shadow: 0 4px 12px rgba(0,0,0,0.06) !important;
     }
-
     .bid-timer { font-size: 1.75rem; }
     .bid-price { font-size: 2rem; }
 
-    /* Bid input + button stack vertically */
     .bid-input-row {
         flex-direction: column;
         gap: 0.5rem;
@@ -928,7 +1178,7 @@ body.private-theme .modal-content {
         padding: 0.9rem;
     }
 
-    /* ---------- SPECS GRID: 3 per row, fits, ellipsis ---------- */
+    /* Specs: 3 per row, ellipsis */
     .specs-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
         gap: 0.4rem !important;
@@ -952,7 +1202,7 @@ body.private-theme .modal-content {
         display: block;
     }
 
-    /* ---------- GALLERY: smaller arrows & thumbs ---------- */
+    /* Gallery smaller */
     .gallery-nav-btn {
         width: 34px !important;
         height: 34px !important;
@@ -963,61 +1213,37 @@ body.private-theme .modal-content {
         height: 64px !important;
     }
 
-    /* ---------- MARKETPLACE: single column ---------- */
-    .marketplace-grid {
-        grid-template-columns: 1fr !important;
-    }
-    #marketplaceSearch {
-        min-width: 0 !important;
-        flex: 1 !important;
-    }
+    /* Marketplace: single column */
+    .marketplace-grid { grid-template-columns: 1fr !important; }
+    #marketplaceSearch { min-width: 0 !important; flex: 1 !important; }
 
-    /* ---------- DASHBOARD STATS ---------- */
+    /* Dashboard stats */
     .dash-stat { padding: 1rem; }
     .dash-stat .value { font-size: 1.5rem; }
 
-    /* ---------- SELLER PROFILE ---------- */
-    .seller-profile-header {
-        flex-direction: column;
-        text-align: center;
-    }
+    /* Seller profile */
+    .seller-profile-header { flex-direction: column; text-align: center; }
 
-    /* ---------- PRIVATE THEME MOBILE ---------- */
-    body.private-theme #navbar {
-        padding: 0.5rem 0.75rem !important;
-    }
+    /* Live theme mobile */
+    body.live-theme #mainContent { padding: 0.75rem 0.5rem; }
+    .live-bid-btn { width: 100%; }
+    .live-chat-bubble-user { font-size: 0.8rem; }
 }
 
 /* ============================================================
-   ========== 20. RESPONSIVE – SMALL PHONES (max-width 480px) =
+   ========== 21. RESPONSIVE – SMALL PHONES (max-width 480px) =
    ============================================================ */
 @media (max-width: 480px) {
-
-    #navbar {
-        height: 56px !important;
-        min-height: 56px !important;
-        max-height: 56px !important;
-        padding: 0.4rem 0.5rem !important;
-    }
-    #navbar > div:first-child { max-width: 70px !important; }
-    #navbar > div:first-child img {
-        width: 26px !important;
-        height: 26px !important;
-    }
-
-    #navbar > div:nth-child(2) > span,
-    #navbar > div:nth-child(2) > button {
-        font-size: 0.72rem !important;
-        padding: 0.3rem 0.45rem !important;
-    }
-
-    /* Hide user display to save space */
-    #navbar #userDisplay { display: none !important; }
-
-    #mainContent {
-        padding: 0.75rem 0.5rem;
-    }
+    #mainContent { padding: 0.75rem 0.5rem; }
     .listing-detail-page { padding: 0.5rem; }
+
+    .nav-logo-img { width: 30px; height: 30px; }
+    .nav-logo-cm { font-size: 15px; }
+    .nav-logo-market { font-size: 9px; }
+    .nav-logo-sub { font-size: 6.5px; letter-spacing: 2px; }
+
+    .nav-link { font-size: 0.8rem !important; }
+    .nav-links { gap: 0.6rem 0.85rem; }
 
     .bid-panel { padding: 1rem !important; }
     .bid-timer { font-size: 1.5rem; }
@@ -1033,557 +1259,12 @@ body.private-theme .modal-content {
         height: 60px !important;
     }
 
-    /* Filter chips smaller */
     .filter-chip {
         padding: 0.3rem 0.8rem;
         font-size: 0.8rem;
     }
 }
 
-/* ============================================================
-   ========== LIVE AUCTION ROOM THEME =========================
-   ========== Append-only block – do not modify above =========
-   ============================================================ */
-
-/* ---------- NAV ITEM: LIVE ROOM ---------- */
-.nav-live {
-    position: relative;
-    transition: 0.2s;
-    letter-spacing: 0.5px;
-}
-.nav-live:hover {
-    color: #c00510 !important;
-}
-
-.live-dot {
-    width: 8px;
-    height: 8px;
-    background: #E30613;
-    border-radius: 50%;
-    display: inline-block;
-    animation: livePulse 1.5s infinite;
-    flex-shrink: 0;
-}
-
-@keyframes livePulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.4; transform: scale(0.75); }
-}
-
-/* ---------- LIVE THEME BODY OVERRIDES ---------- */
-body.live-theme {
-    background: #1A1A1A;
-}
-
-body.live-theme #mainContent {
-    background: #1A1A1A;
-    color: #FFFFFF;
-    max-width: 1400px;
-    padding: 1rem;
-}
-
-/* Navbar stays visible but with dark accent */
-body.live-theme #navbar {
-    background: #101010;
-    border-bottom: 1px solid #2A2A2A;
-}
-body.live-theme #navbar span {
-    color: #E5E5E0;
-}
-body.live-theme #navbar span:hover {
-    color: #FFFFFF;
-}
-body.live-theme #navbar .nav-live {
-    color: #E30613 !important;
-    font-weight: 900;
-}
-body.live-theme #navbar #userDisplay {
-    color: #9CA3AF !important;
-}
-body.live-theme #navbar #loginNavBtn {
-    border-color: #E30613;
-    color: #E30613;
-    background: transparent;
-}
-body.live-theme #navbar #registerNavBtn {
-    background: #E30613;
-    color: #FFFFFF;
-}
-body.live-theme #navbar #logoutNavBtn {
-    border-color: #3A3A3A;
-    color: #9CA3AF;
-    background: transparent;
-}
-
-/* ---------- LIVE GRID LAYOUT ---------- */
-.live-grid {
-    display: grid;
-    grid-template-columns: 1.6fr 1fr;
-    gap: 1rem;
-    align-items: start;
-}
-
-.live-left {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.live-right {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-/* ---------- VIDEO PLAYER ---------- */
-.live-video-wrap {
-    position: relative;
-    background: #000;
-    border-radius: 12px;
-    overflow: hidden;
-    aspect-ratio: 16 / 10;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-}
-
-.live-video-wrap video {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    background: #000;
-}
-
-/* ---------- BID BUTTON (big, urgent) ---------- */
-.live-bid-btn {
-    background: #E30613;
-    color: #FFFFFF;
-    border: none;
-    padding: 0.85rem 1.5rem;
-    border-radius: 10px;
-    font-weight: 900;
-    font-size: 1rem;
-    cursor: pointer;
-    letter-spacing: 0.5px;
-    white-space: nowrap;
-    transition: 0.2s;
-}
-.live-bid-btn:hover {
-    background: #c00510;
-    transform: scale(1.02);
-}
-
-/* ---------- LIVE CHAT ---------- */
-.live-chat-bubble-system {
-    color: #E30613;
-    font-weight: 700;
-    font-size: 0.8rem;
-    text-align: center;
-    margin: 0.35rem 0;
-}
-
-.live-chat-bubble-user {
-    font-size: 0.85rem;
-    margin: 0.4rem 0;
-    color: #FFFFFF;
-}
-.live-chat-bubble-user strong {
-    color: #C9A961;
-    font-weight: 800;
-}
-
-/* ---------- VIEWER COUNT ---------- */
-.live-viewer-count {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.85rem;
-    color: #9CA3AF;
-    padding: 4px 10px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 20px;
-}
-
-/* ---------- COUNTDOWN ---------- */
-.live-countdown-active {
-    animation: countdownPulse 1s infinite;
-}
-
-@keyframes countdownPulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.75; transform: scale(1.03); }
-}
-
-/* ---------- LIVE ROOM CARDS (dark theme) ---------- */
-body.live-theme .card,
-body.live-theme .private-card {
-    background: #232323;
-    border-color: #333;
-    color: #FFFFFF;
-}
-body.live-theme .card h3,
-body.live-theme .block-title {
-    color: #FFFFFF;
-}
-body.live-theme .form-group label {
-    color: #9CA3AF;
-}
-body.live-theme .form-group input,
-body.live-theme .form-group select,
-body.live-theme .form-group textarea {
-    background: #1A1A1A;
-    border: 1px solid #333;
-    color: #FFFFFF;
-}
-body.live-theme .form-group input:focus,
-body.live-theme .form-group select:focus {
-    border-color: #E30613;
-    box-shadow: 0 0 0 3px rgba(227, 6, 19, 0.15);
-}
-
-/* ---------- LIVE THEME TOAST ---------- */
-body.live-theme #toast {
-    background: #101010;
-    border-color: #E30613;
-    color: #FFFFFF;
-}
-
-/* ---------- LIVE THEME RESPONSIVE ---------- */
-@media (max-width: 900px) {
-    .live-grid {
-        grid-template-columns: 1fr;
-    }
-    .live-video-wrap {
-        aspect-ratio: 4 / 3;
-    }
-}
-
-@media (max-width: 600px) {
-    body.live-theme #mainContent {
-        padding: 0.75rem 0.5rem;
-    }
-    .live-bid-btn {
-        width: 100%;
-    }
-    .live-chat-bubble-user {
-        font-size: 0.8rem;
-    }
-}
-/* ============================================================
-   ========== NAVBAR REDESIGN – DESKTOP + MOBILE ==============
-   ========== Append-only block. Overrides below it. ==========
-   ============================================================ */
-
-/* ---------- BASE NAVBAR ---------- */
-#navbar {
-    display: none;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.5rem 1.2rem;
-    background: #FFFFFF;
-    border-bottom: 1px solid #EAEAEA;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    min-height: 68px;
-    flex-wrap: nowrap;
-    gap: 0.75rem;
-    position: relative;
-}
-
-/* ---------- LOGO ---------- */
-.nav-logo {
-    display: flex;
-    gap: 0.6rem;
-    align-items: center;
-    cursor: pointer;
-    flex-shrink: 0;
-}
-.nav-logo-img {
-    width: 38px;
-    height: 38px;
-    border-radius: 8px;
-    object-fit: contain;
-}
-.nav-logo-text { line-height: 1; }
-.nav-logo-title { display: flex; align-items: baseline; gap: 4px; }
-.nav-logo-cm { font-weight: 900; font-size: 18px; color: #101010; letter-spacing: -0.5px; }
-.nav-logo-market { font-weight: 800; font-size: 11px; color: #101010; letter-spacing: 1.5px; }
-.nav-logo-sub { font-weight: 700; font-size: 7.5px; color: #E30613; letter-spacing: 3px; margin-top: 2px; }
-
-/* ---------- NAV LINKS ROW ---------- */
-.nav-links {
-    display: flex;
-    gap: 1rem;
-    align-items: center;
-    flex-wrap: nowrap;
-    flex: 1;
-    min-width: 0;
-}
-.nav-link {
-    cursor: pointer;
-    font-weight: 700;
-    font-size: 0.9rem;
-    color: #101010;
-    white-space: nowrap;
-    flex-shrink: 0;
-}
-.nav-link:hover { color: #E30613; }
-
-.nav-private {
-    font-weight: 800;
-    color: #1A1A1A;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-.nav-private:hover { color: #C9A961 !important; }
-
-.nav-live {
-    font-weight: 800;
-    color: #E30613;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
-.nav-live:hover { color: #c00510 !important; }
-
-.nav-link-sell {
-    cursor: pointer;
-    background: #E30613;
-    color: #FFF;
-    padding: 0.5rem 1rem;
-    border-radius: 8px;
-    font-weight: 800;
-    font-size: 0.85rem;
-    white-space: nowrap;
-    flex-shrink: 0;
-    display: none;
-    transition: 0.2s;
-}
-.nav-link-sell:hover { background: #c00510; }
-.nav-link-sell.visible { display: inline-flex; }
-
-/* ---------- DESKTOP ITEMS ---------- */
-.nav-desktop {
-    display: flex;
-    gap: 0.9rem;
-    align-items: center;
-    flex-shrink: 0;
-}
-.nav-link-desktop {
-    cursor: pointer;
-    font-weight: 700;
-    font-size: 0.9rem;
-    color: #101010;
-    white-space: nowrap;
-}
-.nav-link-desktop:hover { color: #E30613; }
-.nav-link-desktop-admin {
-    cursor: pointer;
-    font-weight: 700;
-    font-size: 0.9rem;
-    color: #E30613;
-    white-space: nowrap;
-}
-.nav-user { font-weight: 700; font-size: 0.85rem; color: #666; white-space: nowrap; }
-
-.nav-btn-outline {
-    border: 1px solid #E30613;
-    color: #E30613;
-    background: #FFF;
-    border-radius: 8px;
-    padding: 6px 12px;
-    font-weight: 800;
-    cursor: pointer;
-    font-size: 0.8rem;
-    white-space: nowrap;
-}
-.nav-btn-outline:hover { background: #FFF3F3; }
-
-.nav-btn-primary {
-    background: #E30613;
-    color: #FFF;
-    border: none;
-    border-radius: 8px;
-    padding: 6px 12px;
-    font-weight: 800;
-    cursor: pointer;
-    font-size: 0.8rem;
-    white-space: nowrap;
-}
-.nav-btn-primary:hover { background: #c00510; }
-
-.nav-btn-outline-gray {
-    border: 1px solid #EAEAEA;
-    color: #666;
-    background: #FFF;
-    border-radius: 8px;
-    padding: 6px 12px;
-    font-weight: 700;
-    cursor: pointer;
-    font-size: 0.8rem;
-    white-space: nowrap;
-}
-.nav-btn-outline-gray:hover { background: #F5F5F7; }
-
-/* ---------- MOBILE MENU BUTTON ---------- */
-.nav-menu-btn {
-    display: none;
-    background: #F5F5F7;
-    border: 1px solid #EAEAEA;
-    border-radius: 8px;
-    width: 40px;
-    height: 40px;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    font-size: 1rem;
-    color: #101010;
-    padding: 0;
-    flex-shrink: 0;
-    transition: 0.2s;
-}
-.nav-menu-btn:hover { background: #EAEAEA; }
-
-/* ---------- MOBILE DROPDOWN ---------- */
-.nav-dropdown {
-    position: absolute;
-    top: 100%;
-    right: 0.75rem;
-    width: 260px;
-    max-width: calc(100vw - 1.5rem);
-    background: #FFFFFF;
-    border: 1px solid #EAEAEA;
-    border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.12);
-    padding: 0.5rem;
-    z-index: 200;
-    animation: dropdownSlide 0.15s ease;
-}
-@keyframes dropdownSlide {
-    from { opacity: 0; transform: translateY(-8px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-.nav-dropdown-header {
-    padding: 0.6rem 0.75rem 0.75rem 0.75rem;
-    font-size: 0.8rem;
-    color: #666;
-    font-weight: 700;
-    border-bottom: 1px solid #F0F0F0;
-    margin-bottom: 0.4rem;
-}
-
-.nav-dropdown-item {
-    display: flex;
-    align-items: center;
-    gap: 0.65rem;
-    padding: 0.7rem 0.75rem;
-    font-size: 0.9rem;
-    color: #101010;
-    font-weight: 600;
-    cursor: pointer;
-    border-radius: 8px;
-    text-decoration: none;
-    transition: 0.15s;
-}
-.nav-dropdown-item:hover { background: #F5F5F7; }
-.nav-dropdown-item i { width: 18px; text-align: center; color: #666; font-size: 0.85rem; }
-
-.nav-dropdown-admin { color: #E30613; font-weight: 700; }
-.nav-dropdown-admin i { color: #E30613; }
-
-.nav-dropdown-register {
-    background: #E30613;
-    color: #FFF !important;
-    font-weight: 800;
-}
-.nav-dropdown-register i { color: #FFF; }
-.nav-dropdown-register:hover { background: #c00510; }
-
-.nav-dropdown-logout { color: #666; }
-.nav-dropdown-logout i { color: #666; }
-
-.nav-dropdown-divider {
-    height: 1px;
-    background: #F0F0F0;
-    margin: 0.4rem 0;
-}
-
-/* ---------- LABEL SWITCHES ---------- */
-.label-short { display: none; }
-.label-full { display: inline; }
-
-/* ============================================================
-   ========== MOBILE (max-width: 768px) =======================
-   ============================================================ */
-@media (max-width: 768px) {
-
-    #navbar {
-        display: grid !important;
-        grid-template-columns: 1fr auto;
-        grid-template-areas:
-            "logo menu"
-            "links links";
-        gap: 0.6rem 0.75rem;
-        padding: 0.6rem 0.75rem !important;
-        min-height: auto !important;
-        align-items: center;
-    }
-
-    .nav-logo      { grid-area: logo; }
-    .nav-links     { grid-area: links; overflow-x: auto; padding-bottom: 4px; }
-    .nav-menu-btn  { grid-area: menu; display: flex; }
-    .nav-desktop   { display: none !important; }
-
-    /* Logo: shrink to fit one row */
-    .nav-logo-img { width: 34px; height: 34px; }
-    .nav-logo-cm { font-size: 16px; }
-    .nav-logo-market { font-size: 10px; letter-spacing: 1.2px; }
-    .nav-logo-sub { font-size: 7px; letter-spacing: 2.5px; }
-
-    /* Nav links row: scrollable, no wrap */
-    .nav-links {
-        display: flex !important;
-        flex-wrap: nowrap !important;
-        gap: 1rem !important;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
-    }
-    .nav-links::-webkit-scrollbar { display: none; }
-
-    .nav-link {
-        font-size: 0.85rem !important;
-        padding: 0.3rem 0 !important;
-    }
-
-    .nav-link-sell {
-        font-size: 0.8rem;
-        padding: 0.4rem 0.85rem;
-    }
-
-    /* Show short labels on mobile */
-    .label-short { display: inline !important; }
-    .label-full { display: none !important; }
-
-    .live-dot {
-        width: 7px;
-        height: 7px;
-    }
-}
-
-/* ============================================================
-   ========== VERY SMALL (max-width: 400px) ===================
-   ============================================================ */
-@media (max-width: 400px) {
-    #navbar { padding: 0.5rem 0.6rem !important; }
-    .nav-logo-img { width: 30px; height: 30px; }
-    .nav-logo-cm { font-size: 15px; }
-    .nav-logo-market { font-size: 9px; }
-
-    .nav-links { gap: 0.85rem !important; }
-    .nav-link { font-size: 0.8rem !important; }
-    .nav-link-sell { font-size: 0.75rem; padding: 0.35rem 0.7rem; }
-}
 /* ============================================================
    ========== END OF STYLES.CSS ===============================
    ============================================================ */

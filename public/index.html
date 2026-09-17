@@ -15,7 +15,6 @@
 </head>
 <body>
 
-    <!-- ===== CM LOADER ===== -->
     <div id="cm-loader" style="position:fixed; inset:0; background:#F5F5F7; z-index:99999; display:flex; align-items:center; justify-content:center; flex-direction:column; transition:opacity 0.6s ease;">
         <img src="/logo.jpeg" style="width:96px; height:96px; object-fit:contain; border-radius:18px; animation: cmPulse 1.2s infinite;">
         <div style="margin-top:18px; display:flex; gap:8px; align-items:baseline;">
@@ -29,7 +28,7 @@
     <!-- ===== NAVBAR ===== -->
     <nav id="navbar">
 
-        <!-- LOGO -->
+        <!-- LOGO (horizontal lockup) -->
         <div class="nav-logo" onclick="navigate('marketplace')">
             <img src="/logo.jpeg" alt="CM" class="nav-logo-img">
             <div class="nav-logo-text">
@@ -41,7 +40,7 @@
             </div>
         </div>
 
-        <!-- NAV LINKS (visible always) -->
+        <!-- NAV LINKS (flex-wrap) -->
         <div class="nav-links">
             <span onclick="navigate('marketplace')" class="nav-link">Marketplace</span>
 
@@ -54,88 +53,33 @@
                 <span class="label-full">LIVE ROOM</span><span class="label-short">LIVE</span>
             </span>
 
-            <span onclick="navigate('createListing')" id="createListingBtn" class="nav-link-sell">+ Sell</span>
-        </div>
+            <span onclick="navigate('dashboard')" id="dashboardBtn" class="nav-link" style="display:none;">Dashboard</span>
 
-        <!-- DESKTOP-ONLY items -->
-        <div class="nav-desktop">
-            <span onclick="navigate('dashboard')" id="dashboardBtn" class="nav-link-desktop" style="display:none;">Dashboard</span>
-            <span onclick="navigate('profile')" id="profileBtn" class="nav-link-desktop" style="display:none;">Profile</span>
-            <span onclick="navigate('adminDashboard')" id="adminDashBtn" class="nav-link-desktop-admin" style="display:none;">Admin</span>
+            <span onclick="navigate('createListing')" id="createListingBtn" class="nav-link-sell" style="display:none;">+ Sell</span>
 
-            <span id="userDisplayDesktop" class="nav-user"></span>
+            <span onclick="navigate('profile')" id="profileBtn" class="nav-link" style="display:none;">Profile</span>
+
+            <span onclick="navigate('adminDashboard')" id="adminDashBtn" class="nav-link nav-admin" style="display:none;">Admin</span>
+
+            <span id="userDisplay" class="nav-user"></span>
 
             <button id="loginNavBtn" onclick="showLogin()" class="nav-btn-outline" style="display:none;">Login</button>
             <button id="registerNavBtn" onclick="showRegister()" class="nav-btn-primary" style="display:none;">Register</button>
             <button id="logoutNavBtn" onclick="logout()" class="nav-btn-outline-gray" style="display:none;">Logout</button>
         </div>
 
-        <!-- MOBILE MENU BUTTON -->
-        <button id="navMenuBtn" onclick="toggleNavMenu()" class="nav-menu-btn">
-            <i class="fas fa-bars" id="navMenuIcon"></i>
-        </button>
-
-        <!-- MOBILE DROPDOWN -->
-        <div id="navDropdown" class="nav-dropdown" style="display:none;">
-            <div class="nav-dropdown-header">
-                <span id="userDisplayMobile">Guest</span>
-            </div>
-
-            <a onclick="navigate('dashboard')" id="dashboardBtnMobile" class="nav-dropdown-item" style="display:none;">
-                <i class="fas fa-chart-line"></i> Dashboard
-            </a>
-            <a onclick="navigate('profile')" id="profileBtnMobile" class="nav-dropdown-item" style="display:none;">
-                <i class="fas fa-user"></i> Profile
-            </a>
-            <a onclick="navigate('adminDashboard')" id="adminDashBtnMobile" class="nav-dropdown-item nav-dropdown-admin" style="display:none;">
-                <i class="fas fa-crown"></i> Admin Panel
-            </a>
-
-            <div class="nav-dropdown-divider" id="mobileDivider1" style="display:none;"></div>
-
-            <a onclick="showLogin()" id="loginNavBtnMobile" class="nav-dropdown-item" style="display:none;">
-                <i class="fas fa-sign-in-alt"></i> Login
-            </a>
-            <a onclick="showRegister()" id="registerNavBtnMobile" class="nav-dropdown-item nav-dropdown-register" style="display:none;">
-                <i class="fas fa-user-plus"></i> Register
-            </a>
-
-            <div class="nav-dropdown-divider" id="mobileDivider2" style="display:none;"></div>
-
-            <a onclick="logout()" id="logoutNavBtnMobile" class="nav-dropdown-item nav-dropdown-logout" style="display:none;">
-                <i class="fas fa-sign-out-alt"></i> Logout
-            </a>
-        </div>
-
     </nav>
 
-    <!-- ===== MAIN ===== -->
     <main id="mainContent" class="content" style="padding:1.5rem; max-width:1400px; margin:0 auto;"></main>
 
-    <!-- ===== TOAST ===== -->
     <div id="toast" style="display:none; position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#101010; color:white; padding:0.8rem 1.5rem; border-radius:9999px; font-weight:600; z-index:9999; max-width:90%;"></div>
 
-    <!-- ===== MODAL ===== -->
     <div id="modal" class="modal" style="display:none;">
         <div class="modal-content" id="modalContent"></div>
     </div>
 
-    <!-- ===== CLOSE DROPDOWN ON OUTSIDE CLICK ===== -->
-    <script>
-        document.addEventListener('click', function(e) {
-            var dd = document.getElementById('navDropdown');
-            var btn = document.getElementById('navMenuBtn');
-            if (!dd || !btn) return;
-            if (!dd.contains(e.target) && !btn.contains(e.target)) {
-                dd.style.display = 'none';
-            }
-        });
-    </script>
-
-    <!-- ===== APP SCRIPT ===== -->
     <script src="/app.js"></script>
 
-    <!-- ===== AUTO-HIDE LOADER ===== -->
     <script>
         window.addEventListener('load', () => {
             setTimeout(() => {
