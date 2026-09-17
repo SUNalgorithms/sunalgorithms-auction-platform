@@ -1,5 +1,5 @@
 // ============================================================
-// app.js - CM Central Market - WITH LIVE AUCTION ROOM
+// app.js - CM Central Market - WITH LIVE AUCTION ROOM + MOBILE NAV
 // Marketplace + Private Source + Live Room + Guest + KYC + Admin
 // ============================================================
 
@@ -110,10 +110,31 @@ function requireLogin(actionLabel) {
     return false;
 }
 
+// ---------- NAV MENU TOGGLE (mobile) ----------
+function toggleNavMenu() {
+    const dd = document.getElementById('navDropdown');
+    const icon = document.getElementById('navMenuIcon');
+    if (!dd) return;
+    const isOpen = dd.style.display === 'block';
+    dd.style.display = isOpen ? 'none' : 'block';
+    if (icon) {
+        icon.className = isOpen ? 'fas fa-bars' : 'fas fa-times';
+    }
+}
+
+function closeNavMenu() {
+    const dd = document.getElementById('navDropdown');
+    const icon = document.getElementById('navMenuIcon');
+    if (dd) dd.style.display = 'none';
+    if (icon) icon.className = 'fas fa-bars';
+}
+
 // ============================================================
 // ========== NAVIGATION ======================================
 // ============================================================
 function navigate(page) {
+    closeNavMenu();
+
     if (!app.user && ['dashboard', 'createListing', 'kyc', 'profile', 'adminDashboard'].includes(page)) {
         showToast('Please login to access this page', 'error');
         return showLogin();
@@ -145,6 +166,7 @@ function navigate(page) {
 // ========== AUTH ============================================
 // ============================================================
 function showLogin() {
+    closeNavMenu();
     openModal(`
         <span class="close-modal" onclick="closeModal()">&times;</span>
         <h2>CM Central Market Login</h2>
@@ -200,6 +222,7 @@ async function handleLogin() {
 }
 
 function showRegister() {
+    closeNavMenu();
     openModal(`
         <span class="close-modal" onclick="closeModal()">&times;</span>
         <h2>Register for CM Central Market</h2>
@@ -332,6 +355,7 @@ async function handleRegister() {
 }
 
 function logout() {
+    closeNavMenu();
     if (app.socket) { app.socket.disconnect(); app.socket = null; }
     cleanupLiveRoom();
     app.user = null;
@@ -370,39 +394,90 @@ async function initApp() {
 
     if (navbar) navbar.style.display = 'flex';
 
+    // Helper: set display on both desktop + mobile versions of an element
+    const setBoth = (id, display) => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = display;
+        const elM = document.getElementById(id + 'Mobile');
+        if (elM) elM.style.display = display;
+    };
+
     if (app.user) {
         const isSeller = app.user.role === 'INDIVIDUAL_SELLER' || app.user.role === 'AUCTIONEER' || app.user.role === 'ADMIN';
-        document.getElementById('dashboardBtn').style.display = isSeller ? 'inline' : 'none';
-        document.getElementById('createListingBtn').style.display = isSeller ? 'inline' : 'none';
-        document.getElementById('adminDashBtn').style.display = (app.user.role === 'ADMIN') ? 'inline' : 'none';
-        const profileBtn = document.getElementById('profileBtn');
-        if (profileBtn) profileBtn.style.display = 'inline';
-        document.getElementById('userDisplay').textContent = `👤 ${esc(app.user.displayName || app.user.name)}`;
+        const isAdmin = app.user.role === 'ADMIN';
 
+        setBoth('dashboardBtn', isSeller ? 'inline-flex' : 'none');
+        setBoth('adminDashBtn', isAdmin ? 'inline-flex' : 'none');
+        setBoth('profileBtn', 'inline-flex');
+
+        // Show "+ Sell" button
+        const sellBtn = document.getElementById('createListingBtn');
+        if (sellBtn) {
+            if (isSeller) sellBtn.classList.add('visible');
+            else sellBtn.classList.remove('visible');
+        }
+
+        // User display
+        const ud = document.getElementById('userDisplayDesktop');
+        if (ud) ud.textContent = `👤 ${esc(app.user.displayName || app.user.name)}`;
+        const udm = document.getElementById('userDisplayMobile');
+        if (udm) udm.textContent = `👤 ${esc(app.user.displayName || app.user.name)}`;
+
+        // Guest buttons off
         ['loginNavBtn', 'registerNavBtn'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.style.display = 'none';
+            const elM = document.getElementById(id + 'Mobile');
+            if (elM) elM.style.display = 'none';
         });
+
+        // Logout on
         const logoutBtn = document.getElementById('logoutNavBtn');
         if (logoutBtn) logoutBtn.style.display = 'inline-block';
+        const logoutBtnM = document.getElementById('logoutNavBtnMobile');
+        if (logoutBtnM) logoutBtnM.style.display = 'flex';
+
+        // Mobile dropdown dividers
+        const d1 = document.getElementById('mobileDivider1');
+        if (d1) d1.style.display = (isSeller || isAdmin) ? 'block' : 'none';
+        const d2 = document.getElementById('mobileDivider2');
+        if (d2) d2.style.display = 'block';
 
         connectSocket();
     } else {
-        document.getElementById('dashboardBtn').style.display = 'none';
-        document.getElementById('createListingBtn').style.display = 'none';
-        document.getElementById('adminDashBtn').style.display = 'none';
-        const profileBtn = document.getElementById('profileBtn');
-        if (profileBtn) profileBtn.style.display = 'none';
-        document.getElementById('userDisplay').textContent = 'Guest';
+        setBoth('dashboardBtn', 'none');
+        setBoth('adminDashBtn', 'none');
+        setBoth('profileBtn', 'none');
 
+        const sellBtn = document.getElementById('createListingBtn');
+        if (sellBtn) sellBtn.classList.remove('visible');
+
+        const ud = document.getElementById('userDisplayDesktop');
+        if (ud) ud.textContent = 'Guest';
+        const udm = document.getElementById('userDisplayMobile');
+        if (udm) udm.textContent = '👤 Guest';
+
+        // Guest buttons on
         const loginBtn = document.getElementById('loginNavBtn');
         const registerBtn = document.getElementById('registerNavBtn');
-        const logoutBtn = document.getElementById('logoutNavBtn');
+        const loginBtnM = document.getElementById('loginNavBtnMobile');
+        const registerBtnM = document.getElementById('registerNavBtnMobile');
         if (loginBtn) loginBtn.style.display = 'inline-block';
         if (registerBtn) registerBtn.style.display = 'inline-block';
-        if (logoutBtn) logoutBtn.style.display = 'none';
+        if (loginBtnM) loginBtnM.style.display = 'flex';
+        if (registerBtnM) registerBtnM.style.display = 'flex';
 
-        // Connect socket even as guest (for live room viewing)
+        // Logout off
+        const logoutBtn = document.getElementById('logoutNavBtn');
+        const logoutBtnM = document.getElementById('logoutNavBtnMobile');
+        if (logoutBtn) logoutBtn.style.display = 'none';
+        if (logoutBtnM) logoutBtnM.style.display = 'none';
+
+        const d1 = document.getElementById('mobileDivider1');
+        if (d1) d1.style.display = 'none';
+        const d2 = document.getElementById('mobileDivider2');
+        if (d2) d2.style.display = 'none';
+
         connectSocket();
     }
 
@@ -485,7 +560,7 @@ function connectSocket() {
         });
         app.socket.on('liveVideoAnswer', async (data) => {
             if (app.livePeer && !app.livePeer.destroyed) {
-                await app.livePeer.signal(data.signal);
+                try { await app.livePeer.signal(data.signal); } catch (e) {}
             }
         });
         app.socket.on('liveVideoCandidate', async (data) => {
@@ -850,7 +925,6 @@ function renderLiveRoomUI() {
     main.innerHTML = `
         <div style="max-width:1400px;margin:0 auto;padding:1rem;">
 
-            <!-- HEADER -->
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem;">
                 <div>
                     <h1 style="font-size:1.5rem;font-weight:900;color:#101010;margin:0;display:flex;align-items:center;gap:0.5rem;">
@@ -867,12 +941,8 @@ function renderLiveRoomUI() {
                 </button>
             </div>
 
-            <!-- MAIN GRID: VIDEO + CHAT -->
             <div class="live-grid">
-
-                <!-- LEFT: VIDEO + BID PANEL -->
                 <div class="live-left">
-                    <!-- Video Player -->
                     <div class="live-video-wrap">
                         <div id="liveVideoPlaceholder" style="position:absolute;inset:0;display:${app.liveRemoteStreamActive ? 'none' : 'flex'};align-items:center;justify-content:center;flex-direction:column;background:linear-gradient(135deg,#1A1A1A 0%,#000 100%);color:#fff;text-align:center;padding:1rem;">
                             ${isLive ? `
@@ -888,7 +958,6 @@ function renderLiveRoomUI() {
                         ${isLive ? `<div style="position:absolute;top:12px;left:12px;background:#E30613;color:#fff;padding:4px 10px;border-radius:4px;font-size:0.75rem;font-weight:800;letter-spacing:1px;">🔴 LIVE</div>` : ''}
                     </div>
 
-                    <!-- Current Item / Bid Panel -->
                     ${item ? renderLiveItemPanel(item) : `
                         <div style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:1.5rem;margin-top:1rem;text-align:center;">
                             <p style="color:#666;margin:0;font-size:0.95rem;">
@@ -898,9 +967,7 @@ function renderLiveRoomUI() {
                     `}
                 </div>
 
-                <!-- RIGHT: CHAT + QUEUE -->
                 <div class="live-right">
-                    <!-- Chat -->
                     <div style="background:white;border:1px solid #EAEAEA;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;flex:1;min-height:400px;max-height:600px;">
                         <div style="padding:0.75rem 1rem;background:#101010;color:#fff;font-weight:800;font-size:0.85rem;letter-spacing:1px;">
                             💬 LIVE CHAT
@@ -914,7 +981,6 @@ function renderLiveRoomUI() {
                         </div>
                     </div>
 
-                    <!-- Queue -->
                     ${app.liveQueue && app.liveQueue.length > 0 ? `
                         <div style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:1rem;margin-top:1rem;">
                             <p style="font-weight:800;color:#101010;margin:0 0 0.75rem 0;font-size:0.85rem;letter-spacing:1px;">📋 UP NEXT</p>
@@ -934,15 +1000,12 @@ function renderLiveRoomUI() {
         </div>
     `;
 
-    // Join the live room socket
     if (app.socket) {
         app.socket.emit('liveJoin', { roomId: room.id });
     }
 
-    // Start countdown ticker if item active
     startLiveCountdownTicker();
 
-    // Scroll chat to bottom
     const feed = document.getElementById('liveChatFeed');
     if (feed) feed.scrollTop = feed.scrollHeight;
 }
@@ -965,7 +1028,6 @@ function renderLiveItemPanel(item) {
                 </div>
             </div>
 
-            <!-- PRICE + COUNTDOWN -->
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-top:1.25rem;">
                 <div style="background:#F5F5F7;padding:0.75rem;border-radius:10px;text-align:center;">
                     <p style="margin:0;font-size:0.7rem;color:#888;text-transform:uppercase;letter-spacing:1px;">Current Bid</p>
@@ -977,13 +1039,11 @@ function renderLiveItemPanel(item) {
                 </div>
             </div>
 
-            <!-- BIDDER INFO -->
             <div style="margin-top:0.75rem;display:flex;justify-content:space-between;align-items:center;font-size:0.8rem;color:#666;">
                 <span id="liveBidderName">${item.currentBidderName ? `🏆 ${esc(item.currentBidderName)}` : 'No bids yet'}</span>
                 <span id="liveBidCount">${item.bidCount || 0} bids</span>
             </div>
 
-            <!-- BID BUTTON -->
             ${isOwnListing ? `
                 <div style="margin-top:1rem;background:#FFF3F3;padding:0.75rem;border-radius:8px;text-align:center;color:#E30613;font-weight:700;font-size:0.9rem;">
                     Your own listing
@@ -991,7 +1051,7 @@ function renderLiveItemPanel(item) {
             ` : `
                 <div style="margin-top:1rem;display:flex;gap:0.5rem;">
                     <input type="number" id="liveBidInput" value="${minNextBid}" style="flex:1;min-width:0;padding:0.85rem 1rem;border:1px solid #EAEAEA;border-radius:10px;font-size:1.1rem;font-weight:800;color:#101010;outline:none;">
-                    <button onclick="placeLiveBid('${item.id}')" style="background:#E30613;color:#fff;border:none;padding:0.85rem 1.5rem;border-radius:10px;font-weight:900;font-size:1rem;cursor:pointer;letter-spacing:0.5px;white-space:nowrap;">BID NOW</button>
+                    <button onclick="placeLiveBid('${item.id}')" class="live-bid-btn">BID NOW</button>
                 </div>
             `}
         </div>
@@ -1004,12 +1064,9 @@ function renderChatMessages(messages) {
     }
     return messages.map(m => {
         if (m.isSystem) {
-            return `<div style="margin:0.35rem 0;font-size:0.8rem;color:#E30613;font-weight:700;text-align:center;">${esc(m.message)}</div>`;
+            return `<div class="live-chat-bubble-system">${esc(m.message)}</div>`;
         }
-        return `<div style="margin:0.4rem 0;font-size:0.85rem;">
-            <span style="font-weight:800;color:#101010;">${esc(m.userName)}:</span>
-            <span style="color:#444;"> ${esc(m.message)}</span>
-        </div>`;
+        return `<div class="live-chat-bubble-user"><strong>${esc(m.userName)}:</strong> ${esc(m.message)}</div>`;
     }).join('');
 }
 
@@ -1017,15 +1074,11 @@ function appendLiveChat(msg) {
     const feed = document.getElementById('liveChatFeed');
     if (!feed) return;
     const html = msg.isSystem
-        ? `<div style="margin:0.35rem 0;font-size:0.8rem;color:#E30613;font-weight:700;text-align:center;">${esc(msg.message)}</div>`
-        : `<div style="margin:0.4rem 0;font-size:0.85rem;">
-            <span style="font-weight:800;color:#101010;">${esc(msg.userName)}:</span>
-            <span style="color:#444;"> ${esc(msg.message)}</span>
-        </div>`;
+        ? `<div class="live-chat-bubble-system">${esc(msg.message)}</div>`
+        : `<div class="live-chat-bubble-user"><strong>${esc(msg.userName)}:</strong> ${esc(msg.message)}</div>`;
     feed.innerHTML += html;
     feed.scrollTop = feed.scrollHeight;
 
-    // Trim old messages in DOM
     while (feed.children.length > 100) {
         feed.removeChild(feed.firstChild);
     }
@@ -1056,14 +1109,14 @@ function updateLiveBidDisplay(data) {
     const bidderEl = document.getElementById('liveBidderName');
     const countEl = document.getElementById('liveBidCount');
     const inputEl = document.getElementById('liveBidInput');
-    const countEl2 = document.getElementById('liveCountdown');
+    const countdownEl = document.getElementById('liveCountdown');
 
     if (bidEl) bidEl.textContent = `R${Number(data.currentBid).toLocaleString()}`;
     if (bidderEl) bidderEl.textContent = `🏆 ${data.currentBidderName}`;
     if (countEl) countEl.textContent = `${data.bidCount} bids`;
     if (inputEl) inputEl.value = Number(data.currentBid) + 500;
-    if (countEl2 && data.countdownEnds) {
-        countEl2.textContent = Math.max(0, Math.round((new Date(data.countdownEnds) - Date.now()) / 1000)) + 's';
+    if (countdownEl && data.countdownEnds) {
+        countdownEl.textContent = Math.max(0, Math.round((new Date(data.countdownEnds) - Date.now()) / 1000)) + 's';
     }
 
     if (data.extended) {
@@ -1085,7 +1138,6 @@ function startLiveCountdownTicker() {
 // ========== LIVE ROOM: WebRTC RECEIVE =======================
 // ============================================================
 async function handleLiveVideoOffer(data) {
-    // Buyer receives offer from auctioneer → send back answer
     if (app.currentPage !== 'liveRoom') return;
     if (!window.SimplePeer) {
         console.warn('SimplePeer not loaded');
@@ -1825,4 +1877,4 @@ document.addEventListener('DOMContentLoaded', () => {
     initApp();
 });
 
-console.log('✅ CM app.js loaded (with Live Auction Room)');
+console.log('✅ CM app.js loaded (Live Auction Room + Mobile Nav)');
