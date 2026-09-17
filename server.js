@@ -1,10 +1,11 @@
 // ============================================================
-// server.js - CM Central Market - WITH PRIVATE SOURCING
-// Features: Marketplace, Private Source, KYC, Admin, Ghost Leads,
-// DNA Reports, Safe Init, R2 Fallback, Auto Migration
+// server.js - CM Central Market - WITH LIVE AUCTION ROOM
+// Features: Marketplace, Private Source, Live Room, KYC, Admin,
+// Ghost Leads, DNA Reports, Safe Init, R2 Fallback
 // ============================================================
 
 require('dotenv').config();
+
 // Schema sync handled by Render Build Command:
 // npm install && npx prisma generate && npx prisma db push --skip-generate
 console.log('📦 Schema sync handled by Build Command. Starting server...');
@@ -47,7 +48,7 @@ const CIPC_NUMBER = process.env.CIPC_NUMBER || '2024/XXXXXX/07';
 if (!ADMIN_EMAIL) console.warn('⚠️ ADMIN_EMAIL not set – emergency admin by first user only.');
 
 // ============================================================
-// SAFE INIT: R2 (S3 Client)
+// SAFE INIT: R2
 // ============================================================
 let s3Client = null;
 let R2_BUCKET = null;
@@ -79,7 +80,6 @@ try {
     console.warn('⚠️ R2 init failed (continuing):', e.message);
 }
 
-// ---------- EMERGENCY R2 FALLBACK ----------
 async function uploadToR2(file, folder = 'listings') {
     if (s3Client) {
         try {
@@ -136,10 +136,7 @@ try {
 
 // ---------- HELPERS ----------
 async function sendSms(to, message) {
-    if (!twilioClient || !TWILIO_PHONE_NUMBER || !to) {
-        console.warn('[SMS] Skipped – Twilio not configured or missing recipient.');
-        return;
-    }
+    if (!twilioClient || !TWILIO_PHONE_NUMBER || !to) return;
     try {
         await twilioClient.messages.create({ body: message, from: TWILIO_PHONE_NUMBER, to });
         console.log(`[SMS] Sent to ${to}`);
@@ -149,10 +146,7 @@ async function sendSms(to, message) {
 }
 
 async function sendEmail(to, subject, html, attachments = []) {
-    if (!SENDGRID_ENABLED || !to) {
-        console.warn('[EMAIL] Skipped – SendGrid not configured or missing recipient.');
-        return;
-    }
+    if (!SENDGRID_ENABLED || !to) return;
     try {
         await sgMail.send({ to, from: FROM_EMAIL, subject, html, attachments });
         console.log(`[EMAIL] Sent to ${to}`);
@@ -186,10 +180,9 @@ app.use(express.urlencoded({ extended: true }));
 
 const bidLimiter = rateLimit({ windowMs: 1000, max: 5, message: 'Too many bids, slow down' });
 const instructLimiter = rateLimit({ windowMs: 60000, max: 3, message: 'Too many instructions. Please wait a minute.' });
+const liveBidLimiter = rateLimit({ windowMs: 1000, max: 3, message: 'Too many bids, slow down' });
 
-// ------------------------------------------------------------------
-// PRIVATE UPLOADS
-// ------------------------------------------------------------------
+// ---------- PRIVATE UPLOADS ----------
 const PRIVATE_UPLOAD_DIR = path.join(__dirname, 'uploads-private');
 if (!fs.existsSync(PRIVATE_UPLOAD_DIR)) {
     fs.mkdirSync(PRIVATE_UPLOAD_DIR, { recursive: true });
@@ -219,15 +212,11 @@ function authenticate(req, res, next) {
     }
 }
 
-// Optional auth (for endpoints that work for both guests and logged-in)
 function optionalAuth(req, res, next) {
     const h = req.headers.authorization;
     if (h) {
-        try {
-            req.user = jwt.verify(h.split(' ')[1], JWT_SECRET);
-        } catch (e) {
-            req.user = null;
-        }
+        try { req.user = jwt.verify(h.split(' ')[1], JWT_SECRET); }
+        catch (e) { req.user = null; }
     } else {
         req.user = null;
     }
@@ -243,7 +232,6 @@ function adminOnly(req, res, next) {
 // ========== AUTH ROUTES =====================================
 // ============================================================
 
-// ---------- REGISTER ----------
 app.post('/api/register', memoryUpload.fields([
     { name: 'idPhoto', maxCount: 1 },
     { name: 'idDocument', maxCount: 1 },
@@ -334,7 +322,6 @@ app.post('/api/register', memoryUpload.fields([
     }
 });
 
-// ---------- LOGIN ----------
 app.post('/api/login', async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -457,12 +444,12 @@ app.post('/api/kyc/upgrade', authenticate, async (req, res) => {
 });
 
 // ============================================================
-// ========== MARKETPLACE (PUBLIC - excludes private) =========
+// ========== MARKETPLACE =====================================
 // ============================================================
 app.get('/api/marketplace', async (req, res) => {
     try {
         const { filter, category, search, verifiedOnly } = req.query;
-        const where = { status: 'ACTIVE', isPrivate: false };  // ← EXCLUDE private listings
+        const where = { status: 'ACTIVE', isPrivate: false };
         if (category && category !== 'ALL') where.category = category;
         if (filter === 'AUCTION') where.listingType = 'AUCTION';
         if (filter === 'FIXED_PRICE') where.listingType = 'FIXED_PRICE';
@@ -482,7 +469,6 @@ app.get('/api/marketplace', async (req, res) => {
             } else {
                 displayPrice = l.price || null;
             }
-
             return {
                 id: l.id,
                 title: l.title,
@@ -517,20 +503,13 @@ app.get('/api/marketplace', async (req, res) => {
 });
 
 // ============================================================
-// ========== PRIVATE SOURCE ENDPOINTS ========================
+// ========== PRIVATE SOURCE ==================================
 // ============================================================
-
-// ---------- GET PRIVATE COLLECTION (public) ----------
 app.get('/api/private/collection', async (req, res) => {
     try {
         const listings = await prisma.listing.findMany({
-            where: {
-                isPrivate: true,
-                status: 'ACTIVE'
-            },
-            include: {
-                seller: { select: { id: true, name: true, displayName: true } }
-            },
+            where: { isPrivate: true, status: 'ACTIVE' },
+            include: { seller: { select: { id: true, name: true, displayName: true } } },
             orderBy: { createdAt: 'desc' }
         });
 
@@ -561,14 +540,11 @@ app.get('/api/private/collection', async (req, res) => {
     }
 });
 
-// ---------- GET SINGLE PRIVATE LISTING ----------
 app.get('/api/private/collection/:id', async (req, res) => {
     try {
         const l = await prisma.listing.findUnique({
             where: { id: req.params.id },
-            include: {
-                seller: { select: { id: true, name: true, displayName: true } }
-            }
+            include: { seller: { select: { id: true, name: true, displayName: true } } }
         });
         if (!l || !l.isPrivate) return res.status(404).json({ error: 'Private listing not found' });
 
@@ -595,7 +571,6 @@ app.get('/api/private/collection/:id', async (req, res) => {
             sourceBadge: l.sourceBadge || 'Verified Private Collection',
             privateStatus: l.privateStatus || 'Available Privately',
             trustLine: l.trustLine || 'Papers Verified & Clear',
-            // Price intentionally hidden – "Price on Request"
             priceOnRequest: true,
             seller: { id: l.seller.id, name: l.seller.displayName || l.seller.name || 'CM Agent' },
             hqWhatsapp: HQ_WHATSAPP,
@@ -607,17 +582,14 @@ app.get('/api/private/collection/:id', async (req, res) => {
     }
 });
 
-// ---------- SUBMIT SOURCING INSTRUCTION (public) ----------
 app.post('/api/private/instruct', instructLimiter, optionalAuth, async (req, res) => {
     try {
         const { vehicleWanted, budgetRange, yearKmPref, urgency, whatsapp, privateEmail } = req.body;
 
-        // Validation
         if (!vehicleWanted || !budgetRange || !urgency || !whatsapp) {
             return res.status(400).json({ error: 'Vehicle, budget, urgency, and WhatsApp are required.' });
         }
 
-        // Basic phone validation
         const cleanPhone = whatsapp.replace(/\D/g, '');
         if (cleanPhone.length < 9) {
             return res.status(400).json({ error: 'Please enter a valid WhatsApp number.' });
@@ -638,7 +610,6 @@ app.post('/api/private/instruct', instructLimiter, optionalAuth, async (req, res
 
         console.log(`[PRIVATE] New instruction #${instruction.id} from ${whatsapp}`);
 
-        // Auto-reply to client (WhatsApp + Email)
         const formattedPhone = formatPhone(whatsapp);
         const replyMsg = `Received with thanks. Your instruction is private.\n\nWe will source within your brief and contact you directly with 2-3 verified options — no public listing.\n\n— CM Private Sourcing Team`;
 
@@ -654,7 +625,6 @@ app.post('/api/private/instruct', instructLimiter, optionalAuth, async (req, res
             );
         }
 
-        // Notify admin (you) if configured
         if (ADMIN_EMAIL) {
             await sendEmail(
                 ADMIN_EMAIL,
@@ -669,10 +639,7 @@ app.post('/api/private/instruct', instructLimiter, optionalAuth, async (req, res
             );
         }
 
-        res.status(201).json({
-            message: 'Instruction received',
-            id: instruction.id
-        });
+        res.status(201).json({ message: 'Instruction received', id: instruction.id });
     } catch (err) {
         console.error('Instruct error:', err);
         res.status(500).json({ error: err.message });
@@ -680,7 +647,7 @@ app.post('/api/private/instruct', instructLimiter, optionalAuth, async (req, res
 });
 
 // ============================================================
-// ========== SINGLE LISTING (public – but excludes private) ==
+// ========== SINGLE LISTING ==================================
 // ============================================================
 app.get('/api/listings/:id', async (req, res) => {
     try {
@@ -689,11 +656,7 @@ app.get('/api/listings/:id', async (req, res) => {
             include: { bids: true, seller: { select: { id: true, name: true, displayName: true } } }
         });
         if (!l) return res.status(404).json({ error: 'Listing not found' });
-
-        // If private, don't expose here (redirect client to private route)
-        if (l.isPrivate) {
-            return res.status(404).json({ error: 'Listing not found' });
-        }
+        if (l.isPrivate) return res.status(404).json({ error: 'Listing not found' });
 
         const cleanDesc = (l.description || '').replace(/(\d[\s-]?){10,}/g, '[contact hidden]');
 
@@ -817,7 +780,7 @@ app.post('/api/listings', authenticate, memoryUpload.fields([
             imageUrls,
             odometerVideoUrl,
             images: [mainImageUrl, ...imageUrls].filter(Boolean),
-            isPrivate: false,  // new listings go to public market by default
+            isPrivate: false,
             status: 'ACTIVE'
         };
 
@@ -837,16 +800,13 @@ app.post('/api/listings/:id/bid', authenticate, bidLimiter, async (req, res) => 
         if (!listing || listing.listingType !== 'AUCTION' || listing.status !== 'ACTIVE' || listing.isPrivate) {
             return res.status(400).json({ error: 'Auction not active' });
         }
-
         if (listing.sellerId === req.user.id) {
             return res.status(403).json({ error: 'You cannot bid on your own listing' });
         }
-
         const user = await prisma.user.findUnique({ where: { id: req.user.id } });
         if (!user || user.kycLevel < 1) {
             return res.status(403).json({ error: 'You must complete KYC Level 1 to bid' });
         }
-
         const minBid = listing.currentBid ? listing.currentBid + 1 : (listing.startingPrice || listing.reservePrice || 0);
         if (amount < minBid) return res.status(400).json({ error: `Bid must be at least R${minBid}` });
 
@@ -1023,9 +983,369 @@ app.get('/api/seller/ratings/:sellerId', async (req, res) => {
 });
 
 // ============================================================
-// ========== ADMIN ENDPOINTS =================================
+// ========== LIVE AUCTION ROOM (NEW) =========================
 // ============================================================
 
+// ---------- GET CURRENT LIVE ROOM (public) ----------
+app.get('/api/live/current', async (req, res) => {
+    try {
+        // Find any LIVE room, or the next SCHEDULED one
+        let room = await prisma.liveRoom.findFirst({
+            where: { status: 'LIVE' },
+            include: {
+                items: {
+                    include: { listing: { select: { id: true, title: true, mainImageUrl: true, year: true, kilometers: true } } },
+                    orderBy: { order: 'asc' }
+                },
+                messages: { orderBy: { createdAt: 'desc' }, take: 50 }
+            }
+        });
+
+        if (!room) {
+            room = await prisma.liveRoom.findFirst({
+                where: { status: 'SCHEDULED' },
+                include: {
+                    items: {
+                        include: { listing: { select: { id: true, title: true, mainImageUrl: true, year: true, kilometers: true } } },
+                        orderBy: { order: 'asc' }
+                    }
+                },
+                orderBy: { scheduledFor: 'asc' }
+            });
+        }
+
+        if (!room) {
+            return res.json({ live: false, room: null });
+        }
+
+        // Get the currently active item (if any)
+        let currentItem = null;
+        if (room.currentItemId) {
+            currentItem = room.items.find(i => i.id === room.currentItemId) || null;
+        }
+
+        res.json({
+            live: room.status === 'LIVE',
+            room: {
+                id: room.id,
+                title: room.title,
+                status: room.status,
+                scheduledFor: room.scheduledFor,
+                startedAt: room.startedAt,
+                viewerCount: room.viewerCount,
+                currentItemId: room.currentItemId,
+                currentItem,
+                queue: room.items.map(i => ({
+                    id: i.id,
+                    listingId: i.listingId,
+                    title: i.listing.title,
+                    mainImageUrl: i.listing.mainImageUrl,
+                    year: i.listing.year,
+                    kilometers: i.listing.kilometers,
+                    startPrice: i.startPrice,
+                    currentBid: i.currentBid,
+                    currentBidderName: i.currentBidderName,
+                    status: i.status,
+                    order: i.order,
+                    bidCount: i.bidCount
+                })),
+                recentMessages: (room.messages || []).reverse()
+            }
+        });
+    } catch (err) {
+        console.error('Live current error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ---------- GET SINGLE LIVE ROOM (public) ----------
+app.get('/api/live/:id', async (req, res) => {
+    try {
+        const room = await prisma.liveRoom.findUnique({
+            where: { id: req.params.id },
+            include: {
+                items: {
+                    include: { listing: { select: { id: true, title: true, mainImageUrl: true, year: true, kilometers: true, description: true } } },
+                    orderBy: { order: 'asc' }
+                },
+                messages: { orderBy: { createdAt: 'desc' }, take: 100 }
+            }
+        });
+        if (!room) return res.status(404).json({ error: 'Live room not found' });
+
+        const currentItem = room.currentItemId
+            ? room.items.find(i => i.id === room.currentItemId) || null
+            : null;
+
+        res.json({
+            id: room.id,
+            title: room.title,
+            status: room.status,
+            scheduledFor: room.scheduledFor,
+            startedAt: room.startedAt,
+            endedAt: room.endedAt,
+            viewerCount: room.viewerCount,
+            currentItemId: room.currentItemId,
+            currentItem,
+            queue: room.items,
+            recentMessages: room.messages.reverse()
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ---------- ADMIN: CREATE LIVE ROOM ----------
+app.post('/api/admin/live/create', authenticate, adminOnly, async (req, res) => {
+    try {
+        const { title, scheduledFor } = req.body;
+        const room = await prisma.liveRoom.create({
+            data: {
+                title: title || 'Live Auction',
+                scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
+                status: 'SCHEDULED',
+                auctioneerId: req.user.id
+            }
+        });
+        res.status(201).json({ message: 'Live room created', room });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ---------- ADMIN: START LIVE ----------
+app.post('/api/admin/live/:id/start', authenticate, adminOnly, async (req, res) => {
+    try {
+        const room = await prisma.liveRoom.update({
+            where: { id: req.params.id },
+            data: { status: 'LIVE', startedAt: new Date() }
+        });
+        // Auto-start first PENDING item if none active
+        const firstItem = await prisma.liveRoomItem.findFirst({
+            where: { liveRoomId: room.id, status: 'PENDING' },
+            orderBy: { order: 'asc' }
+        });
+        if (firstItem) {
+            await prisma.liveRoomItem.update({
+                where: { id: firstItem.id },
+                data: { status: 'ACTIVE' }
+            });
+            await prisma.liveRoom.update({
+                where: { id: room.id },
+                data: { currentItemId: firstItem.id }
+            });
+        }
+        io.to(`live_${room.id}`).emit('liveRoomStarted', { roomId: room.id });
+        res.json({ message: 'Live started', room });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ---------- ADMIN: END LIVE ----------
+app.post('/api/admin/live/:id/end', authenticate, adminOnly, async (req, res) => {
+    try {
+        const room = await prisma.liveRoom.update({
+            where: { id: req.params.id },
+            data: { status: 'ENDED', endedAt: new Date(), currentItemId: null }
+        });
+        io.to(`live_${room.id}`).emit('liveRoomEnded', { roomId: room.id });
+        res.json({ message: 'Live ended', room });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ---------- ADMIN: ADD ITEM TO QUEUE ----------
+app.post('/api/admin/live/:id/add-item', authenticate, adminOnly, async (req, res) => {
+    try {
+        const { listingId, startPrice } = req.body;
+        if (!listingId || !startPrice) return res.status(400).json({ error: 'listingId and startPrice required' });
+
+        const lastItem = await prisma.liveRoomItem.findFirst({
+            where: { liveRoomId: req.params.id },
+            orderBy: { order: 'desc' }
+        });
+        const nextOrder = lastItem ? lastItem.order + 1 : 0;
+
+        const item = await prisma.liveRoomItem.create({
+            data: {
+                liveRoomId: req.params.id,
+                listingId,
+                startPrice: parseFloat(startPrice),
+                order: nextOrder,
+                status: 'PENDING'
+            }
+        });
+
+        io.to(`live_${req.params.id}`).emit('liveItemAdded', { itemId: item.id });
+        res.status(201).json({ message: 'Item added', item });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ---------- ADMIN: REMOVE ITEM ----------
+app.post('/api/admin/live/:id/remove-item/:itemId', authenticate, adminOnly, async (req, res) => {
+    try {
+        await prisma.liveRoomItem.delete({ where: { id: req.params.itemId } });
+        io.to(`live_${req.params.id}`).emit('liveItemRemoved', { itemId: req.params.itemId });
+        res.json({ message: 'Item removed' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ---------- ADMIN: START ITEM (put on the block) ----------
+app.post('/api/admin/live/item/:id/start', authenticate, adminOnly, async (req, res) => {
+    try {
+        const item = await prisma.liveRoomItem.update({
+            where: { id: req.params.id },
+            data: {
+                status: 'ACTIVE',
+                countdownEnds: null,
+                currentBid: null,
+                currentBidderId: null,
+                currentBidderName: null,
+                extendedCount: 0
+            }
+        });
+        await prisma.liveRoom.update({
+            where: { id: item.liveRoomId },
+            data: { currentItemId: item.id }
+        });
+        io.to(`live_${item.liveRoomId}`).emit('liveItemStarted', {
+            itemId: item.id,
+            startPrice: item.startPrice
+        });
+        res.json({ message: 'Item on the block', item });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ---------- ADMIN: MARK SOLD ----------
+app.post('/api/admin/live/item/:id/sold', authenticate, adminOnly, async (req, res) => {
+    try {
+        const item = await prisma.liveRoomItem.update({
+            where: { id: req.params.id },
+            data: {
+                status: 'SOLD',
+                soldPrice: req.body.soldPrice ? parseFloat(req.body.soldPrice) : undefined,
+                countdownEnds: null
+            }
+        });
+
+        if (item.currentBidderId && item.currentBid) {
+            // Create system message
+            await prisma.liveMessage.create({
+                data: {
+                    liveRoomId: item.liveRoomId,
+                    userName: 'SYSTEM',
+                    message: `🔨 SOLD to ${item.currentBidderName} for R${item.currentBid.toLocaleString()}`,
+                    isSystem: true
+                }
+            });
+            // Mark the listing as sold
+            await prisma.listing.update({
+                where: { id: item.listingId },
+                data: {
+                    status: 'AWAITING_PAYMENT',
+                    winnerId: item.currentBidderId,
+                    finalPrice: item.currentBid,
+                    paymentDeadline: new Date(Date.now() + 2 * 60 * 60 * 1000) // 2 hours
+                }
+            }).catch(e => console.warn('Listing update failed:', e.message));
+        }
+
+        io.to(`live_${item.liveRoomId}`).emit('liveItemSold', {
+            itemId: item.id,
+            winnerName: item.currentBidderName,
+            finalPrice: item.currentBid
+        });
+
+        // Auto-advance to next item
+        const nextItem = await prisma.liveRoomItem.findFirst({
+            where: { liveRoomId: item.liveRoomId, status: 'PENDING' },
+            orderBy: { order: 'asc' }
+        });
+        if (nextItem) {
+            await prisma.liveRoomItem.update({
+                where: { id: nextItem.id },
+                data: { status: 'ACTIVE', countdownEnds: null, currentBid: null, currentBidderId: null, currentBidderName: null }
+            });
+            await prisma.liveRoom.update({
+                where: { id: item.liveRoomId },
+                data: { currentItemId: nextItem.id }
+            });
+            io.to(`live_${item.liveRoomId}`).emit('liveItemStarted', {
+                itemId: nextItem.id,
+                startPrice: nextItem.startPrice
+            });
+        } else {
+            await prisma.liveRoom.update({
+                where: { id: item.liveRoomId },
+                data: { currentItemId: null }
+            });
+        }
+
+        res.json({ message: 'SOLD', item });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ---------- ADMIN: MARK PASSED ----------
+app.post('/api/admin/live/item/:id/pass', authenticate, adminOnly, async (req, res) => {
+    try {
+        const item = await prisma.liveRoomItem.update({
+            where: { id: req.params.id },
+            data: { status: 'PASSED', countdownEnds: null }
+        });
+        await prisma.liveMessage.create({
+            data: {
+                liveRoomId: item.liveRoomId,
+                userName: 'SYSTEM',
+                message: `⏭️ Passed — moving to next item`,
+                isSystem: true
+            }
+        });
+
+        // Advance
+        const nextItem = await prisma.liveRoomItem.findFirst({
+            where: { liveRoomId: item.liveRoomId, status: 'PENDING' },
+            orderBy: { order: 'asc' }
+        });
+        if (nextItem) {
+            await prisma.liveRoomItem.update({
+                where: { id: nextItem.id },
+                data: { status: 'ACTIVE', countdownEnds: null }
+            });
+            await prisma.liveRoom.update({
+                where: { id: item.liveRoomId },
+                data: { currentItemId: nextItem.id }
+            });
+            io.to(`live_${item.liveRoomId}`).emit('liveItemStarted', {
+                itemId: nextItem.id,
+                startPrice: nextItem.startPrice
+            });
+        } else {
+            await prisma.liveRoom.update({
+                where: { id: item.liveRoomId },
+                data: { currentItemId: null }
+            });
+        }
+
+        io.to(`live_${item.liveRoomId}`).emit('liveItemPassed', { itemId: item.id });
+        res.json({ message: 'Item passed', item });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ============================================================
+// ========== ADMIN OTHER =====================================
+// ============================================================
 app.get('/api/admin/overview', authenticate, adminOnly, async (req, res) => {
     try {
         const users = await prisma.user.findMany({
@@ -1046,6 +1366,10 @@ app.get('/api/admin/overview', authenticate, adminOnly, async (req, res) => {
         const bids = await prisma.bid.findMany({ orderBy: { createdAt: 'desc' }, take: 50 });
         const totalBids = await prisma.bid.count();
         const instructionCount = await prisma.sourcingInstruction.count({ where: { status: 'NEW' } });
+        const liveRoom = await prisma.liveRoom.findFirst({
+            where: { status: { in: ['SCHEDULED', 'LIVE'] } },
+            include: { items: true }
+        });
 
         res.json({
             users,
@@ -1054,6 +1378,7 @@ app.get('/api/admin/overview', authenticate, adminOnly, async (req, res) => {
             bids,
             totalBids,
             newInstructions: instructionCount,
+            liveRoom,
             hqWhatsapp: HQ_WHATSAPP,
             cipc: CIPC_NUMBER
         });
@@ -1062,7 +1387,6 @@ app.get('/api/admin/overview', authenticate, adminOnly, async (req, res) => {
     }
 });
 
-// ---------- TOGGLE PRIVATE ----------
 app.post('/api/admin/listings/:id/toggle-private', authenticate, adminOnly, async (req, res) => {
     try {
         const { sourceBadge, privateStatus, trustLine } = req.body;
@@ -1085,7 +1409,6 @@ app.post('/api/admin/listings/:id/toggle-private', authenticate, adminOnly, asyn
     }
 });
 
-// ---------- UPDATE PRIVATE DETAILS ----------
 app.put('/api/admin/listings/:id/private-details', authenticate, adminOnly, async (req, res) => {
     try {
         const { sourceBadge, privateStatus, trustLine } = req.body;
@@ -1099,7 +1422,6 @@ app.put('/api/admin/listings/:id/private-details', authenticate, adminOnly, asyn
     }
 });
 
-// ---------- ADMIN: SOURCING INSTRUCTIONS ----------
 app.get('/api/admin/private/instructions', authenticate, adminOnly, async (req, res) => {
     try {
         const { status } = req.query;
@@ -1123,10 +1445,9 @@ app.put('/api/admin/private/instructions/:id', authenticate, adminOnly, async (r
             data: { status, notes: notes || undefined }
         });
 
-        // Notify client on status change to FOUND or DELIVERED
         if (status === 'FOUND' || status === 'DELIVERED') {
             const msg = status === 'FOUND'
-                ? `Good news — we've found 2-3 options matching your brief. We'll contact you shortly with details. — CM Private Sourcing`
+                ? `Good news — we've found 2-3 options matching your brief. We'll contact you shortly. — CM Private Sourcing`
                 : `Congratulations on your new vehicle. Thank you for trusting CM Private Sourcing. — CM Team`;
             const formatted = formatPhone(updated.whatsapp);
             if (formatted) await sendSms(formatted, msg);
@@ -1141,7 +1462,6 @@ app.put('/api/admin/private/instructions/:id', authenticate, adminOnly, async (r
     }
 });
 
-// ---------- OTHER ADMIN ----------
 app.post('/api/admin/make-auctioneer', authenticate, adminOnly, async (req, res) => {
     try {
         const { userId } = req.body;
@@ -1424,11 +1744,7 @@ async function sendGhostRecovery(listingId) {
                 await sendSms(formatPhone(g.phone), msg);
             }
             if (g.email) {
-                await sendEmail(
-                    g.email,
-                    `Another chance: ${listing.title}`,
-                    `Hi ${g.name}, you were a top bidder. The seller might have other deals. Check them out!`
-                );
+                await sendEmail(g.email, `Another chance: ${listing.title}`, `Hi ${g.name}, you were a top bidder. Check out other deals!`);
             }
         }
     } catch (e) {
@@ -1437,7 +1753,7 @@ async function sendGhostRecovery(listingId) {
 }
 
 // ============================================================
-// ========== DNA REPORT GENERATOR ============================
+// ========== DNA REPORT ======================================
 // ============================================================
 async function generateAuctionDNA(listingId) {
     try {
@@ -1486,12 +1802,7 @@ async function generateAuctionDNA(listingId) {
                     filename: `listing-dna-${listingId}.pdf`,
                     type: 'application/pdf'
                 };
-                await sendEmail(
-                    listing.seller.email,
-                    `Listing DNA Report: ${listing.title}`,
-                    'Your report is attached.',
-                    [attachment]
-                );
+                await sendEmail(listing.seller.email, `Listing DNA Report: ${listing.title}`, 'Your report is attached.', [attachment]);
             }
         });
     } catch (e) {
@@ -1513,19 +1824,6 @@ function startTimedListingCron() {
             });
             for (const listing of listings) {
                 const endMs = new Date(listing.endTime).getTime();
-                const timeLeft = endMs - now.getTime();
-
-                if (timeLeft <= 10 * 60 * 1000 && timeLeft > 0 && !listing.isLast10Min) {
-                    await prisma.listing.update({ where: { id: listing.id }, data: { isLast10Min: true } });
-                    const proxyBids = listing.proxyBids || [];
-                    for (const p of proxyBids) {
-                        const user = await prisma.user.findUnique({ where: { id: p.userId } });
-                        if (user?.phone) {
-                            await sendSms(formatPhone(user.phone), `🔴 CM: "${listing.title}" ends in 10 minutes! Bid now.`);
-                        }
-                    }
-                }
-
                 if (now.getTime() >= endMs) {
                     const bids = listing.bids || [];
                     if (bids.length > 0) {
@@ -1567,27 +1865,122 @@ function startTimedListingCron() {
 }
 
 // ============================================================
+// ========== LIVE ROOM COUNTDOWN MANAGER =====================
+// Runs every 1 second, checks active items for countdown expiry
+// Also handles anti-snipe extension
+// ============================================================
+function startLiveCountdownManager() {
+    console.log('⏱️ Starting Live Room countdown manager (every 1s)');
+    setInterval(async () => {
+        try {
+            const now = new Date();
+            // Find active items with countdown that has expired
+            const expired = await prisma.liveRoomItem.findMany({
+                where: {
+                    status: 'ACTIVE',
+                    countdownEnds: { not: null, lt: now }
+                },
+                include: { liveRoom: true }
+            });
+
+            for (const item of expired) {
+                // Auto-mark as SOLD
+                await prisma.liveRoomItem.update({
+                    where: { id: item.id },
+                    data: {
+                        status: 'SOLD',
+                        soldPrice: item.currentBid,
+                        countdownEnds: null
+                    }
+                });
+
+                if (item.currentBidderId && item.currentBid) {
+                    await prisma.liveMessage.create({
+                        data: {
+                            liveRoomId: item.liveRoomId,
+                            userName: 'SYSTEM',
+                            message: `🔨 SOLD to ${item.currentBidderName} for R${item.currentBid.toLocaleString()}`,
+                            isSystem: true
+                        }
+                    });
+
+                    // Update listing
+                    await prisma.listing.update({
+                        where: { id: item.listingId },
+                        data: {
+                            status: 'AWAITING_PAYMENT',
+                            winnerId: item.currentBidderId,
+                            finalPrice: item.currentBid,
+                            paymentDeadline: new Date(Date.now() + 2 * 60 * 60 * 1000)
+                        }
+                    }).catch(e => console.warn('Listing update failed:', e.message));
+                }
+
+                io.to(`live_${item.liveRoomId}`).emit('liveItemSold', {
+                    itemId: item.id,
+                    winnerName: item.currentBidderName,
+                    finalPrice: item.currentBid
+                });
+
+                // Auto-advance
+                const nextItem = await prisma.liveRoomItem.findFirst({
+                    where: { liveRoomId: item.liveRoomId, status: 'PENDING' },
+                    orderBy: { order: 'asc' }
+                });
+                if (nextItem) {
+                    await prisma.liveRoomItem.update({
+                        where: { id: nextItem.id },
+                        data: { status: 'ACTIVE', countdownEnds: null, currentBid: null, currentBidderId: null, currentBidderName: null }
+                    });
+                    await prisma.liveRoom.update({
+                        where: { id: item.liveRoomId },
+                        data: { currentItemId: nextItem.id }
+                    });
+                    io.to(`live_${item.liveRoomId}`).emit('liveItemStarted', {
+                        itemId: nextItem.id,
+                        startPrice: nextItem.startPrice
+                    });
+                } else {
+                    await prisma.liveRoom.update({
+                        where: { id: item.liveRoomId },
+                        data: { currentItemId: null }
+                    });
+                }
+            }
+        } catch (err) {
+            // Silent fail — no spam
+        }
+    }, 1000);
+}
+
+// ============================================================
 // ========== SOCKET.IO =======================================
 // ============================================================
 io.use((socket, next) => {
     const token = socket.handshake.auth.token;
-    if (!token) return next(new Error('Authentication required'));
+    if (!token) {
+        // Allow guests for live room watching (read-only)
+        socket.user = null;
+        return next();
+    }
     try {
         socket.user = jwt.verify(token, JWT_SECRET);
         next();
     } catch (e) {
-        return next(new Error('Invalid token'));
+        socket.user = null;
+        next();
     }
 });
 
 const socketBidLimits = {};
+const liveRoomViewers = {}; // { roomId: Set<socketId> }
 
 io.on('connection', (socket) => {
-    console.log(`Socket connected: ${socket.id}`);
-    socket.on('joinListing', (listingId) => { socket.join(`listing_${listingId}`); });
-    socket.on('leaveListing', () => { socket.rooms.clear(); });
+    console.log(`Socket connected: ${socket.id} (user: ${socket.user ? socket.user.id : 'guest'})`);
 
+    // ===== Existing handRaise bidding for timed auctions =====
     socket.on('handRaise', async (data) => {
+        if (!socket.user) return socket.emit('error', { message: 'Login required' });
         try {
             const now = Date.now();
             if (!socketBidLimits[socket.id]) socketBidLimits[socket.id] = [];
@@ -1626,43 +2019,209 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('managerAck', (data) => { io.to(`listing_${data.listingId}`).emit('bidAccepted', data); });
-    socket.on('managerReject', (data) => { io.to(`listing_${data.listingId}`).emit('bidRejected', data); });
+    socket.on('joinListing', (listingId) => { socket.join(`listing_${listingId}`); });
 
-    socket.on('soldLot', async (data) => {
-        if (socket.user.role !== 'ADMIN') {
-            socket.emit('error', { message: 'Admin only' });
-            return;
-        }
+    // ===== LIVE AUCTION ROOM =====
+
+    // Join live room
+    socket.on('liveJoin', async (data) => {
+        const roomId = data.roomId;
+        if (!roomId) return;
+        socket.join(`live_${roomId}`);
+
+        if (!liveRoomViewers[roomId]) liveRoomViewers[roomId] = new Set();
+        liveRoomViewers[roomId].add(socket.id);
+
+        // Update viewer count
         try {
-            const { listingId, winnerId, finalPrice } = data;
-            await prisma.listing.update({
-                where: { id: listingId },
-                data: { status: 'PAID', winnerId, finalPrice: parseFloat(finalPrice) }
-            });
-            await prisma.soldItem.create({
-                data: {
-                    listingId,
-                    sellerId: socket.user.id,
-                    title: 'Lot sold',
-                    winnerName: winnerId,
-                    finalPrice: parseFloat(finalPrice),
-                    soldAt: new Date()
-                }
-            });
-            io.to(`listing_${listingId}`).emit('lotSold', { winnerId, finalPrice });
-        } catch (e) {
-            console.error('soldLot error:', e.message);
+            const count = liveRoomViewers[roomId].size;
+            await prisma.liveRoom.update({
+                where: { id: roomId },
+                data: { viewerCount: count }
+            }).catch(() => {});
+            io.to(`live_${roomId}`).emit('liveViewerCount', { count });
+        } catch (e) {}
+    });
+
+    // Leave live room
+    socket.on('liveLeave', async (data) => {
+        const roomId = data.roomId;
+        if (!roomId) return;
+        socket.leave(`live_${roomId}`);
+
+        if (liveRoomViewers[roomId]) {
+            liveRoomViewers[roomId].delete(socket.id);
+            const count = liveRoomViewers[roomId].size;
+            try {
+                await prisma.liveRoom.update({
+                    where: { id: roomId },
+                    data: { viewerCount: count }
+                }).catch(() => {});
+            } catch (e) {}
+            io.to(`live_${roomId}`).emit('liveViewerCount', { count });
         }
     });
 
-    socket.on('video-offer', (data) => socket.to(`listing_${data.listingId}`).emit('video-offer', data));
-    socket.on('video-answer', (data) => socket.to(`listing_${data.listingId}`).emit('video-answer', data));
-    socket.on('video-candidate', (data) => socket.to(`listing_${data.listingId}`).emit('video-candidate', data));
-    socket.on('streamStarted', (data) => socket.to(`listing_${data.listingId}`).emit('streamStarted', data));
-    socket.on('video-ended', (data) => socket.to(`listing_${data.listingId}`).emit('video-ended', data));
+    // Place live bid
+    socket.on('liveBid', async (data) => {
+        if (!socket.user) return socket.emit('error', { message: 'Login required to bid' });
+        const { itemId, amount } = data;
+        if (!itemId || !amount) return;
+
+        try {
+            const user = await prisma.user.findUnique({ where: { id: socket.user.id } });
+            if (!user || user.kycLevel < 1) {
+                socket.emit('error', { message: 'KYC required to bid' });
+                return;
+            }
+
+            const item = await prisma.liveRoomItem.findUnique({
+                where: { id: itemId },
+                include: { liveRoom: true }
+            });
+            if (!item || item.status !== 'ACTIVE') {
+                socket.emit('error', { message: 'Item not active' });
+                return;
+            }
+
+            const minBid = item.currentBid ? item.currentBid + 500 : item.startPrice;
+            if (amount < minBid) {
+                socket.emit('error', { message: `Minimum bid is R${minBid.toLocaleString()}` });
+                return;
+            }
+
+            // Anti-snipe: if within last 10 seconds, extend +15 sec
+            const now = new Date();
+            let newCountdownEnds = new Date(now.getTime() + 10 * 1000); // fresh 10s countdown
+            let extendedCount = item.extendedCount;
+
+            if (item.countdownEnds && new Date(item.countdownEnds).getTime() - now.getTime() < 10000) {
+                // Extend from current end
+                newCountdownEnds = new Date(new Date(item.countdownEnds).getTime() + 15 * 1000);
+                extendedCount++;
+            }
+
+            await prisma.liveRoomItem.update({
+                where: { id: itemId },
+                data: {
+                    currentBid: parseFloat(amount),
+                    currentBidderId: user.id,
+                    currentBidderName: user.displayName || user.name,
+                    bidCount: { increment: 1 },
+                    lastBidAt: now,
+                    countdownEnds: newCountdownEnds,
+                    extendedCount
+                }
+            });
+
+            await prisma.liveBid.create({
+                data: {
+                    liveRoomItemId: itemId,
+                    bidderId: user.id,
+                    bidderName: user.displayName || user.name,
+                    amount: parseFloat(amount)
+                }
+            });
+
+            const systemMsg = await prisma.liveMessage.create({
+                data: {
+                    liveRoomId: item.liveRoomId,
+                    userName: 'SYSTEM',
+                    message: `${user.displayName || user.name} bid R${parseFloat(amount).toLocaleString()}`,
+                    isSystem: true
+                }
+            });
+
+            io.to(`live_${item.liveRoomId}`).emit('liveBidUpdate', {
+                itemId,
+                currentBid: parseFloat(amount),
+                currentBidderName: user.displayName || user.name,
+                bidCount: item.bidCount + 1,
+                countdownEnds: newCountdownEnds,
+                extended: extendedCount > item.extendedCount
+            });
+
+            io.to(`live_${item.liveRoomId}`).emit('liveChatMessage', {
+                userName: 'SYSTEM',
+                message: systemMsg.message,
+                isSystem: true,
+                createdAt: systemMsg.createdAt
+            });
+        } catch (e) {
+            console.error('liveBid error:', e.message);
+            socket.emit('error', { message: 'Bid failed. Try again.' });
+        }
+    });
+
+    // Send chat message
+    socket.on('liveChat', async (data) => {
+        if (!socket.user) return socket.emit('error', { message: 'Login to chat' });
+        const { roomId, message } = data;
+        if (!roomId || !message || message.length > 500) return;
+
+        try {
+            const user = await prisma.user.findUnique({ where: { id: socket.user.id } });
+            if (!user) return;
+
+            const msg = await prisma.liveMessage.create({
+                data: {
+                    liveRoomId: roomId,
+                    userId: user.id,
+                    userName: user.displayName || user.name,
+                    message: message.trim(),
+                    isSystem: false
+                }
+            });
+
+            io.to(`live_${roomId}`).emit('liveChatMessage', {
+                userId: user.id,
+                userName: msg.userName,
+                message: msg.message,
+                isSystem: false,
+                createdAt: msg.createdAt
+            });
+        } catch (e) {
+            console.error('liveChat error:', e.message);
+        }
+    });
+
+    // WebRTC signaling for live video
+    socket.on('liveVideoOffer', (data) => {
+        socket.to(`live_${data.roomId}`).emit('liveVideoOffer', { ...data, from: socket.id });
+    });
+    socket.on('liveVideoAnswer', (data) => {
+        socket.to(`live_${data.roomId}`).emit('liveVideoAnswer', { ...data, from: socket.id });
+    });
+    socket.on('liveVideoCandidate', (data) => {
+        socket.to(`live_${data.roomId}`).emit('liveVideoCandidate', { ...data, from: socket.id });
+    });
+
+    // Admin: camera ready
+    socket.on('liveStartCamera', (data) => {
+        if (!socket.user || socket.user.role !== 'ADMIN') return;
+        io.to(`live_${data.roomId}`).emit('liveStreamStarted', { roomId: data.roomId });
+    });
+
+    socket.on('liveStopCamera', (data) => {
+        if (!socket.user || socket.user.role !== 'ADMIN') return;
+        io.to(`live_${data.roomId}`).emit('liveStreamEnded', { roomId: data.roomId });
+    });
+
+    // Disconnect cleanup
     socket.on('disconnect', () => {
         delete socketBidLimits[socket.id];
+        // Remove from all live room viewer sets
+        for (const roomId in liveRoomViewers) {
+            if (liveRoomViewers[roomId].has(socket.id)) {
+                liveRoomViewers[roomId].delete(socket.id);
+                const count = liveRoomViewers[roomId].size;
+                prisma.liveRoom.update({
+                    where: { id: roomId },
+                    data: { viewerCount: count }
+                }).catch(() => {});
+                io.to(`live_${roomId}`).emit('liveViewerCount', { count });
+            }
+        }
         console.log('Socket disconnected');
     });
 });
@@ -1673,8 +2232,10 @@ io.on('connection', (socket) => {
 server.listen(PORT, () => {
     console.log(`✅ CM Central Market running on port ${PORT}`);
     console.log(`💎 Private Sourcing enabled (CIPC: ${CIPC_NUMBER})`);
+    console.log(`🔴 Live Auction Room ready`);
 });
 startTimedListingCron();
+startLiveCountdownManager();
 
 process.on('uncaughtException', (err) => console.error('Uncaught Exception:', err));
 process.on('unhandledRejection', (reason) => console.error('Unhandled Rejection:', reason));

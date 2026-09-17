@@ -62,9 +62,16 @@
                 Marketplace
             </span>
 
-            <!-- PRIVATE SOURCE nav item -->
+            <!-- 💎 PRIVATE SOURCE nav item -->
             <span onclick="navigate('privateSource')" id="privateSourceBtn" class="nav-private" style="cursor:pointer; font-weight:800; font-size:0.9rem; color:#1A1A1A; display:flex; align-items:center; gap:4px;">
                 💎 <span class="private-label-full">PRIVATE</span><span class="private-label-full"> SOURCE</span><span class="private-label-short" style="display:none;">PRIVATE</span>
+            </span>
+
+            <!-- 🔴 LIVE ROOM nav item (NEW) -->
+            <span onclick="navigate('liveRoom')" id="liveRoomBtn" class="nav-live" style="cursor:pointer; font-weight:800; font-size:0.9rem; color:#E30613; display:flex; align-items:center; gap:5px;">
+                <span class="live-dot"></span>
+                <span class="live-label-full">LIVE ROOM</span>
+                <span class="live-label-short" style="display:none;">LIVE</span>
             </span>
 
             <span onclick="navigate('dashboard')" id="dashboardBtn" style="display:none; cursor:pointer; font-weight:700; font-size:0.9rem; color:#101010;">
@@ -125,12 +132,37 @@
         });
     </script>
 
-    <!-- ===== MOBILE: SHORT LABEL FOR PRIVATE SOURCE ===== -->
+    <!-- ===== NAV ITEM LABEL SWITCHES + LIVE DOT ANIMATION ===== -->
     <style>
+        /* Pulsing red dot for LIVE ROOM */
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            background: #E30613;
+            border-radius: 50%;
+            display: inline-block;
+            animation: livePulse 1.5s infinite;
+            flex-shrink: 0;
+        }
+        @keyframes livePulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.8); }
+        }
+
+        /* Hover effect for LIVE ROOM */
+        .nav-live:hover {
+            color: #c00510 !important;
+        }
+
+        /* Mobile: shorten PRIVATE SOURCE and LIVE ROOM labels */
         @media (max-width: 600px) {
             .private-label-full { display: none !important; }
             .private-label-short { display: inline !important; }
             #privateSourceBtn { font-size: 0.85rem !important; }
+
+            .live-label-full { display: none !important; }
+            .live-label-short { display: inline !important; }
+            #liveRoomBtn { font-size: 0.85rem !important; }
         }
     </style>
 </body>

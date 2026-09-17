@@ -6,6 +6,8 @@
     <title>CM Central Market - Admin HQ</title>
     <link rel="icon" href="/logo.jpeg">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.1/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/simple-peer@9.11.1/simplepeer.min.js"></script>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
         body {
@@ -17,7 +19,6 @@
         }
         .container { max-width:1400px; margin:0 auto; }
 
-        /* ----- TOP BAR ----- */
         .topbar {
             background:white;
             border:1px solid #EAEAEA;
@@ -31,28 +32,10 @@
             gap:0.75rem;
             box-shadow:0 2px 8px rgba(0,0,0,0.05);
         }
-        .topbar .brand {
-            display:flex;
-            align-items:center;
-            gap:10px;
-        }
-        .topbar .brand img {
-            width:40px;
-            height:40px;
-            border-radius:8px;
-            object-fit:contain;
-        }
-        .topbar .brand h1 {
-            font-size:1.2rem;
-            font-weight:900;
-            color:#101010;
-            margin:0;
-        }
-        .topbar .actions {
-            display:flex;
-            gap:0.5rem;
-            flex-wrap:wrap;
-        }
+        .topbar .brand { display:flex; align-items:center; gap:10px; }
+        .topbar .brand img { width:40px; height:40px; border-radius:8px; object-fit:contain; }
+        .topbar .brand h1 { font-size:1.2rem; font-weight:900; color:#101010; margin:0; }
+        .topbar .actions { display:flex; gap:0.5rem; flex-wrap:wrap; }
         .topbar .actions button {
             padding:0.4rem 1rem;
             border:none;
@@ -67,7 +50,6 @@
         .btn-logout { background:#E30613; color:white; }
         .btn-logout:hover { background:#c00510; }
 
-        /* ----- CARDS ----- */
         .card {
             background:white;
             padding:1.25rem;
@@ -78,7 +60,6 @@
         }
         .card h3 { margin-bottom:0.8rem; color:#101010; }
 
-        /* ----- STATS ----- */
         .stats {
             display:grid;
             grid-template-columns:repeat(auto-fit, minmax(140px,1fr));
@@ -95,7 +76,6 @@
         .stat h2 { font-size:2rem; margin:0; }
         .stat p { margin:0; color:#666; font-size:0.85rem; }
 
-        /* ----- TABS ----- */
         .tab-bar {
             display:flex;
             gap:0.5rem;
@@ -116,26 +96,11 @@
         .tab-bar button.active { background:#E30613; }
         .tab-bar button:hover { opacity:0.85; }
 
-        /* ----- TABLE ----- */
         .table-wrap { overflow-x:auto; }
-        table {
-            width:100%;
-            border-collapse:collapse;
-            font-size:0.85rem;
-        }
-        th {
-            text-align:left;
-            padding:10px 8px;
-            background:#F5F5F7;
-            border-bottom:2px solid #EAEAEA;
-        }
-        td {
-            padding:8px;
-            border-bottom:1px solid #EAEAEA;
-            vertical-align:middle;
-        }
+        table { width:100%; border-collapse:collapse; font-size:0.85rem; }
+        th { text-align:left; padding:10px 8px; background:#F5F5F7; border-bottom:2px solid #EAEAEA; }
+        td { padding:8px; border-bottom:1px solid #EAEAEA; vertical-align:middle; }
 
-        /* ----- BUTTONS ----- */
         .btn {
             padding:5px 10px;
             border:none;
@@ -163,7 +128,6 @@
 
         .hidden { display:none !important; }
 
-        /* ----- MODAL ----- */
         .modal {
             position:fixed;
             inset:0;
@@ -199,47 +163,41 @@
             margin-bottom:1rem;
             font-family:inherit;
         }
-        .modal-content input:focus, .modal-content select:focus {
-            outline:none;
-            border-color:#E30613;
-        }
 
-        /* ----- BADGES ----- */
-        .badge-private {
-            display:inline-block;
-            background:#C9A961;
-            color:white;
-            font-size:0.65rem;
-            padding:2px 8px;
-            border-radius:4px;
-            font-weight:700;
-            letter-spacing:0.5px;
-        }
-        .badge-public {
-            display:inline-block;
-            background:#4dabf7;
-            color:white;
-            font-size:0.65rem;
-            padding:2px 8px;
-            border-radius:4px;
-            font-weight:700;
-            letter-spacing:0.5px;
-        }
-        .badge-status {
-            display:inline-block;
-            font-size:0.65rem;
-            padding:2px 8px;
-            border-radius:4px;
-            font-weight:700;
-            letter-spacing:0.5px;
-        }
+        .badge-private { display:inline-block; background:#C9A961; color:white; font-size:0.65rem; padding:2px 8px; border-radius:4px; font-weight:700; }
+        .badge-public { display:inline-block; background:#4dabf7; color:white; font-size:0.65rem; padding:2px 8px; border-radius:4px; font-weight:700; }
+        .badge-status { display:inline-block; font-size:0.65rem; padding:2px 8px; border-radius:4px; font-weight:700; }
         .status-NEW { background:#E30613; color:white; }
         .status-SOURCING { background:#ff9800; color:white; }
         .status-FOUND { background:#4dabf7; color:white; }
         .status-DELIVERED { background:#28a745; color:white; }
         .status-CANCELLED { background:#666; color:white; }
 
-        /* ----- RESPONSIVE ----- */
+        .live-dot {
+            width:10px;
+            height:10px;
+            background:#E30613;
+            border-radius:50%;
+            display:inline-block;
+            animation:livePulse 1.5s infinite;
+            flex-shrink:0;
+        }
+        @keyframes livePulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.8); }
+        }
+
+        .live-admin-grid {
+            display:grid;
+            grid-template-columns:1.5fr 1fr;
+            gap:1rem;
+            align-items:start;
+        }
+
+        @media(max-width:900px) {
+            .live-admin-grid { grid-template-columns:1fr; }
+        }
+
         @media(max-width:768px) {
             .stats { grid-template-columns:1fr 1fr; }
             .tab-bar button { flex:1; text-align:center; font-size:0.8rem; padding:0.5rem 0.8rem; }
@@ -273,15 +231,16 @@
     <div class="tab-bar">
         <button class="active" data-tab="dashboard" onclick="switchTab('dashboard')">📊 Dashboard</button>
         <button data-tab="users" onclick="switchTab('users')">👥 Users</button>
-        <button data-tab="kyc" onclick="switchTab('kyc')">📋 KYC Pending</button>
+        <button data-tab="kyc" onclick="switchTab('kyc')">📋 KYC</button>
         <button data-tab="listings" onclick="switchTab('listings')">🚗 Listings</button>
         <button data-tab="private" onclick="switchTab('private')">💎 Private</button>
         <button data-tab="instructions" onclick="switchTab('instructions')">📥 Instructions</button>
+        <button data-tab="live" onclick="switchTab('live')">🔴 Live Control</button>
         <button data-tab="bids" onclick="switchTab('bids')">💰 Bids</button>
         <button data-tab="reports" onclick="switchTab('reports')">⚠️ Reports</button>
     </div>
 
-    <!-- ===== DASHBOARD ===== -->
+    <!-- DASHBOARD -->
     <div id="dashboard" class="tab-content">
         <div id="stats" class="stats">Loading...</div>
         <div class="card">
@@ -289,13 +248,13 @@
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
                 <button class="btn btn-black" onclick="switchTab('kyc')">Review KYC</button>
                 <button class="btn btn-gold" onclick="switchTab('private')">Private Collection</button>
+                <button class="btn btn-red" onclick="switchTab('live')">🔴 Live Control</button>
                 <button class="btn btn-black" onclick="switchTab('instructions')">Sourcing Instructions</button>
-                <button class="btn btn-black" onclick="switchTab('reports')">View Reports</button>
             </div>
         </div>
     </div>
 
-    <!-- ===== USERS ===== -->
+    <!-- USERS -->
     <div id="users" class="tab-content hidden">
         <div class="card">
             <h3>All Users</h3>
@@ -313,24 +272,23 @@
         </div>
     </div>
 
-    <!-- ===== KYC ===== -->
+    <!-- KYC -->
     <div id="kyc" class="tab-content hidden">
         <div class="card">
             <h3>KYC Verification Requests</h3>
-            <p style="color:#666;font-size:0.9rem;margin-bottom:0.75rem;">Only users who have uploaded ID and selfie appear here.</p>
             <div class="table-wrap">
                 <table>
-                    <thead><tr><th>Email</th><th>ID Photo</th><th>Selfie</th><th>Status</th><th>Actions</th></tr></thead>
+                    <thead><tr><th>Email</th><th>ID</th><th>Selfie</th><th>Status</th><th>Actions</th></tr></thead>
                     <tbody id="kycTable"></tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <!-- ===== LISTINGS ===== -->
+    <!-- LISTINGS -->
     <div id="listings" class="tab-content hidden">
         <div class="card">
-            <h3>Public Listings (Marketplace)</h3>
+            <h3>Public Listings</h3>
             <div class="table-wrap">
                 <table>
                     <thead><tr><th>Title</th><th>Price</th><th>Type</th><th>Verified</th><th>Status</th><th>Actions</th></tr></thead>
@@ -340,13 +298,11 @@
         </div>
     </div>
 
-    <!-- ===== PRIVATE COLLECTION ===== -->
+    <!-- PRIVATE -->
     <div id="private" class="tab-content hidden">
         <div class="card">
             <h3>💎 Private Collection</h3>
-            <p style="color:#666;font-size:0.9rem;margin-bottom:0.75rem;">
-                Vehicles in the Private Sourcing page. Not visible in public Marketplace.
-            </p>
+            <p style="color:#666;font-size:0.9rem;margin-bottom:0.75rem;">Not visible in public Marketplace.</p>
             <div class="table-wrap">
                 <table>
                     <thead><tr><th>Title</th><th>Source Badge</th><th>Status</th><th>Trust Line</th><th>Actions</th></tr></thead>
@@ -356,7 +312,7 @@
         </div>
     </div>
 
-    <!-- ===== SOURCING INSTRUCTIONS ===== -->
+    <!-- INSTRUCTIONS -->
     <div id="instructions" class="tab-content hidden">
         <div class="card">
             <h3>📥 Private Sourcing Instructions</h3>
@@ -373,24 +329,21 @@
             </div>
             <div class="table-wrap">
                 <table>
-                    <thead>
-                        <tr>
-                            <th>Vehicle Wanted</th>
-                            <th>Budget</th>
-                            <th>Urgency</th>
-                            <th>WhatsApp</th>
-                            <th>Status</th>
-                            <th>Received</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
+                    <thead><tr><th>Vehicle</th><th>Budget</th><th>Urgency</th><th>WhatsApp</th><th>Status</th><th>Actions</th></tr></thead>
                     <tbody id="instructionsTable"></tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <!-- ===== BIDS ===== -->
+    <!-- ===== LIVE CONTROL (NEW) ===== -->
+    <div id="live" class="tab-content hidden">
+        <div id="liveControlRoot">
+            <div style="text-align:center;padding:2rem;color:#666;">Loading live control...</div>
+        </div>
+    </div>
+
+    <!-- BIDS -->
     <div id="bids" class="tab-content hidden">
         <div class="card">
             <h3>Recent Bids</h3>
@@ -403,7 +356,7 @@
         </div>
     </div>
 
-    <!-- ===== REPORTS ===== -->
+    <!-- REPORTS -->
     <div id="reports" class="tab-content hidden">
         <div class="card">
             <h3>Pending Reports</h3>
@@ -455,10 +408,7 @@ function getToken() { return localStorage.getItem('token'); }
 async function adminApi(endpoint, method, body) {
     var token = getToken();
     if (!token) { showToast('Please login first', 'error'); return null; }
-    var opts = {
-        method: method || 'GET',
-        headers: { 'Authorization': 'Bearer ' + token }
-    };
+    var opts = { method: method || 'GET', headers: { 'Authorization': 'Bearer ' + token } };
     if (body) {
         opts.headers['Content-Type'] = 'application/json';
         opts.body = JSON.stringify(body);
@@ -466,10 +416,7 @@ async function adminApi(endpoint, method, body) {
     try {
         var res = await fetch(endpoint, opts);
         var data = await res.json();
-        if (!res.ok) {
-            showToast(data.error || 'Request failed', 'error');
-            return null;
-        }
+        if (!res.ok) { showToast(data.error || 'Request failed', 'error'); return null; }
         return data;
     } catch (e) {
         showToast(e.message, 'error');
@@ -483,15 +430,6 @@ function logoutAdmin() {
     window.location.href = '/';
 }
 
-// ============================================================
-// STATE
-// ============================================================
-var allData = null;
-var currentTab = 'dashboard';
-
-// ============================================================
-// MODAL
-// ============================================================
 function openAdminModal(html) {
     document.getElementById('adminModalContent').innerHTML = html;
     document.getElementById('adminModal').style.display = 'flex';
@@ -501,13 +439,22 @@ function closeAdminModal() {
 }
 
 // ============================================================
+// STATE
+// ============================================================
+var allData = null;
+var currentTab = 'dashboard';
+var adminSocket = null;
+var activeLiveRoom = null;
+var livePeers = {}; // { socketId: SimplePeer }
+var liveLocalStream = null;
+var liveVideoInterval = null;
+
+// ============================================================
 // TAB SWITCHING
 // ============================================================
 function switchTab(tabId) {
     currentTab = tabId;
-    document.querySelectorAll('.tab-content').forEach(function(el) {
-        el.classList.add('hidden');
-    });
+    document.querySelectorAll('.tab-content').forEach(function(el) { el.classList.add('hidden'); });
     var target = document.getElementById(tabId);
     if (target) target.classList.remove('hidden');
 
@@ -527,6 +474,7 @@ function renderTab(tabId) {
         case 'listings': renderListings(); break;
         case 'private': renderPrivate(); break;
         case 'instructions': loadInstructions(); break;
+        case 'live': loadLiveControl(); break;
         case 'bids': renderBids(); break;
         case 'reports': renderReports(); break;
     }
@@ -559,10 +507,12 @@ function renderStats() {
         { label: 'Private Cars', value: (allData.privateListings || []).length, gold: true },
         { label: 'New Instructions', value: allData.newInstructions || 0, gold: true },
         { label: 'Total Bids', value: allData.totalBids || 0 },
-        { label: 'HQ WhatsApp', value: allData.hqWhatsapp || 'Not set' }
+        { label: 'Live Room', value: allData.liveRoom ? allData.liveRoom.status : 'None', red: true }
     ];
     items.forEach(function(item) {
-        var style = item.gold ? ' style="background:#FFF8E1;border-color:#C9A961;"' : '';
+        var style = '';
+        if (item.gold) style = ' style="background:#FFF8E1;border-color:#C9A961;"';
+        if (item.red) style = ' style="background:#FFF3F3;border-color:#E30613;"';
         statsHtml += '<div class="stat"' + style + '><h2>' + esc(item.value) + '</h2><p>' + esc(item.label) + '</p></div>';
     });
     document.getElementById('stats').innerHTML = statsHtml;
@@ -574,9 +524,7 @@ function renderStats() {
 function renderUsers() {
     if (!allData) return;
     var search = (document.getElementById('userSearch')?.value || '').toLowerCase();
-    var users = allData.users.filter(function(u) {
-        return u.email.toLowerCase().includes(search);
-    });
+    var users = allData.users.filter(function(u) { return u.email.toLowerCase().includes(search); });
 
     var html = users.map(function(u) {
         var isAdmin = u.role === 'ADMIN';
@@ -590,27 +538,15 @@ function renderUsers() {
 
         var actionBtns = '';
         if (!isAdmin) {
-            if (!isAuctioneer) {
-                actionBtns += '<button class="btn btn-black btn-sm" onclick="makeAuctioneer(\'' + u.id + '\')">Make Auctioneer</button> ';
-            } else {
-                actionBtns += '<span style="color:#28a745;">✓ Auctioneer</span> ';
-            }
-            if (!isBanned) {
-                actionBtns += '<button class="btn btn-orange btn-sm" onclick="blockUser(\'' + u.id + '\')">Block</button>';
-            } else {
-                actionBtns += '<button class="btn btn-green btn-sm" onclick="unblockUser(\'' + u.id + '\')">Unblock</button>';
-            }
+            if (!isAuctioneer) actionBtns += '<button class="btn btn-black btn-sm" onclick="makeAuctioneer(\'' + u.id + '\')">Make Auctioneer</button> ';
+            else actionBtns += '<span style="color:#28a745;">✓ Auctioneer</span> ';
+            if (!isBanned) actionBtns += '<button class="btn btn-orange btn-sm" onclick="blockUser(\'' + u.id + '\')">Block</button>';
+            else actionBtns += '<button class="btn btn-green btn-sm" onclick="unblockUser(\'' + u.id + '\')">Unblock</button>';
         } else {
             actionBtns = '👑 Admin';
         }
 
-        return '<tr>' +
-            '<td>' + esc(u.email) + '</td>' +
-            '<td>' + roleDisplay + '</td>' +
-            '<td>' + kycDisplay + '</td>' +
-            '<td>' + statusDisplay + '</td>' +
-            '<td>' + actionBtns + '</td>' +
-            '</tr>';
+        return '<tr><td>' + esc(u.email) + '</td><td>' + roleDisplay + '</td><td>' + kycDisplay + '</td><td>' + statusDisplay + '</td><td>' + actionBtns + '</td></tr>';
     }).join('');
 
     if (!html) html = '<tr><td colspan="5" style="text-align:center;color:#888;">No users found</td></tr>';
@@ -623,253 +559,142 @@ function filterUsers() { renderUsers(); }
 // ============================================================
 function renderKyc() {
     if (!allData) return;
-    var pending = allData.users.filter(function(u) {
-        return u.idPhotoUrl && u.kycStatus !== 'VERIFIED';
-    });
-
+    var pending = allData.users.filter(function(u) { return u.idPhotoUrl && u.kycStatus !== 'VERIFIED'; });
     var html = pending.map(function(u) {
         var idPhoto = u.idPhotoUrl ? '<button class="btn btn-blue btn-sm" onclick="window.open(\'' + esc(u.idPhotoUrl) + '\',\'_blank\')">📷 View ID</button>' : 'No ID';
-        var selfie = u.selfieUrl ? '<button class="btn btn-blue btn-sm" onclick="window.open(\'' + esc(u.selfieUrl) + '\',\'_blank\')">📷 View Selfie</button>' : 'No Selfie';
-
-        return '<tr>' +
-            '<td>' + esc(u.email) + '</td>' +
-            '<td>' + idPhoto + '</td>' +
-            '<td>' + selfie + '</td>' +
-            '<td>' + esc(u.kycStatus || 'NONE') + '</td>' +
-            '<td>' +
-                '<button class="btn btn-green btn-sm" onclick="approveKyc(\'' + u.id + '\')">Approve</button> ' +
-                '<button class="btn btn-red btn-sm" onclick="rejectKyc(\'' + u.id + '\')">Reject</button>' +
-            '</td>' +
-            '</tr>';
+        var selfie = u.selfieUrl ? '<button class="btn btn-blue btn-sm" onclick="window.open(\'' + esc(u.selfieUrl) + '\',\'_blank\')">📷 View</button>' : 'No Selfie';
+        return '<tr><td>' + esc(u.email) + '</td><td>' + idPhoto + '</td><td>' + selfie + '</td><td>' + esc(u.kycStatus || 'NONE') + '</td><td><button class="btn btn-green btn-sm" onclick="approveKyc(\'' + u.id + '\')">Approve</button> <button class="btn btn-red btn-sm" onclick="rejectKyc(\'' + u.id + '\')">Reject</button></td></tr>';
     }).join('');
-
-    if (!html) html = '<tr><td colspan="5" style="text-align:center;color:#888;">No pending KYC requests</td></tr>';
+    if (!html) html = '<tr><td colspan="5" style="text-align:center;color:#888;">No pending</td></tr>';
     document.getElementById('kycTable').innerHTML = html;
 }
 
 // ============================================================
-// RENDER: LISTINGS (Public)
+// RENDER: LISTINGS
 // ============================================================
 function renderListings() {
     if (!allData) return;
     var listings = allData.listings || [];
-
     var html = listings.map(function(l) {
-        var verified = l.isVerified ? '<span style="color:#28a745;font-weight:bold;">✓ GREEN</span>' : '<span style="color:#888;">GREY</span>';
+        var verified = l.isVerified ? '<span style="color:#28a745;font-weight:bold;">✓</span>' : '<span style="color:#888;">—</span>';
         var price = 'R' + (l.price || l.currentBid || l.startingPrice || 0).toLocaleString();
-        var status = esc(l.status || 'ACTIVE');
         var actions = '';
-        if (!l.isVerified) {
-            actions += '<button class="btn btn-green btn-sm" onclick="verifyListing(\'' + l.id + '\')">Verify</button> ';
-        }
-        actions += '<button class="btn btn-gold btn-sm" onclick="openPrivateModal(\'' + l.id + '\')">💎 Make Private</button> ';
-        if (l.status === 'ACTIVE') {
-            actions += '<button class="btn btn-black btn-sm" onclick="endListing(\'' + l.id + '\')">End</button>';
-        }
-
-        return '<tr>' +
-            '<td>' + esc(l.title) + '</td>' +
-            '<td>' + price + '</td>' +
-            '<td>' + esc(l.listingType || 'FIXED_PRICE') + '</td>' +
-            '<td>' + verified + '</td>' +
-            '<td>' + status + '</td>' +
-            '<td>' + actions + '</td>' +
-            '</tr>';
+        if (!l.isVerified) actions += '<button class="btn btn-green btn-sm" onclick="verifyListing(\'' + l.id + '\')">Verify</button> ';
+        actions += '<button class="btn btn-gold btn-sm" onclick="openPrivateModal(\'' + l.id + '\')">💎 Private</button> ';
+        actions += '<button class="btn btn-red btn-sm" onclick="addToLiveQueue(\'' + l.id + '\')">🔴 Add to Live</button> ';
+        if (l.status === 'ACTIVE') actions += '<button class="btn btn-black btn-sm" onclick="endListing(\'' + l.id + '\')">End</button>';
+        return '<tr><td>' + esc(l.title) + '</td><td>' + price + '</td><td>' + esc(l.listingType) + '</td><td>' + verified + '</td><td>' + esc(l.status) + '</td><td>' + actions + '</td></tr>';
     }).join('');
-
-    if (!html) html = '<tr><td colspan="6" style="text-align:center;color:#888;">No public listings</td></tr>';
+    if (!html) html = '<tr><td colspan="6" style="text-align:center;color:#888;">No listings</td></tr>';
     document.getElementById('listingsTable').innerHTML = html;
 }
 
 // ============================================================
-// RENDER: PRIVATE COLLECTION
+// RENDER: PRIVATE
 // ============================================================
 function renderPrivate() {
     if (!allData) return;
     var listings = allData.privateListings || [];
-
     var html = listings.map(function(l) {
         var badge = '<span class="badge-private">' + esc(l.sourceBadge || 'Verified') + '</span>';
-        var status = esc(l.privateStatus || 'Available Privately');
-        var trust = esc(l.trustLine || '-');
-
-        var actions = '';
-        actions += '<button class="btn btn-blue btn-sm" onclick="editPrivateDetails(\'' + l.id + '\')">Edit</button> ';
-        actions += '<button class="btn btn-black btn-sm" onclick="togglePrivate(\'' + l.id + '\')">← Back to Public</button>';
-
-        return '<tr>' +
-            '<td>' + esc(l.title) + '</td>' +
-            '<td>' + badge + '</td>' +
-            '<td>' + status + '</td>' +
-            '<td style="font-size:0.8rem;color:#666;">' + trust + '</td>' +
-            '<td>' + actions + '</td>' +
-            '</tr>';
+        return '<tr><td>' + esc(l.title) + '</td><td>' + badge + '</td><td>' + esc(l.privateStatus || '') + '</td><td style="font-size:0.8rem;color:#666;">' + esc(l.trustLine || '-') + '</td><td><button class="btn btn-blue btn-sm" onclick="editPrivateDetails(\'' + l.id + '\')">Edit</button> <button class="btn btn-black btn-sm" onclick="togglePrivate(\'' + l.id + '\')">← Public</button></td></tr>';
     }).join('');
-
-    if (!html) html = '<tr><td colspan="5" style="text-align:center;color:#888;">No private listings. Move cars here from the Listings tab.</td></tr>';
+    if (!html) html = '<tr><td colspan="5" style="text-align:center;color:#888;">No private listings</td></tr>';
     document.getElementById('privateTable').innerHTML = html;
 }
 
 // ============================================================
-// RENDER: BIDS
+// RENDER: BIDS & REPORTS
 // ============================================================
 function renderBids() {
     if (!allData) return;
     var bids = allData.bids || [];
     var html = bids.map(function(b) {
-        return '<tr>' +
-            '<td>' + esc(b.bidderId || '?') + '</td>' +
-            '<td>' + esc(b.listingId || '?') + '</td>' +
-            '<td>R' + Number(b.amount || 0).toLocaleString() + '</td>' +
-            '<td>' + (b.createdAt ? new Date(b.createdAt).toLocaleString() : '—') + '</td>' +
-            '</tr>';
+        return '<tr><td>' + esc(b.bidderId || '?') + '</td><td>' + esc(b.listingId || '?') + '</td><td>R' + Number(b.amount || 0).toLocaleString() + '</td><td>' + (b.createdAt ? new Date(b.createdAt).toLocaleString() : '—') + '</td></tr>';
     }).join('');
-
     if (!html) html = '<tr><td colspan="4" style="text-align:center;color:#888;">No bids</td></tr>';
     document.getElementById('bidsTable').innerHTML = html;
 }
 
-// ============================================================
-// RENDER: REPORTS
-// ============================================================
 function renderReports() {
     adminApi('/api/admin/reports').then(function(data) {
         if (!data) return;
         var html = data.map(function(r) {
-            return '<tr>' +
-                '<td>' + esc(r.buyerName || r.buyerId || '?') + '</td>' +
-                '<td>' + esc(r.sellerName || r.sellerId || '?') + '</td>' +
-                '<td>' + esc(r.listingTitle || r.listingId || '?') + '</td>' +
-                '<td>R' + Number(r.amount || 0).toLocaleString() + '</td>' +
-                '<td>' +
-                    '<button class="btn btn-green btn-sm" onclick="resolveReport(\'' + r.id + '\')">Resolve</button> ' +
-                    '<button class="btn btn-outline btn-sm" onclick="dismissReport(\'' + r.id + '\')">Dismiss</button>' +
-                '</td>' +
-                '</tr>';
+            return '<tr><td>' + esc(r.buyerName || '?') + '</td><td>' + esc(r.sellerName || '?') + '</td><td>' + esc(r.listingTitle || '?') + '</td><td>R' + Number(r.amount || 0).toLocaleString() + '</td><td><button class="btn btn-green btn-sm" onclick="resolveReport(\'' + r.id + '\')">Resolve</button> <button class="btn btn-outline btn-sm" onclick="dismissReport(\'' + r.id + '\')">Dismiss</button></td></tr>';
         }).join('');
-        if (!html) html = '<tr><td colspan="5" style="text-align:center;color:#888;">No pending reports</td></tr>';
+        if (!html) html = '<tr><td colspan="5" style="text-align:center;color:#888;">No reports</td></tr>';
         document.getElementById('reportsTable').innerHTML = html;
     });
 }
 
 // ============================================================
-// PRIVATE: MODAL TO MAKE A LISTING PRIVATE
+// PRIVATE MODAL
 // ============================================================
 function openPrivateModal(listingId) {
     var listing = (allData.listings || []).find(function(l) { return l.id === listingId; });
     var title = listing ? listing.title : '';
-
     openAdminModal(`
         <h3>💎 Move to Private Collection</h3>
-        <p style="color:#666;font-size:0.9rem;margin-bottom:1.25rem;">
-            <strong>${esc(title)}</strong><br>
-            This will remove it from Public Marketplace and add it to Private Sourcing.
-        </p>
-
+        <p style="color:#666;font-size:0.9rem;margin-bottom:1.25rem;"><strong>${esc(title)}</strong></p>
         <label>Source Badge</label>
         <select id="pmSourceBadge">
             <option value="Corporate Fleet Return">Corporate Fleet Return</option>
-            <option value="Central Market Private Collection [Verified]">Central Market Private Collection [Verified]</option>
-            <option value="Private Client Instruction [Off-Market]">Private Client Instruction [Off-Market]</option>
+            <option value="Central Market Private Collection [Verified]">Central Market Private Collection</option>
+            <option value="Private Client Instruction [Off-Market]">Private Client Instruction</option>
             <option value="1 Owner + FSH">1 Owner + FSH</option>
-            <option value="Verified Private Collection">Verified Private Collection</option>
         </select>
-
         <label>Private Status</label>
         <select id="pmStatus">
             <option value="Available Privately">Available Privately</option>
             <option value="Under Instruction">Under Instruction</option>
             <option value="Sourced & Delivered">Sourced & Delivered</option>
         </select>
-
-        <label>Trust Line (short 3-5 words)</label>
-        <input id="pmTrustLine" value="Papers Verified & Clear" placeholder="e.g. No Accident History">
-
+        <label>Trust Line</label>
+        <input id="pmTrustLine" value="Papers Verified & Clear">
         <div style="display:flex;gap:0.5rem;margin-top:1rem;">
             <button class="btn btn-gold" style="padding:0.7rem 1.2rem;font-size:0.9rem;" onclick="confirmMakePrivate('${listingId}')">💎 Make Private</button>
             <button class="btn btn-outline" style="padding:0.7rem 1.2rem;font-size:0.9rem;" onclick="closeAdminModal()">Cancel</button>
         </div>
     `);
 }
-
 async function confirmMakePrivate(listingId) {
-    var sourceBadge = document.getElementById('pmSourceBadge').value;
-    var privateStatus = document.getElementById('pmStatus').value;
-    var trustLine = document.getElementById('pmTrustLine').value;
-
     var result = await adminApi('/api/admin/listings/' + listingId + '/toggle-private', 'POST', {
-        sourceBadge: sourceBadge,
-        privateStatus: privateStatus,
-        trustLine: trustLine
+        sourceBadge: document.getElementById('pmSourceBadge').value,
+        privateStatus: document.getElementById('pmStatus').value,
+        trustLine: document.getElementById('pmTrustLine').value
     });
-    if (result) {
-        showToast(result.message || 'Moved to Private', 'info');
-        closeAdminModal();
-        loadAdminData();
-    }
+    if (result) { showToast(result.message, 'info'); closeAdminModal(); loadAdminData(); }
 }
-
-// ============================================================
-// PRIVATE: EDIT DETAILS
-// ============================================================
 function editPrivateDetails(listingId) {
     var listing = (allData.privateListings || []).find(function(l) { return l.id === listingId; });
     if (!listing) return;
-
     openAdminModal(`
         <h3>💎 Edit Private Details</h3>
         <p style="color:#666;font-size:0.9rem;margin-bottom:1.25rem;"><strong>${esc(listing.title)}</strong></p>
-
         <label>Source Badge</label>
-        <select id="epSourceBadge">
-            <option value="Corporate Fleet Return" ${listing.sourceBadge === 'Corporate Fleet Return' ? 'selected' : ''}>Corporate Fleet Return</option>
-            <option value="Central Market Private Collection [Verified]" ${listing.sourceBadge === 'Central Market Private Collection [Verified]' ? 'selected' : ''}>Central Market Private Collection [Verified]</option>
-            <option value="Private Client Instruction [Off-Market]" ${listing.sourceBadge === 'Private Client Instruction [Off-Market]' ? 'selected' : ''}>Private Client Instruction [Off-Market]</option>
-            <option value="1 Owner + FSH" ${listing.sourceBadge === '1 Owner + FSH' ? 'selected' : ''}>1 Owner + FSH</option>
-            <option value="Verified Private Collection" ${listing.sourceBadge === 'Verified Private Collection' ? 'selected' : ''}>Verified Private Collection</option>
-        </select>
-
+        <input id="epSourceBadge" value="${esc(listing.sourceBadge || '')}">
         <label>Private Status</label>
-        <select id="epStatus">
-            <option value="Available Privately" ${listing.privateStatus === 'Available Privately' ? 'selected' : ''}>Available Privately</option>
-            <option value="Under Instruction" ${listing.privateStatus === 'Under Instruction' ? 'selected' : ''}>Under Instruction</option>
-            <option value="Sourced & Delivered" ${listing.privateStatus === 'Sourced & Delivered' ? 'selected' : ''}>Sourced & Delivered</option>
-        </select>
-
+        <input id="epStatus" value="${esc(listing.privateStatus || '')}">
         <label>Trust Line</label>
-        <input id="epTrustLine" value="${esc(listing.trustLine || '')}" placeholder="e.g. No Accident History">
-
+        <input id="epTrustLine" value="${esc(listing.trustLine || '')}">
         <div style="display:flex;gap:0.5rem;margin-top:1rem;">
             <button class="btn btn-gold" style="padding:0.7rem 1.2rem;font-size:0.9rem;" onclick="saveEditPrivateDetails('${listingId}')">Save</button>
             <button class="btn btn-outline" style="padding:0.7rem 1.2rem;font-size:0.9rem;" onclick="closeAdminModal()">Cancel</button>
         </div>
     `);
 }
-
 async function saveEditPrivateDetails(listingId) {
-    var sourceBadge = document.getElementById('epSourceBadge').value;
-    var privateStatus = document.getElementById('epStatus').value;
-    var trustLine = document.getElementById('epTrustLine').value;
-
     var result = await adminApi('/api/admin/listings/' + listingId + '/private-details', 'PUT', {
-        sourceBadge: sourceBadge,
-        privateStatus: privateStatus,
-        trustLine: trustLine
+        sourceBadge: document.getElementById('epSourceBadge').value,
+        privateStatus: document.getElementById('epStatus').value,
+        trustLine: document.getElementById('epTrustLine').value
     });
-    if (result) {
-        showToast('Private details updated', 'info');
-        closeAdminModal();
-        loadAdminData();
-    }
+    if (result) { showToast('Updated', 'info'); closeAdminModal(); loadAdminData(); }
 }
-
 async function togglePrivate(listingId) {
-    if (!confirm('Move this car back to Public Marketplace?')) return;
+    if (!confirm('Move back to Public Marketplace?')) return;
     var result = await adminApi('/api/admin/listings/' + listingId + '/toggle-private', 'POST', {});
-    if (result) {
-        showToast(result.message || 'Moved', 'info');
-        loadAdminData();
-    }
+    if (result) { showToast(result.message, 'info'); loadAdminData(); }
 }
 
 // ============================================================
@@ -879,109 +704,488 @@ async function loadInstructions() {
     var status = document.getElementById('instructionFilter')?.value || '';
     var url = '/api/admin/private/instructions' + (status ? '?status=' + status : '');
     var data = await adminApi(url);
-    if (!data) {
-        document.getElementById('instructionsTable').innerHTML = '<tr><td colspan="7" style="text-align:center;color:#888;">Could not load instructions</td></tr>';
-        return;
-    }
-
+    if (!data) { document.getElementById('instructionsTable').innerHTML = '<tr><td colspan="6" style="text-align:center;color:#888;">Error loading</td></tr>'; return; }
     var html = data.map(function(i) {
         var statusClass = 'status-' + (i.status || 'NEW');
         var statusBadge = '<span class="badge-status ' + statusClass + '">' + esc(i.status || 'NEW') + '</span>';
         var actions = '';
-        if (i.status === 'NEW') {
-            actions = '<button class="btn btn-orange btn-sm" onclick="updateInstruction(\'' + i.id + '\',\'SOURCING\')">Start Sourcing</button>';
-        } else if (i.status === 'SOURCING') {
-            actions = '<button class="btn btn-blue btn-sm" onclick="updateInstruction(\'' + i.id + '\',\'FOUND\')">Found</button>';
-        } else if (i.status === 'FOUND') {
-            actions = '<button class="btn btn-green btn-sm" onclick="updateInstruction(\'' + i.id + '\',\'DELIVERED\')">Delivered</button>';
-        } else {
-            actions = '<span style="color:#888;font-size:0.75rem;">Complete</span>';
-        }
-        actions += ' <button class="btn btn-outline btn-sm" onclick="viewInstruction(\'' + i.id + '\')">View</button>';
-
-        return '<tr>' +
-            '<td>' + esc(i.vehicleWanted) + '</td>' +
-            '<td>' + esc(i.budgetRange) + '</td>' +
-            '<td>' + esc(i.urgency) + '</td>' +
-            '<td>' + esc(i.whatsapp) + '</td>' +
-            '<td>' + statusBadge + '</td>' +
-            '<td style="font-size:0.75rem;">' + (i.createdAt ? new Date(i.createdAt).toLocaleDateString() : '-') + '</td>' +
-            '<td>' + actions + '</td>' +
-            '</tr>';
+        if (i.status === 'NEW') actions = '<button class="btn btn-orange btn-sm" onclick="updateInstruction(\'' + i.id + '\',\'SOURCING\')">Sourcing</button>';
+        else if (i.status === 'SOURCING') actions = '<button class="btn btn-blue btn-sm" onclick="updateInstruction(\'' + i.id + '\',\'FOUND\')">Found</button>';
+        else if (i.status === 'FOUND') actions = '<button class="btn btn-green btn-sm" onclick="updateInstruction(\'' + i.id + '\',\'DELIVERED\')">Deliver</button>';
+        else actions = '<span style="color:#888;font-size:0.75rem;">Complete</span>';
+        return '<tr><td>' + esc(i.vehicleWanted) + '</td><td>' + esc(i.budgetRange) + '</td><td>' + esc(i.urgency) + '</td><td>' + esc(i.whatsapp) + '</td><td>' + statusBadge + '</td><td>' + actions + '</td></tr>';
     }).join('');
-
-    if (!html) html = '<tr><td colspan="7" style="text-align:center;color:#888;">No instructions</td></tr>';
+    if (!html) html = '<tr><td colspan="6" style="text-align:center;color:#888;">No instructions</td></tr>';
     document.getElementById('instructionsTable').innerHTML = html;
 }
-
 async function updateInstruction(id, newStatus) {
-    if (!confirm('Change status to ' + newStatus + '?')) return;
+    if (!confirm('Change to ' + newStatus + '?')) return;
     var result = await adminApi('/api/admin/private/instructions/' + id, 'PUT', { status: newStatus });
-    if (result) {
-        showToast('Status updated to ' + newStatus, 'info');
-        loadInstructions();
+    if (result) { showToast('Status: ' + newStatus, 'info'); loadInstructions(); }
+}
+
+// ============================================================
+// 🔴 LIVE CONTROL
+// ============================================================
+async function loadLiveControl() {
+    var root = document.getElementById('liveControlRoot');
+
+    // Get current live room + sessions
+    var data = await adminApi('/api/live/current');
+    var room = data ? data.room : null;
+    activeLiveRoom = room;
+
+    // Get all listings for the "add to queue" dropdown
+    var listings = allData ? allData.listings : [];
+
+    root.innerHTML = `
+        ${!room ? renderCreateSession() : renderSessionControl(room, listings)}
+    `;
+
+    if (room) {
+        await renderQueueItems(room);
+        attachLiveSocketListeners();
     }
 }
 
-function viewInstruction(id) {
-    showToast('View full instruction via API or DB', 'info');
+function renderCreateSession() {
+    return `
+        <div class="card">
+            <h3>🔴 No Live Session</h3>
+            <p style="color:#666;margin-bottom:1rem;">Create a new live auction session. Scheduled Tuesdays & Fridays 19:00.</p>
+            <div style="display:grid;grid-template-columns:2fr 1fr;gap:1rem;margin-bottom:1rem;">
+                <div>
+                    <label style="display:block;font-size:0.85rem;color:#666;margin-bottom:0.3rem;">Session Title</label>
+                    <input id="newLiveTitle" value="Soweto Wheels Live Friday" style="width:100%;padding:0.6rem 0.8rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
+                </div>
+                <div>
+                    <label style="display:block;font-size:0.85rem;color:#666;margin-bottom:0.3rem;">Scheduled For (optional)</label>
+                    <input id="newLiveScheduled" type="datetime-local" style="width:100%;padding:0.6rem 0.8rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;">
+                </div>
+            </div>
+            <button class="btn btn-red" style="padding:0.7rem 1.5rem;font-size:0.9rem;" onclick="createLiveSession()">🔴 Create Session</button>
+        </div>
+    `;
+}
+
+async function createLiveSession() {
+    var title = document.getElementById('newLiveTitle').value.trim();
+    var scheduledFor = document.getElementById('newLiveScheduled').value || null;
+    if (!title) return showToast('Title required', 'error');
+
+    var result = await adminApi('/api/admin/live/create', 'POST', {
+        title,
+        scheduledFor: scheduledFor ? new Date(scheduledFor).toISOString() : null
+    });
+    if (result) {
+        showToast('Session created', 'info');
+        loadLiveControl();
+    }
+}
+
+function renderSessionControl(room, listings) {
+    var isLive = room.status === 'LIVE';
+    var isScheduled = room.status === 'SCHEDULED';
+
+    return `
+        <div class="card" style="border-left:4px solid ${isLive ? '#E30613' : '#FF9800'};">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+                <div>
+                    <h3 style="display:flex;align-items:center;gap:0.5rem;margin:0;">
+                        ${isLive ? '<span class="live-dot"></span>' : ''}
+                        ${esc(room.title)}
+                        <span style="background:${isLive ? '#E30613' : '#FF9800'};color:white;padding:3px 10px;border-radius:20px;font-size:0.7rem;letter-spacing:1px;">${room.status}</span>
+                    </h3>
+                    <p style="color:#666;font-size:0.85rem;margin:0.4rem 0 0 0;">
+                        👁️ <strong id="adminViewerCount">${room.viewerCount || 0}</strong> watching
+                    </p>
+                </div>
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                    ${isScheduled ? `<button class="btn btn-red" style="padding:0.6rem 1.2rem;font-size:0.85rem;" onclick="startLiveSession('${room.id}')">🔴 GO LIVE</button>` : ''}
+                    ${isLive ? `<button class="btn btn-black" style="padding:0.6rem 1.2rem;font-size:0.85rem;" onclick="endLiveSession('${room.id}')">⏹ End Session</button>` : ''}
+                </div>
+            </div>
+        </div>
+
+        <div class="live-admin-grid">
+            <!-- LEFT: CAMERA + QUEUE CONTROLS -->
+            <div>
+                <!-- Admin Camera Preview -->
+                <div class="card" style="padding:0;">
+                    <div style="position:relative;background:#000;border-radius:12px 12px 0 0;overflow:hidden;aspect-ratio:16/9;">
+                        <video id="adminLiveVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;display:none;"></video>
+                        <div id="adminCameraPlaceholder" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;background:linear-gradient(135deg,#1A1A1A,#000);color:#fff;text-align:center;padding:1rem;">
+                            <p style="margin:0;font-weight:700;">📹 Camera is off</p>
+                            <p style="margin:0.5rem 0 0 0;font-size:0.8rem;color:#9CA3AF;">Click GO LIVE to start broadcasting</p>
+                        </div>
+                    </div>
+                    <div style="padding:1rem;display:flex;gap:0.5rem;flex-wrap:wrap;">
+                        ${isLive ? `
+                            <button class="btn btn-black" style="padding:0.5rem 1rem;font-size:0.85rem;" onclick="startAdminCamera()">📹 Start Camera</button>
+                            <button class="btn btn-outline" style="padding:0.5rem 1rem;font-size:0.85rem;" onclick="stopAdminCamera()">Stop Camera</button>
+                        ` : `<p style="color:#666;font-size:0.85rem;margin:0;">Camera controls unlock when live</p>`}
+                    </div>
+                </div>
+
+                <!-- Queue -->
+                <div class="card">
+                    <h3>📋 Item Queue</h3>
+                    <div id="liveQueueTable" style="margin-bottom:1rem;">
+                        <p style="color:#888;font-size:0.85rem;">Loading queue...</p>
+                    </div>
+
+                    <!-- Add Item Form -->
+                    <div style="background:#F5F5F7;padding:1rem;border-radius:10px;">
+                        <p style="font-weight:700;margin:0 0 0.75rem 0;font-size:0.85rem;">➕ Add car to queue</p>
+                        <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:0.5rem;align-items:end;">
+                            <div>
+                                <label style="display:block;font-size:0.75rem;color:#666;margin-bottom:0.25rem;">Listing</label>
+                                <select id="addQueueListing" style="width:100%;padding:0.5rem 0.7rem;border-radius:8px;background:white;border:1px solid #EAEAEA;font-size:0.85rem;">
+                                    <option value="">-- Choose car --</option>
+                                    ${listings.map(l => `<option value="${l.id}">${esc(l.title)} (${l.year || '—'})</option>`).join('')}
+                                </select>
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:0.75rem;color:#666;margin-bottom:0.25rem;">Start Price (R)</label>
+                                <input id="addQueuePrice" type="number" placeholder="42000" style="width:100%;padding:0.5rem 0.7rem;border-radius:8px;background:white;border:1px solid #EAEAEA;font-size:0.85rem;">
+                            </div>
+                            <button class="btn btn-red" style="padding:0.6rem 1rem;font-size:0.8rem;height:fit-content;" onclick="addCarToQueue('${room.id}')">Add</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT: LIVE CHAT FEED -->
+            <div>
+                <div class="card" style="padding:0;">
+                    <div style="padding:0.75rem 1rem;background:#101010;color:#fff;font-weight:800;font-size:0.85rem;letter-spacing:1px;border-radius:12px 12px 0 0;">
+                        💬 LIVE CHAT
+                    </div>
+                    <div id="adminLiveChatFeed" style="height:400px;overflow-y:auto;padding:0.75rem 1rem;background:#FAFAFA;">
+                        <p style="color:#999;font-size:0.85rem;text-align:center;">Chat will appear here when bidders join...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+async function renderQueueItems(room) {
+    var data = await adminApi('/api/live/' + room.id);
+    if (!data) return;
+    var queue = data.queue || [];
+    var el = document.getElementById('liveQueueTable');
+    if (!el) return;
+
+    if (queue.length === 0) {
+        el.innerHTML = '<p style="color:#888;font-size:0.85rem;">No cars in queue yet. Add one below.</p>';
+        return;
+    }
+
+    el.innerHTML = queue.map(function(item, idx) {
+        var statusColor = {
+            'PENDING': '#666',
+            'ACTIVE': '#E30613',
+            'SOLD': '#28a745',
+            'PASSED': '#999'
+        }[item.status] || '#666';
+
+        var actions = '';
+        if (item.status === 'PENDING') {
+            actions = `<button class="btn btn-red btn-sm" onclick="startItem('${item.id}')">▶ START</button> `;
+        } else if (item.status === 'ACTIVE') {
+            actions = `<button class="btn btn-green btn-sm" onclick="markSold('${item.id}')">🔨 SOLD</button> `;
+            actions += `<button class="btn btn-outline btn-sm" onclick="markPassed('${item.id}')">Pass</button> `;
+        }
+        actions += `<button class="btn btn-outline btn-sm" onclick="removeItem('${room.id}','${item.id}')">🗑</button>`;
+
+        return `
+            <div style="display:flex;gap:0.75rem;align-items:center;padding:0.75rem;border-bottom:1px solid #F0F0F0;">
+                <div style="width:24px;height:24px;background:${statusColor};color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:900;flex-shrink:0;">${idx + 1}</div>
+                <img src="${esc(item.listing?.mainImageUrl || '/logo.jpeg')}" style="width:50px;height:50px;object-fit:cover;border-radius:8px;flex-shrink:0;" onerror="this.src='/logo.jpeg'">
+                <div style="flex:1;min-width:0;">
+                    <p style="margin:0;font-weight:700;font-size:0.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(item.listing?.title || 'Unknown')}</p>
+                    <p style="margin:0.15rem 0 0 0;font-size:0.75rem;color:#666;">
+                        Start R${Number(item.startPrice).toLocaleString()}
+                        ${item.currentBid ? '• Current <strong style="color:#E30613;">R' + Number(item.currentBid).toLocaleString() + '</strong>' : ''}
+                        ${item.currentBidderName ? '• ' + esc(item.currentBidderName) : ''}
+                    </p>
+                </div>
+                <div style="display:flex;gap:0.25rem;flex-wrap:wrap;justify-content:flex-end;">
+                    <span style="background:${statusColor};color:white;padding:2px 8px;border-radius:4px;font-size:0.65rem;font-weight:700;">${item.status}</span>
+                    ${actions}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function startLiveSession(roomId) {
+    if (!confirm('Start the live auction NOW?')) return;
+    var result = await adminApi('/api/admin/live/' + roomId + '/start', 'POST');
+    if (result) {
+        showToast('🔴 You are LIVE!', 'info');
+        loadLiveControl();
+    }
+}
+
+async function endLiveSession(roomId) {
+    if (!confirm('End the live session?')) return;
+    stopAdminCamera();
+    var result = await adminApi('/api/admin/live/' + roomId + '/end', 'POST');
+    if (result) {
+        showToast('Session ended', 'info');
+        loadLiveControl();
+    }
+}
+
+async function addCarToQueue(roomId) {
+    var listingId = document.getElementById('addQueueListing').value;
+    var startPrice = document.getElementById('addQueuePrice').value;
+    if (!listingId || !startPrice) return showToast('Select car + enter start price', 'error');
+
+    var result = await adminApi('/api/admin/live/' + roomId + '/add-item', 'POST', {
+        listingId,
+        startPrice: parseFloat(startPrice)
+    });
+    if (result) {
+        showToast('Car added to queue', 'info');
+        renderQueueItems(activeLiveRoom);
+    }
+}
+
+async function startItem(itemId) {
+    var result = await adminApi('/api/admin/live/item/' + itemId + '/start', 'POST');
+    if (result) { showToast('🔥 On the block!', 'info'); renderQueueItems(activeLiveRoom); }
+}
+
+async function markSold(itemId) {
+    if (!confirm('Mark SOLD?')) return;
+    var result = await adminApi('/api/admin/live/item/' + itemId + '/sold', 'POST');
+    if (result) { showToast('🔨 SOLD!', 'info'); renderQueueItems(activeLiveRoom); }
+}
+
+async function markPassed(itemId) {
+    if (!confirm('Pass this car?')) return;
+    var result = await adminApi('/api/admin/live/item/' + itemId + '/pass', 'POST');
+    if (result) { showToast('Passed', 'info'); renderQueueItems(activeLiveRoom); }
+}
+
+async function removeItem(roomId, itemId) {
+    if (!confirm('Remove from queue?')) return;
+    var result = await adminApi('/api/admin/live/' + roomId + '/remove-item/' + itemId, 'POST');
+    if (result) { showToast('Removed', 'info'); renderQueueItems(activeLiveRoom); }
+}
+
+// Shortcut: Add car directly from Listings tab
+async function addToLiveQueue(listingId) {
+    var data = await adminApi('/api/live/current');
+    var room = data ? data.room : null;
+    if (!room) return showToast('No live session. Create one in Live Control first.', 'error');
+    var startPrice = prompt('Start price for this car (R)?', '50000');
+    if (!startPrice) return;
+    var result = await adminApi('/api/admin/live/' + room.id + '/add-item', 'POST', {
+        listingId, startPrice: parseFloat(startPrice)
+    });
+    if (result) showToast('Added to live queue', 'info');
 }
 
 // ============================================================
-// ACTION HANDLERS
+// 🔴 ADMIN CAMERA (WebRTC broadcast)
+// ============================================================
+async function startAdminCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        return showToast('Camera not available in this browser', 'error');
+    }
+    try {
+        liveLocalStream = await navigator.mediaDevices.getUserMedia({
+            video: { width: 1280, height: 720, facingMode: 'environment' },
+            audio: true
+        });
+        var video = document.getElementById('adminLiveVideo');
+        var ph = document.getElementById('adminCameraPlaceholder');
+        if (video) { video.srcObject = liveLocalStream; video.style.display = 'block'; }
+        if (ph) ph.style.display = 'none';
+
+        // Notify viewers we're live
+        if (adminSocket && activeLiveRoom) {
+            adminSocket.emit('liveStartCamera', { roomId: activeLiveRoom.id });
+            // Send WebRTC offer to every connected viewer
+            broadcastToViewers();
+        }
+        showToast('📹 Camera started', 'info');
+    } catch (e) {
+        showToast('Camera access denied: ' + e.message, 'error');
+    }
+}
+
+function stopAdminCamera() {
+    if (liveLocalStream) {
+        liveLocalStream.getTracks().forEach(t => t.stop());
+        liveLocalStream = null;
+    }
+    // Clean up peers
+    Object.keys(livePeers).forEach(id => {
+        try { livePeers[id].destroy(); } catch(e) {}
+    });
+    livePeers = {};
+
+    var video = document.getElementById('adminLiveVideo');
+    var ph = document.getElementById('adminCameraPlaceholder');
+    if (video) { video.srcObject = null; video.style.display = 'none'; }
+    if (ph) ph.style.display = 'flex';
+
+    if (adminSocket && activeLiveRoom) {
+        adminSocket.emit('liveStopCamera', { roomId: activeLiveRoom.id });
+    }
+}
+
+function broadcastToViewers() {
+    // Simple: emit an offer to all viewers in the room
+    // We use a single global peer approach for simplicity
+    // (For multi-viewer, each viewer needs their own peer)
+    // For v1, we assume 1 auctioneer camera shared across all viewers via
+    // a mesh (each viewer gets its own peer).
+    // We don't know viewer socket IDs directly here,
+    // so we emit a "broadcast offer" event and viewers reply.
+    if (!adminSocket || !activeLiveRoom) return;
+
+    // Emit a special event that triggers all viewers to request a peer connection
+    adminSocket.emit('liveBroadcastOffer', { roomId: activeLiveRoom.id });
+}
+
+// ============================================================
+// LIVE SOCKET (Admin side)
+// ============================================================
+function attachLiveSocketListeners() {
+    if (adminSocket) return; // already attached
+
+    var token = getToken();
+    adminSocket = io({ auth: { token: token || '' } });
+
+    adminSocket.on('connect', () => {
+        console.log('Admin socket connected');
+        if (activeLiveRoom) {
+            adminSocket.emit('liveJoin', { roomId: activeLiveRoom.id });
+        }
+    });
+
+    adminSocket.on('liveChatMessage', (msg) => {
+        var feed = document.getElementById('adminLiveChatFeed');
+        if (!feed) return;
+        var html = msg.isSystem
+            ? `<div style="margin:0.35rem 0;font-size:0.8rem;color:#E30613;font-weight:700;text-align:center;">${esc(msg.message)}</div>`
+            : `<div style="margin:0.4rem 0;font-size:0.85rem;"><span style="font-weight:800;">${esc(msg.userName)}:</span> <span style="color:#444;">${esc(msg.message)}</span></div>`;
+        feed.innerHTML += html;
+        feed.scrollTop = feed.scrollHeight;
+        while (feed.children.length > 100) feed.removeChild(feed.firstChild);
+    });
+
+    adminSocket.on('liveViewerCount', (data) => {
+        var el = document.getElementById('adminViewerCount');
+        if (el) el.textContent = data.count;
+    });
+
+    adminSocket.on('liveBidUpdate', (data) => {
+        // Refresh queue display
+        if (activeLiveRoom) renderQueueItems(activeLiveRoom);
+    });
+
+    // WebRTC: viewer requests peer connection
+    adminSocket.on('liveViewerReady', async (data) => {
+        // Viewer is ready — create a peer for them and send offer
+        if (!liveLocalStream) return;
+        var viewerId = data.from;
+        if (!viewerId) return;
+
+        var peer = new SimplePeer({
+            initiator: true,
+            trickle: true,
+            stream: liveLocalStream,
+            config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+        });
+
+        peer.on('signal', (signal) => {
+            if (signal.type === 'offer') {
+                adminSocket.emit('liveVideoOffer', { roomId: activeLiveRoom.id, signal, to: viewerId });
+            } else if (signal.candidate) {
+                adminSocket.emit('liveVideoCandidate', { roomId: activeLiveRoom.id, candidate: signal, to: viewerId });
+            }
+        });
+
+        peer.on('error', (err) => {
+            console.warn('Peer error with', viewerId, err.message);
+        });
+
+        peer.on('close', () => {
+            delete livePeers[viewerId];
+        });
+
+        livePeers[viewerId] = peer;
+    });
+
+    adminSocket.on('liveVideoAnswer', async (data) => {
+        var peer = livePeers[data.from];
+        if (peer && !peer.destroyed) {
+            try { await peer.signal(data.signal); } catch(e) {}
+        }
+    });
+
+    adminSocket.on('liveVideoCandidate', async (data) => {
+        var peer = livePeers[data.from];
+        if (peer && !peer.destroyed && data.candidate) {
+            try { await peer.signal(data.candidate); } catch(e) {}
+        }
+    });
+}
+
+// ============================================================
+// EXISTING ADMIN ACTIONS
 // ============================================================
 async function makeAuctioneer(userId) {
     if (!confirm('Make this user an AUCTIONEER?')) return;
-    var result = await adminApi('/api/admin/make-auctioneer', 'POST', { userId: userId });
-    if (result) { showToast('Promoted to Auctioneer', 'info'); loadAdminData(); }
+    var result = await adminApi('/api/admin/make-auctioneer', 'POST', { userId });
+    if (result) { showToast('Promoted', 'info'); loadAdminData(); }
 }
-
 async function approveKyc(userId) {
-    if (!confirm('Approve KYC for this user?')) return;
+    if (!confirm('Approve KYC?')) return;
     var result = await adminApi('/api/admin/approve-kyc/' + userId, 'POST');
     if (result) { showToast('KYC Approved', 'info'); loadAdminData(); }
 }
-
 async function rejectKyc(userId) {
-    if (!confirm('Reject KYC for this user?')) return;
+    if (!confirm('Reject KYC?')) return;
     var result = await adminApi('/api/admin/reject-kyc/' + userId, 'POST');
     if (result) { showToast('KYC Rejected', 'info'); loadAdminData(); }
 }
-
 async function blockUser(userId) {
     if (!confirm('Block this user?')) return;
     var result = await adminApi('/api/admin/block-user/' + userId, 'POST');
-    if (result) { showToast('User blocked', 'info'); loadAdminData(); }
+    if (result) { showToast('Blocked', 'info'); loadAdminData(); }
 }
-
 async function unblockUser(userId) {
     if (!confirm('Unblock this user?')) return;
     var result = await adminApi('/api/admin/unblock-user/' + userId, 'POST');
-    if (result) { showToast('User unblocked', 'info'); loadAdminData(); }
+    if (result) { showToast('Unblocked', 'info'); loadAdminData(); }
 }
-
 async function verifyListing(listingId) {
-    if (!confirm('Verify this listing as CM Verified?')) return;
+    if (!confirm('Verify this listing?')) return;
     var result = await adminApi('/api/admin/verify-listing/' + listingId, 'POST');
-    if (result) { showToast('Listing Verified', 'info'); loadAdminData(); }
+    if (result) { showToast('Verified', 'info'); loadAdminData(); }
 }
-
 async function endListing(listingId) {
     if (!confirm('End this listing?')) return;
     var result = await adminApi('/api/admin/end-listing/' + listingId, 'POST');
-    if (result) { showToast('Listing Ended', 'info'); loadAdminData(); }
+    if (result) { showToast('Ended', 'info'); loadAdminData(); }
 }
-
 async function resolveReport(reportId) {
-    if (!confirm('Resolve this report?')) return;
+    if (!confirm('Resolve?')) return;
     var result = await adminApi('/api/admin/report/' + reportId + '/resolve', 'POST');
-    if (result) { showToast('Report resolved', 'info'); renderTab('reports'); }
+    if (result) { showToast('Resolved', 'info'); renderTab('reports'); }
 }
-
 async function dismissReport(reportId) {
-    if (!confirm('Dismiss this report?')) return;
+    if (!confirm('Dismiss?')) return;
     var result = await adminApi('/api/admin/report/' + reportId + '/dismiss', 'POST');
-    if (result) { showToast('Report dismissed', 'info'); renderTab('reports'); }
+    if (result) { showToast('Dismissed', 'info'); renderTab('reports'); }
 }
 
 // ============================================================
@@ -994,9 +1198,11 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
     loadAdminData();
+    // Pre-connect socket for live control
+    attachLiveSocketListeners();
 });
 
-console.log('✅ CM Admin loaded (with Private Sourcing)');
+console.log('✅ CM Admin loaded (with Live Control)');
 </script>
 </body>
 </html>

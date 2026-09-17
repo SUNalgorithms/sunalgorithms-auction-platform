@@ -1,6 +1,7 @@
 /* ============================================================
    CM Central Market - Complete Stylesheet
    Brand: Red #E30613 | Black #101010 | Grey #F5F5F7
+   Clean rebuild - no duplicates
    ============================================================ */
 
 /* ============================================================
@@ -19,7 +20,7 @@
 
     --red: #ff4444;
     --blue: #4dabf7;
-    --gold: #ffd700;
+    --gold: #C9A961;
 
     --wbc-red: #E30613;
     --wbc-black: #101010;
@@ -28,11 +29,7 @@
     --wbc-white: #FFFFFF;
 }
 
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+* { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
@@ -40,9 +37,10 @@ body {
     color: var(--text);
     line-height: 1.6;
     min-height: 100vh;
+    overflow-x: hidden;
 }
 
-::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--wbc-red); border-radius: 10px; }
 
@@ -76,12 +74,13 @@ body {
     display: none;
     align-items: center;
     justify-content: space-between;
-    padding: 0.8rem 2rem;
+    padding: 0.5rem 1.2rem;
     background: var(--wbc-white);
     border-bottom: 1px solid var(--wbc-border);
     position: sticky;
     top: 0;
     z-index: 100;
+    min-height: 68px;
     flex-wrap: wrap;
     gap: 0.5rem;
 }
@@ -91,6 +90,26 @@ body {
     font-size: 0.9rem;
     font-weight: 600;
 }
+
+/* Private Source nav link */
+.nav-private {
+    position: relative;
+    transition: 0.2s;
+    letter-spacing: 0.5px;
+}
+.nav-private:hover { color: var(--gold) !important; }
+.nav-private::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--gold);
+    transform: scaleX(0);
+    transition: transform 0.2s;
+}
+.nav-private:hover::after { transform: scaleX(1); }
 
 /* ============================================================
    ========== 4. BUTTONS ======================================
@@ -131,9 +150,24 @@ body {
 .btn-sm { padding: 0.2rem 0.8rem; font-size: 0.8rem; }
 .btn-block { width: 100%; justify-content: center; }
 
-/* ============================================================
-   ========== 5. BACK BUTTON ==================================
-   ============================================================ */
+/* Private Source button */
+.btn-private {
+    background: #1A1A1A;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 8px;
+    padding: 0.85rem 1.5rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: 0.2s;
+    text-transform: uppercase;
+    font-size: 0.9rem;
+}
+.btn-private:hover { background: #2A2A2A; letter-spacing: 1.2px; }
+.btn-private:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Back button */
 .back-btn {
     background: var(--wbc-white);
     border: 1px solid var(--wbc-border);
@@ -145,13 +179,10 @@ body {
     margin-bottom: 1rem;
     font-size: 0.9rem;
 }
-.back-btn:hover {
-    color: var(--wbc-black);
-    border-color: var(--wbc-black);
-}
+.back-btn:hover { color: var(--wbc-black); border-color: var(--wbc-black); }
 
 /* ============================================================
-   ========== 6. MAIN CONTENT =================================
+   ========== 5. MAIN CONTENT =================================
    ============================================================ */
 #mainContent {
     max-width: 1400px;
@@ -161,7 +192,7 @@ body {
 }
 
 /* ============================================================
-   ========== 7. CARDS ========================================
+   ========== 6. CARDS ========================================
    ============================================================ */
 .card {
     background: var(--bg-card);
@@ -171,17 +202,12 @@ body {
     margin-bottom: 1rem;
     box-shadow: var(--shadow);
 }
-.card h3 {
-    margin-bottom: 0.8rem;
-    color: var(--wbc-black);
-}
+.card h3 { margin-bottom: 0.8rem; color: var(--wbc-black); }
 
 /* ============================================================
-   ========== 8. FORMS ========================================
+   ========== 7. FORMS ========================================
    ============================================================ */
-.form-group {
-    margin-bottom: 1rem;
-}
+.form-group { margin-bottom: 1rem; }
 .form-group label {
     display: block;
     font-size: 0.85rem;
@@ -210,12 +236,10 @@ body {
     box-shadow: 0 0 0 3px rgba(227,6,19,0.1);
 }
 .form-group input::placeholder,
-.form-group textarea::placeholder {
-    color: #999;
-}
+.form-group textarea::placeholder { color: #999; }
 
 /* ============================================================
-   ========== 9. DRAG & DROP AREAS ============================
+   ========== 8. DRAG & DROP ==================================
    ============================================================ */
 .drag-area {
     border: 2px dashed var(--wbc-border);
@@ -230,34 +254,11 @@ body {
     border-color: var(--wbc-red);
     background: rgba(227,6,19,0.03);
 }
-.drag-area i {
-    font-size: 2rem;
-    color: var(--wbc-red);
-}
-.drag-area p {
-    margin: 0.3rem 0 0;
-    color: var(--muted);
-    font-size: 0.85rem;
-}
+.drag-area i { font-size: 2rem; color: var(--wbc-red); }
+.drag-area p { margin: 0.3rem 0 0; color: var(--muted); font-size: 0.85rem; }
 
 /* ============================================================
-   ========== 10. KYC BADGES ==================================
-   ============================================================ */
-.kyc-badge {
-    display: inline-block;
-    background: rgba(227,6,19,0.1);
-    border: 1px solid var(--wbc-red);
-    color: var(--wbc-red);
-    padding: 0.15rem 0.6rem;
-    border-radius: 20px;
-    font-size: 0.65rem;
-    font-weight: 500;
-    margin: 0.2rem 0.2rem 0.2rem 0;
-    white-space: nowrap;
-}
-
-/* ============================================================
-   ========== 11. TOAST =======================================
+   ========== 9. TOAST ========================================
    ============================================================ */
 #toast {
     position: fixed;
@@ -282,7 +283,7 @@ body {
 }
 
 /* ============================================================
-   ========== 12. MODAL =======================================
+   ========== 10. MODAL =======================================
    ============================================================ */
 .modal {
     position: fixed;
@@ -319,19 +320,15 @@ body {
 }
 .close-modal:hover { color: var(--wbc-black); }
 .modal-content h2,
-.modal-content h3 {
-    margin-bottom: 1.2rem;
-    color: var(--wbc-black);
-}
+.modal-content h3 { margin-bottom: 1.2rem; color: var(--wbc-black); }
 
-/* Role selector */
 .role-btn.active {
     border-color: var(--wbc-red) !important;
     background: rgba(227,6,19,0.05) !important;
 }
 
 /* ============================================================
-   ========== 13. AUCTION CARD ================================
+   ========== 11. AUCTION CARD ================================
    ============================================================ */
 .auction-card-item {
     background: var(--wbc-white);
@@ -355,7 +352,6 @@ body {
 }
 .auction-card-item:hover img { transform: scale(1.03); }
 
-/* Listing type toggle */
 .listing-type-btn.active {
     background: var(--wbc-white) !important;
     color: var(--wbc-black) !important;
@@ -363,7 +359,7 @@ body {
 }
 
 /* ============================================================
-   ========== 14. GALLERY (MAIN + THUMBNAILS) =================
+   ========== 12. GALLERY (MAIN + THUMBNAILS) =================
    ============================================================ */
 .gallery-nav-btn {
     position: absolute;
@@ -392,7 +388,7 @@ body {
     position: absolute;
     top: 12px;
     left: 12px;
-    background: #E30613;
+    background: var(--wbc-red);
     color: #fff;
     font-size: 0.7rem;
     font-weight: 700;
@@ -470,24 +466,20 @@ body {
     opacity: 1;
     box-shadow: 0 0 0 3px rgba(227,6,19,0.2);
 }
-.thumbnail-item img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
+.thumbnail-item img { width: 100%; height: 100%; object-fit: cover; }
 
 /* ============================================================
-   ========== 15. LISTING DETAIL – MAIN GRID ==================
+   ========== 13. LISTING DETAIL – MAIN GRID ==================
    ============================================================ */
 .listing-detail-page {
     max-width: 1400px;
     margin: 0 auto;
     padding: 1rem;
-    background: #F5F5F7;
+    background: var(--bg);
     min-height: 100vh;
 }
 
-/* Desktop grid: left column has gallery+specs+desc, right column has bid panel */
+/* Desktop grid: gallery + specs + desc on left, bid panel on right */
 .listing-detail-grid {
     display: grid;
     grid-template-columns: 1fr 380px;
@@ -504,7 +496,6 @@ body {
 .listing-description-block { grid-area: description; }
 .bid-panel                 { grid-area: bid; }
 
-/* Specs & Description block cards */
 .listing-specs-block,
 .listing-description-block {
     background: white;
@@ -530,6 +521,7 @@ body {
     padding: 0.6rem 0.5rem;
     border-radius: 8px;
     text-align: center;
+    min-width: 0;
 }
 .spec-label {
     font-size: 0.7rem;
@@ -553,7 +545,7 @@ body {
 }
 
 /* ============================================================
-   ========== 16. BID PANEL ===================================
+   ========== 14. BID PANEL ===================================
    ============================================================ */
 .bid-panel {
     background: white;
@@ -603,11 +595,8 @@ body {
     margin-top: 0.4rem;
 }
 
-.bid-actions {
-    margin-top: 1.25rem;
-}
+.bid-actions { margin-top: 1.25rem; }
 
-/* Bid input + submit button */
 .bid-input-row {
     display: flex;
     gap: 0.5rem;
@@ -627,7 +616,7 @@ body {
     box-sizing: border-box;
 }
 .bid-submit-btn {
-    background: #E30613;
+    background: var(--wbc-red);
     color: #fff;
     padding: 0.85rem 1.5rem;
     border: none;
@@ -641,7 +630,6 @@ body {
 }
 .bid-submit-btn:hover { background: #c00510; }
 
-/* WhatsApp button */
 .wa-btn {
     display: flex;
     align-items: center;
@@ -679,7 +667,7 @@ body {
     font-size: 1rem;
 }
 .seller-link {
-    color: #E30613;
+    color: var(--wbc-red);
     font-size: 0.85rem;
     font-weight: 700;
     text-decoration: none;
@@ -688,7 +676,7 @@ body {
 }
 
 /* ============================================================
-   ========== 17. FILTER CHIPS ================================
+   ========== 15. FILTER CHIPS ================================
    ============================================================ */
 .filter-chips {
     display: flex;
@@ -717,7 +705,7 @@ body {
 }
 
 /* ============================================================
-   ========== 18. DASHBOARD STATS =============================
+   ========== 16. DASHBOARD STATS =============================
    ============================================================ */
 .dash-stat {
     background: var(--wbc-white);
@@ -741,64 +729,91 @@ body {
 }
 
 /* ============================================================
-   ========== 19. KYC UPLOAD AREAS ============================
+   ========== 17. PRIVATE SOURCE – PRIVATE THEME ==============
    ============================================================ */
-.kyc-upload-area {
-    border: 2px dashed var(--wbc-border);
-    border-radius: var(--radius);
-    padding: 1.5rem;
-    text-align: center;
-    cursor: pointer;
-    transition: 0.2s;
-    background: var(--bg);
+body.private-theme {
+    background: #F8F7F4;
 }
-.kyc-upload-area:hover { border-color: var(--wbc-red); }
-.kyc-upload-area i { font-size: 2rem; color: var(--wbc-red); }
-.kyc-upload-area p {
-    margin: 0.3rem 0 0;
-    color: var(--muted);
-    font-size: 0.85rem;
+
+body.private-theme #mainContent {
+    background: #F8F7F4;
+    max-width: 100%;
+    padding: 0;
+}
+
+body.private-theme #navbar {
+    background: #1A1A1A;
+    border-bottom: 1px solid #2A2A2A;
+}
+body.private-theme #navbar span { color: #E5E5E0; }
+body.private-theme #navbar span:hover { color: #FFFFFF; }
+body.private-theme #navbar .nav-private {
+    color: var(--gold) !important;
+    font-weight: 800;
+}
+body.private-theme #navbar #userDisplay { color: #9CA3AF !important; }
+body.private-theme #navbar #loginNavBtn {
+    border-color: var(--gold);
+    color: var(--gold);
+    background: transparent;
+}
+body.private-theme #navbar #loginNavBtn:hover {
+    background: var(--gold);
+    color: #1A1A1A;
+}
+body.private-theme #navbar #registerNavBtn {
+    background: var(--gold);
+    color: #1A1A1A;
+    border: none;
+}
+body.private-theme #navbar #logoutNavBtn {
+    border-color: #3A3A3A;
+    color: #9CA3AF;
+    background: transparent;
+}
+
+/* Private card */
+.private-card {
+    background: #FFFFFF;
+    border: 1px solid #E5E5E0;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    overflow: hidden;
+    transition: box-shadow 0.3s, transform 0.3s;
+}
+.private-card:hover {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    transform: translateY(-2px);
+}
+
+/* Private theme form inputs */
+body.private-theme .form-group label { color: #6B6B6B; }
+body.private-theme .form-group input,
+body.private-theme .form-group select,
+body.private-theme .form-group textarea {
+    background: #FAFAF8;
+    border: 1px solid #E5E5E0;
+    color: #1A1A1A;
+}
+body.private-theme .form-group input:focus,
+body.private-theme .form-group select:focus,
+body.private-theme .form-group textarea:focus {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(201,169,97,0.15);
+}
+body.private-theme #toast {
+    background: #1A1A1A;
+    border-color: var(--gold);
+    color: #FFFFFF;
+}
+body.private-theme .modal-content {
+    background: #FFFFFF;
+    border-radius: 16px;
 }
 
 /* ============================================================
-   ========== 20. SELLER PROFILE ==============================
-   ============================================================ */
-.seller-profile-header {
-    background: var(--wbc-white);
-    border: 1px solid var(--wbc-border);
-    border-radius: var(--radius);
-    padding: 1.5rem;
-    display: flex;
-    gap: 1.5rem;
-    flex-wrap: wrap;
-    align-items: center;
-    box-shadow: var(--shadow);
-}
-.seller-profile-header .avatar {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    object-fit: cover;
-    background: var(--bg);
-}
-.seller-profile-header .info { flex: 1; }
-.seller-profile-header .info .name {
-    font-size: 1.8rem;
-    font-weight: 700;
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-    color: var(--wbc-black);
-}
-.seller-profile-header .info .meta {
-    color: var(--muted);
-    margin: 0.2rem 0;
-}
-
-/* ============================================================
-   ========== 21. ANIMATIONS ==================================
+   ========== 18. ANIMATIONS ==================================
    ============================================================ */
 @keyframes pulse {
     0%, 100% { opacity: 1; }
@@ -810,86 +825,100 @@ body {
 }
 
 /* ============================================================
-   ========== 22. RESPONSIVE – TABLET (max-width 900px) =======
-   ============================================================ */
-@media (max-width: 900px) {
-    .listing-detail-grid {
-        grid-template-columns: 1fr;
-        grid-template-areas:
-            "gallery"
-            "bid"
-            "specs"
-            "description";
-    }
-}
-
-/* ============================================================
-   ========== 23. RESPONSIVE – MOBILE (max-width 768px) =======
+   ========== 19. RESPONSIVE – MOBILE (max-width 768px) =======
+   ========== ONLY ONE mobile block. Nothing above overrides.
    ============================================================ */
 @media (max-width: 768px) {
 
-    /* Navbar wraps */
+    /* ---------- NAVBAR: single row, scrollable ---------- */
     #navbar {
-        flex-wrap: wrap;
-        height: auto !important;
-        padding: 0.5rem 1rem !important;
-    }
-    #navbar > div {
-        flex-wrap: wrap;
-        gap: 0.5rem;
-    }
-
-    /* Main content padding */
-    #mainContent {
-        padding: 1rem;
+        flex-wrap: nowrap !important;
+        padding: 0.5rem 0.75rem !important;
+        gap: 0.5rem !important;
+        height: 60px !important;
+        min-height: 60px !important;
+        max-height: 60px !important;
+        overflow: hidden !important;
     }
 
-    /* Marketplace grid: single column */
-    .marketplace-grid {
-        grid-template-columns: 1fr !important;
+    /* Logo shrinks */
+    #navbar > div:first-child {
+        flex-shrink: 0 !important;
+        max-width: 100px !important;
+        overflow: hidden !important;
     }
-    #marketplaceSearch {
+    #navbar > div:first-child img {
+        width: 30px !important;
+        height: 30px !important;
+    }
+    #navbar > div:first-child span {
+        font-size: 0.7rem !important;
+    }
+
+    /* Links row scrolls horizontally */
+    #navbar > div:nth-child(2) {
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        gap: 0.6rem !important;
+        flex: 1 1 auto !important;
         min-width: 0 !important;
-        flex: 1 !important;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        padding-bottom: 2px;
+    }
+    #navbar > div:nth-child(2)::-webkit-scrollbar { display: none; }
+
+    #navbar > div:nth-child(2) > span,
+    #navbar > div:nth-child(2) > button {
+        flex-shrink: 0 !important;
+        font-size: 0.78rem !important;
+        padding: 0.35rem 0.5rem !important;
+        white-space: nowrap !important;
     }
 
-    /* Listing detail page padding */
-    .listing-detail-page {
-        padding: 0.75rem;
+    #navbar #loginNavBtn,
+    #navbar #registerNavBtn,
+    #navbar #logoutNavBtn {
+        padding: 0.35rem 0.7rem !important;
+        font-size: 0.72rem !important;
     }
 
-    /* ---- LISTING DETAIL: mobile order = bid → gallery → specs → desc ---- */
+    #navbar #userDisplay { font-size: 0.72rem !important; }
+
+    /* ---------- MAIN CONTENT ---------- */
+    #mainContent { padding: 1rem 0.75rem; }
+    .listing-detail-page { padding: 0.75rem; }
+
+    /* ---------- LISTING DETAIL: FLIP ORDER ---------- */
+    /* Gallery first, then specs, then description, then bid panel LAST */
     .listing-detail-grid {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 1rem !important;
     }
 
-    .bid-panel                 { order: 1; }
-    .listing-gallery-block     { order: 2; }
-    .listing-specs-block       { order: 3; }
-    .listing-description-block { order: 4; }
+    .listing-gallery-block     { order: 1 !important; }
+    .listing-specs-block       { order: 2 !important; }
+    .listing-description-block { order: 3 !important; }
+    .bid-panel                 { order: 4 !important; }
 
-    /* Bid panel on mobile: full-width, no sticky, no cut-off, no scroll trap */
+    /* Bid panel becomes a normal card at the bottom */
     .bid-panel {
         position: static !important;
         top: auto !important;
-        padding: 1rem !important;
-        margin-left: -0.75rem;
-        margin-right: -0.75rem;
-        border-left: none;
-        border-right: none;
-        border-radius: 0;
-        max-height: none;
-        overflow-y: visible;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+        padding: 1.25rem !important;
+        border-radius: 12px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.06) !important;
     }
 
-    /* Timer/price sizes */
     .bid-timer { font-size: 1.75rem; }
     .bid-price { font-size: 2rem; }
 
-    /* Bid input + button stack on mobile (prevents cut-off) */
+    /* Bid input + button stack vertically */
     .bid-input-row {
         flex-direction: column;
         gap: 0.5rem;
@@ -899,75 +928,109 @@ body {
         padding: 0.9rem;
     }
 
-    /* Gallery arrows smaller */
-    .gallery-nav-btn {
-        width: 34px;
-        height: 34px;
-        font-size: 1.3rem;
-    }
-
-    /* Thumbnails smaller */
-    .thumbnail-item {
-        width: 64px;
-        height: 64px;
-    }
-
-    /* Specs: 3 per row, vertically scrollable if more than fits */
+    /* ---------- SPECS GRID: 3 per row, fits, ellipsis ---------- */
     .specs-grid {
-        grid-template-columns: repeat(3, 1fr);
-        max-height: 220px;
-        overflow-y: auto;
-        padding-right: 0.25rem;
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: 0.4rem !important;
     }
-    .spec-item { padding: 0.5rem 0.3rem; }
-    .spec-value { font-size: 0.85rem; }
+    .spec-item {
+        padding: 0.5rem 0.3rem !important;
+        min-width: 0 !important;
+        overflow: hidden;
+    }
+    .spec-label {
+        font-size: 0.62rem !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .spec-value {
+        font-size: 0.8rem !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: block;
+    }
 
-    /* Dashboard stats smaller */
+    /* ---------- GALLERY: smaller arrows & thumbs ---------- */
+    .gallery-nav-btn {
+        width: 34px !important;
+        height: 34px !important;
+        font-size: 1.3rem !important;
+    }
+    .thumbnail-item {
+        width: 64px !important;
+        height: 64px !important;
+    }
+
+    /* ---------- MARKETPLACE: single column ---------- */
+    .marketplace-grid {
+        grid-template-columns: 1fr !important;
+    }
+    #marketplaceSearch {
+        min-width: 0 !important;
+        flex: 1 !important;
+    }
+
+    /* ---------- DASHBOARD STATS ---------- */
     .dash-stat { padding: 1rem; }
     .dash-stat .value { font-size: 1.5rem; }
 
-    /* Seller profile centered */
+    /* ---------- SELLER PROFILE ---------- */
     .seller-profile-header {
         flex-direction: column;
         text-align: center;
     }
+
+    /* ---------- PRIVATE THEME MOBILE ---------- */
+    body.private-theme #navbar {
+        padding: 0.5rem 0.75rem !important;
+    }
 }
 
 /* ============================================================
-   ========== 24. RESPONSIVE – SMALL PHONES (max-width 480px) =
+   ========== 20. RESPONSIVE – SMALL PHONES (max-width 480px) =
    ============================================================ */
 @media (max-width: 480px) {
 
-    /* Tighter page padding */
+    #navbar {
+        height: 56px !important;
+        min-height: 56px !important;
+        max-height: 56px !important;
+        padding: 0.4rem 0.5rem !important;
+    }
+    #navbar > div:first-child { max-width: 70px !important; }
+    #navbar > div:first-child img {
+        width: 26px !important;
+        height: 26px !important;
+    }
+
+    #navbar > div:nth-child(2) > span,
+    #navbar > div:nth-child(2) > button {
+        font-size: 0.72rem !important;
+        padding: 0.3rem 0.45rem !important;
+    }
+
+    /* Hide user display to save space */
+    #navbar #userDisplay { display: none !important; }
+
     #mainContent {
-        padding: 0.5rem;
+        padding: 0.75rem 0.5rem;
     }
-    .listing-detail-page {
-        padding: 0.5rem;
-    }
+    .listing-detail-page { padding: 0.5rem; }
 
-    /* Bid panel full-bleed adjustments */
-    .bid-panel {
-        margin-left: -0.5rem;
-        margin-right: -0.5rem;
-        padding: 0.9rem !important;
-    }
-
-    /* Smaller timer & price */
+    .bid-panel { padding: 1rem !important; }
     .bid-timer { font-size: 1.5rem; }
     .bid-price { font-size: 1.75rem; }
 
-    /* Smaller gallery arrows */
     .gallery-nav-btn {
-        width: 30px;
-        height: 30px;
-        font-size: 1.2rem;
+        width: 30px !important;
+        height: 30px !important;
+        font-size: 1.2rem !important;
     }
-
-    /* Smaller thumbnails */
     .thumbnail-item {
-        width: 60px;
-        height: 60px;
+        width: 60px !important;
+        height: 60px !important;
     }
 
     /* Filter chips smaller */
@@ -976,195 +1039,234 @@ body {
         font-size: 0.8rem;
     }
 }
+
 /* ============================================================
-   ========== PRIVATE SOURCING THEME (Woolworths Style) =======
+   ========== LIVE AUCTION ROOM THEME =========================
    ========== Append-only block – do not modify above =========
    ============================================================ */
 
-/* ---------- NAVBAR: PRIVATE SOURCE LINK ---------- */
-.nav-private {
+/* ---------- NAV ITEM: LIVE ROOM ---------- */
+.nav-live {
     position: relative;
     transition: 0.2s;
     letter-spacing: 0.5px;
 }
-.nav-private:hover {
-    color: #C9A961 !important;
-}
-.nav-private::after {
-    content: '';
-    position: absolute;
-    bottom: -4px;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: #C9A961;
-    transform: scaleX(0);
-    transition: transform 0.2s;
-}
-.nav-private:hover::after {
-    transform: scaleX(1);
+.nav-live:hover {
+    color: #c00510 !important;
 }
 
-/* ---------- BODY: PRIVATE THEME OVERRIDES ---------- */
-body.private-theme {
-    background: #F8F7F4;
+.live-dot {
+    width: 8px;
+    height: 8px;
+    background: #E30613;
+    border-radius: 50%;
+    display: inline-block;
+    animation: livePulse 1.5s infinite;
+    flex-shrink: 0;
 }
 
-body.private-theme #mainContent {
-    background: #F8F7F4;
-    max-width: 100%;
-    padding: 0;
+@keyframes livePulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.75); }
 }
 
-/* Navbar turns charcoal when in private mode */
-body.private-theme #navbar {
+/* ---------- LIVE THEME BODY OVERRIDES ---------- */
+body.live-theme {
     background: #1A1A1A;
+}
+
+body.live-theme #mainContent {
+    background: #1A1A1A;
+    color: #FFFFFF;
+    max-width: 1400px;
+    padding: 1rem;
+}
+
+/* Navbar stays visible but with dark accent */
+body.live-theme #navbar {
+    background: #101010;
     border-bottom: 1px solid #2A2A2A;
 }
-
-body.private-theme #navbar span {
+body.live-theme #navbar span {
     color: #E5E5E0;
 }
-
-body.private-theme #navbar span:hover {
+body.live-theme #navbar span:hover {
     color: #FFFFFF;
 }
-
-body.private-theme #navbar .nav-private {
-    color: #C9A961 !important;
-    font-weight: 800;
+body.live-theme #navbar .nav-live {
+    color: #E30613 !important;
+    font-weight: 900;
 }
-
-body.private-theme #navbar #userDisplay {
+body.live-theme #navbar #userDisplay {
     color: #9CA3AF !important;
 }
-
-body.private-theme #navbar #marketplaceNavBtn:hover {
-    color: #C9A961;
-}
-
-/* Auth buttons in navbar – muted when in private mode */
-body.private-theme #navbar #loginNavBtn {
-    border-color: #C9A961;
-    color: #C9A961;
+body.live-theme #navbar #loginNavBtn {
+    border-color: #E30613;
+    color: #E30613;
     background: transparent;
 }
-body.private-theme #navbar #loginNavBtn:hover {
-    background: #C9A961;
-    color: #1A1A1A;
+body.live-theme #navbar #registerNavBtn {
+    background: #E30613;
+    color: #FFFFFF;
 }
-body.private-theme #navbar #registerNavBtn {
-    background: #C9A961;
-    color: #1A1A1A;
-    border: none;
-}
-body.private-theme #navbar #registerNavBtn:hover {
-    background: #D4B876;
-}
-body.private-theme #navbar #logoutNavBtn {
+body.live-theme #navbar #logoutNavBtn {
     border-color: #3A3A3A;
     color: #9CA3AF;
     background: transparent;
 }
-body.private-theme #navbar #logoutNavBtn:hover {
-    color: #C9A961;
-    border-color: #C9A961;
+
+/* ---------- LIVE GRID LAYOUT ---------- */
+.live-grid {
+    display: grid;
+    grid-template-columns: 1.6fr 1fr;
+    gap: 1rem;
+    align-items: start;
 }
 
-/* ---------- PRIVATE CARD ---------- */
-.private-card {
-    background: #FFFFFF;
-    border: 1px solid #E5E5E0;
-    border-radius: 16px;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+.live-left {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.live-right {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+/* ---------- VIDEO PLAYER ---------- */
+.live-video-wrap {
+    position: relative;
+    background: #000;
+    border-radius: 12px;
     overflow: hidden;
-    transition: box-shadow 0.3s, transform 0.3s;
+    aspect-ratio: 16 / 10;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 
-.private-card:hover {
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-    transform: translateY(-2px);
+.live-video-wrap video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
 }
 
-/* ---------- PRIVATE BUTTON ---------- */
-.btn-private {
-    background: #1A1A1A;
+/* ---------- BID BUTTON (big, urgent) ---------- */
+.live-bid-btn {
+    background: #E30613;
     color: #FFFFFF;
     border: none;
-    border-radius: 8px;
     padding: 0.85rem 1.5rem;
-    font-weight: 700;
-    letter-spacing: 1px;
+    border-radius: 10px;
+    font-weight: 900;
+    font-size: 1rem;
     cursor: pointer;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
     transition: 0.2s;
-    text-transform: uppercase;
-    font-size: 0.9rem;
+}
+.live-bid-btn:hover {
+    background: #c00510;
+    transform: scale(1.02);
 }
 
-.btn-private:hover {
-    background: #2A2A2A;
-    letter-spacing: 1.2px;
+/* ---------- LIVE CHAT ---------- */
+.live-chat-bubble-system {
+    color: #E30613;
+    font-weight: 700;
+    font-size: 0.8rem;
+    text-align: center;
+    margin: 0.35rem 0;
 }
 
-.btn-private:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-/* ---------- FORM FIELDS IN PRIVATE MODE ---------- */
-body.private-theme .form-group label {
-    color: #6B6B6B;
+.live-chat-bubble-user {
     font-size: 0.85rem;
-    font-weight: 500;
+    margin: 0.4rem 0;
+    color: #FFFFFF;
+}
+.live-chat-bubble-user strong {
+    color: #C9A961;
+    font-weight: 800;
 }
 
-body.private-theme .form-group input,
-body.private-theme .form-group select,
-body.private-theme .form-group textarea {
-    background: #FAFAF8;
-    border: 1px solid #E5E5E0;
-    color: #1A1A1A;
-    border-radius: 8px;
+/* ---------- VIEWER COUNT ---------- */
+.live-viewer-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    color: #9CA3AF;
+    padding: 4px 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 20px;
 }
 
-body.private-theme .form-group input:focus,
-body.private-theme .form-group select:focus,
-body.private-theme .form-group textarea:focus {
-    outline: none;
-    border-color: #C9A961;
-    box-shadow: 0 0 0 3px rgba(201, 169, 97, 0.15);
+/* ---------- COUNTDOWN ---------- */
+.live-countdown-active {
+    animation: countdownPulse 1s infinite;
 }
 
-/* ---------- TOAST IN PRIVATE THEME ---------- */
-body.private-theme #toast {
+@keyframes countdownPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.75; transform: scale(1.03); }
+}
+
+/* ---------- LIVE ROOM CARDS (dark theme) ---------- */
+body.live-theme .card,
+body.live-theme .private-card {
+    background: #232323;
+    border-color: #333;
+    color: #FFFFFF;
+}
+body.live-theme .card h3,
+body.live-theme .block-title {
+    color: #FFFFFF;
+}
+body.live-theme .form-group label {
+    color: #9CA3AF;
+}
+body.live-theme .form-group input,
+body.live-theme .form-group select,
+body.live-theme .form-group textarea {
     background: #1A1A1A;
-    border-color: #C9A961;
+    border: 1px solid #333;
+    color: #FFFFFF;
+}
+body.live-theme .form-group input:focus,
+body.live-theme .form-group select:focus {
+    border-color: #E30613;
+    box-shadow: 0 0 0 3px rgba(227, 6, 19, 0.15);
+}
+
+/* ---------- LIVE THEME TOAST ---------- */
+body.live-theme #toast {
+    background: #101010;
+    border-color: #E30613;
     color: #FFFFFF;
 }
 
-/* ---------- MODAL IN PRIVATE THEME ---------- */
-body.private-theme .modal-content {
-    background: #FFFFFF;
-    border-radius: 16px;
-}
-
-/* ---------- PRIVATE THEME MOBILE ---------- */
-@media (max-width: 768px) {
-    body.private-theme #navbar {
-        padding: 0.5rem 1rem;
+/* ---------- LIVE THEME RESPONSIVE ---------- */
+@media (max-width: 900px) {
+    .live-grid {
+        grid-template-columns: 1fr;
     }
-    
-    /* Trust badges stack better on mobile */
-    body.private-theme .trust-badges-row {
-        flex-direction: column;
-        gap: 0.5rem !important;
-        align-items: flex-start !important;
-        padding-left: 0.5rem;
+    .live-video-wrap {
+        aspect-ratio: 4 / 3;
     }
 }
 
-@media (max-width: 480px) {
-    body.private-theme #mainContent {
-        padding: 0;
+@media (max-width: 600px) {
+    body.live-theme #mainContent {
+        padding: 0.75rem 0.5rem;
+    }
+    .live-bid-btn {
+        width: 100%;
+    }
+    .live-chat-bubble-user {
+        font-size: 0.8rem;
     }
 }
+/* ============================================================
+   ========== END OF STYLES.CSS ===============================
+   ============================================================ */

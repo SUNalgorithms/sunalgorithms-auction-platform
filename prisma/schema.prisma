@@ -50,6 +50,21 @@ enum ReportStatus {
   DISMISSED
 }
 
+// ===== LIVE AUCTION ROOM ENUMS =====
+
+enum LiveRoomStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+}
+
+enum LiveRoomItemStatus {
+  PENDING
+  ACTIVE
+  SOLD
+  PASSED
+}
+
 // ============================================================
 // MODELS
 // ============================================================
@@ -82,7 +97,7 @@ model User {
   sellerProfile         Json?
   favorites             Json?
 
-  // Relations
+  // Relations (existing)
   listings              Listing[]       @relation("UserListings")
   bids                  Bid[]           @relation("UserBids")
   currentBids           Listing[]       @relation("CurrentBidder")
@@ -94,8 +109,13 @@ model User {
   reportsGiven          Report[]        @relation("Reporter")
   soldItems             SoldItem[]      @relation("SellerSoldItems")
 
-  // NEW: Sourcing instructions submitted by this user (if logged in)
+  // Private Sourcing
   sourcingInstructions  SourcingInstruction[] @relation("UserSourcingInstructions")
+
+  // Live Auction Room (NEW)
+  liveRoomsAsAuctioneer LiveRoom[]      @relation("UserLiveRooms")
+  liveBids              LiveBid[]       @relation("UserLiveBids")
+  liveMessages          LiveMessage[]   @relation("UserLiveMessages")
 
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
@@ -161,7 +181,7 @@ model Listing {
   isVerified            Boolean         @default(false)
   verificationStatus    String          @default("PENDING")
 
-  // ===== PRIVATE SOURCING (NEW) =====
+  // ===== PRIVATE SOURCING =====
   isPrivate             Boolean         @default(false)
   sourceBadge           String?
   privateStatus         String?         @default("Available Privately")
@@ -179,6 +199,9 @@ model Listing {
   ratings               Rating[]        @relation("ListingRatings")
   ghostLeads            GhostLead[]
   reports               Report[]        @relation("ReportedListing")
+
+  // Live Auction Room (NEW)
+  liveRoomItems         LiveRoomItem[]
 
   // Indexes
   @@index([sellerId])
@@ -283,29 +306,25 @@ model SoldItem {
 }
 
 // ============================================================
-// NEW MODEL: SourcingInstruction
-// Private sourcing requests from clients (Woolworths concept)
+// PRIVATE SOURCING
 // ============================================================
 
 model SourcingInstruction {
   id                String    @id @default(cuid())
-  
-  // Who submitted it (nullable — guests can submit)
+
   userId            String?
   user              User?     @relation("UserSourcingInstructions", fields: [userId], references: [id], onDelete: SetNull)
-  
-  // Form fields
+
   vehicleWanted     String
-  budgetRange       String    // "R300k-R500k" | "R500k-R800k" | "R800k-R1.2M" | "R1.2M+"
+  budgetRange       String
   yearKmPref        String?
-  urgency           String    // "Within 7 days" | "Within 14 days" | "No rush"
+  urgency           String
   whatsapp          String
   privateEmail      String?
-  
-  // Admin workflow
-  status            String    @default("NEW")  // NEW | SOURCING | FOUND | DELIVERED | CANCELLED
+
+  status            String    @default("NEW")
   notes             String?
-  
+
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -313,4 +332,122 @@ model SourcingInstruction {
   @@index([userId])
   @@index([createdAt])
   @@map("sourcing_instructions")
+}
+
+// ============================================================
+// LIVE AUCTION ROOM (NEW)
+// ============================================================
+
+model LiveRoom {
+  id                  String          @id @default(cuid())
+  title               String
+  scheduledFor        DateTime?
+  status              LiveRoomStatus  @default(SCHEDULED)
+  startedAt           DateTime?
+  endedAt             DateTime?
+
+  // Who is running the auction
+  auctioneerId        String
+  auctioneer          User            @relation("UserLiveRooms", fields: [auctioneerId], references: [id])
+
+  // Currently active car in the queue (nullable)
+  currentItemId       String?
+
+  // Stats
+  viewerCount         Int             @default(0)
+  peakViewerCount     Int             @default(0)
+
+  // Relations
+  items               LiveRoomItem[]
+  messages            LiveMessage[]
+
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  @@index([status])
+  @@index([auctioneerId])
+  @@index([createdAt])
+  @@map("live_rooms")
+}
+
+model LiveRoomItem {
+  id                  String              @id @default(cuid())
+
+  liveRoomId          String
+  liveRoom            LiveRoom            @relation(fields: [liveRoomId], references: [id], onDelete: Cascade)
+
+  listingId           String
+  listing             Listing             @relation(fields: [listingId], references: [id])
+
+  // Position in the queue (0 = first up)
+  order               Int                 @default(0)
+
+  // Pricing
+  startPrice          Float
+  currentBid          Float?
+  currentBidderId     String?
+  currentBidderName   String?
+  soldPrice           Float?
+
+  // Status flow: PENDING → ACTIVE → SOLD/PASSED
+  status              LiveRoomItemStatus  @default(PENDING)
+
+  // Bidding metrics
+  bidCount            Int                 @default(0)
+  lastBidAt           DateTime?
+
+  // Countdown (10 sec auto-hammer + 15 sec anti-snipe extension)
+  countdownEnds       DateTime?
+  extendedCount       Int                 @default(0)
+
+  // Relations
+  bids                LiveBid[]
+
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([liveRoomId])
+  @@index([listingId])
+  @@index([status])
+  @@index([order])
+  @@map("live_room_items")
+}
+
+model LiveBid {
+  id                  String        @id @default(cuid())
+
+  liveRoomItemId      String
+  liveRoomItem        LiveRoomItem  @relation(fields: [liveRoomItemId], references: [id], onDelete: Cascade)
+
+  bidderId            String
+  bidder              User          @relation("UserLiveBids", fields: [bidderId], references: [id])
+
+  bidderName          String
+  amount              Float
+  createdAt           DateTime      @default(now())
+
+  @@index([liveRoomItemId])
+  @@index([bidderId])
+  @@index([createdAt])
+  @@map("live_bids")
+}
+
+model LiveMessage {
+  id                  String        @id @default(cuid())
+
+  liveRoomId          String
+  liveRoom            LiveRoom      @relation(fields: [liveRoomId], references: [id], onDelete: Cascade)
+
+  userId              String?
+  user                User?         @relation("UserLiveMessages", fields: [userId], references: [id], onDelete: SetNull)
+
+  userName            String
+  message             String
+  isSystem            Boolean       @default(false)   // system messages: "Thabo bid R45,000", "SOLD!"
+
+  createdAt           DateTime      @default(now())
+
+  @@index([liveRoomId])
+  @@index([createdAt])
+  @@map("live_messages")
 }
