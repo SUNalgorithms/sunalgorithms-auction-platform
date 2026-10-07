@@ -194,6 +194,38 @@
             align-items:start;
         }
 
+        /* ===== LIVE CHAT FEED (dark, readable) ===== */
+        .admin-live-chat-feed {
+            height:400px;
+            overflow-y:auto;
+            padding:0.75rem 1rem;
+            background:#1A1A1A;
+            color:#FFFFFF;
+        }
+        .admin-live-chat-msg {
+            font-size:0.85rem;
+            margin:0.4rem 0;
+            color:#FFFFFF;
+            line-height:1.4;
+        }
+        .admin-live-chat-msg strong {
+            color:#C9A961;
+            font-weight:800;
+        }
+        .admin-live-chat-system {
+            font-size:0.8rem;
+            color:#E30613;
+            font-weight:700;
+            text-align:center;
+            margin:0.35rem 0;
+        }
+        .admin-live-chat-empty {
+            color:#9CA3AF;
+            font-size:0.85rem;
+            text-align:center;
+            padding:1rem;
+        }
+
         @media(max-width:900px) {
             .live-admin-grid { grid-template-columns:1fr; }
         }
@@ -215,7 +247,6 @@
 
 <div class="container">
 
-    <!-- ===== TOP BAR ===== -->
     <div class="topbar">
         <div class="brand">
             <img src="/logo.jpeg" alt="CM">
@@ -227,7 +258,6 @@
         </div>
     </div>
 
-    <!-- ===== TABS ===== -->
     <div class="tab-bar">
         <button class="active" data-tab="dashboard" onclick="switchTab('dashboard')">📊 Dashboard</button>
         <button data-tab="users" onclick="switchTab('users')">👥 Users</button>
@@ -240,7 +270,6 @@
         <button data-tab="reports" onclick="switchTab('reports')">⚠️ Reports</button>
     </div>
 
-    <!-- DASHBOARD -->
     <div id="dashboard" class="tab-content">
         <div id="stats" class="stats">Loading...</div>
         <div class="card">
@@ -254,7 +283,6 @@
         </div>
     </div>
 
-    <!-- USERS -->
     <div id="users" class="tab-content hidden">
         <div class="card">
             <h3>All Users</h3>
@@ -272,7 +300,6 @@
         </div>
     </div>
 
-    <!-- KYC -->
     <div id="kyc" class="tab-content hidden">
         <div class="card">
             <h3>KYC Verification Requests</h3>
@@ -285,7 +312,6 @@
         </div>
     </div>
 
-    <!-- LISTINGS -->
     <div id="listings" class="tab-content hidden">
         <div class="card">
             <h3>Public Listings</h3>
@@ -298,7 +324,6 @@
         </div>
     </div>
 
-    <!-- PRIVATE -->
     <div id="private" class="tab-content hidden">
         <div class="card">
             <h3>💎 Private Collection</h3>
@@ -312,7 +337,6 @@
         </div>
     </div>
 
-    <!-- INSTRUCTIONS -->
     <div id="instructions" class="tab-content hidden">
         <div class="card">
             <h3>📥 Private Sourcing Instructions</h3>
@@ -336,14 +360,12 @@
         </div>
     </div>
 
-    <!-- ===== LIVE CONTROL (NEW) ===== -->
     <div id="live" class="tab-content hidden">
         <div id="liveControlRoot">
             <div style="text-align:center;padding:2rem;color:#666;">Loading live control...</div>
         </div>
     </div>
 
-    <!-- BIDS -->
     <div id="bids" class="tab-content hidden">
         <div class="card">
             <h3>Recent Bids</h3>
@@ -356,7 +378,6 @@
         </div>
     </div>
 
-    <!-- REPORTS -->
     <div id="reports" class="tab-content hidden">
         <div class="card">
             <h3>Pending Reports</h3>
@@ -370,7 +391,6 @@
     </div>
 </div>
 
-<!-- ===== MODAL ===== -->
 <div id="adminModal" class="modal">
     <div class="modal-content" id="adminModalContent"></div>
 </div>
@@ -447,7 +467,7 @@ var adminSocket = null;
 var activeLiveRoom = null;
 var livePeers = {}; // { socketId: SimplePeer }
 var liveLocalStream = null;
-var liveVideoInterval = null;
+var liveViewerIds = {}; // track known viewers
 
 // ============================================================
 // TAB SWITCHING
@@ -480,9 +500,6 @@ function renderTab(tabId) {
     }
 }
 
-// ============================================================
-// LOAD
-// ============================================================
 async function loadAdminData() {
     var token = getToken();
     if (!token) {
@@ -730,12 +747,10 @@ async function updateInstruction(id, newStatus) {
 async function loadLiveControl() {
     var root = document.getElementById('liveControlRoot');
 
-    // Get current live room + sessions
     var data = await adminApi('/api/live/current');
     var room = data ? data.room : null;
     activeLiveRoom = room;
 
-    // Get all listings for the "add to queue" dropdown
     var listings = allData ? allData.listings : [];
 
     root.innerHTML = `
@@ -744,7 +759,11 @@ async function loadLiveControl() {
 
     if (room) {
         await renderQueueItems(room);
-        attachLiveSocketListeners();
+        // Ensure socket is connected and joined to the room
+        ensureAdminSocket();
+        if (adminSocket && adminSocket.connected) {
+            adminSocket.emit('liveJoin', { roomId: room.id });
+        }
     }
 }
 
@@ -808,9 +827,7 @@ function renderSessionControl(room, listings) {
         </div>
 
         <div class="live-admin-grid">
-            <!-- LEFT: CAMERA + QUEUE CONTROLS -->
             <div>
-                <!-- Admin Camera Preview -->
                 <div class="card" style="padding:0;">
                     <div style="position:relative;background:#000;border-radius:12px 12px 0 0;overflow:hidden;aspect-ratio:16/9;">
                         <video id="adminLiveVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;display:none;"></video>
@@ -827,14 +844,12 @@ function renderSessionControl(room, listings) {
                     </div>
                 </div>
 
-                <!-- Queue -->
                 <div class="card">
                     <h3>📋 Item Queue</h3>
                     <div id="liveQueueTable" style="margin-bottom:1rem;">
                         <p style="color:#888;font-size:0.85rem;">Loading queue...</p>
                     </div>
 
-                    <!-- Add Item Form -->
                     <div style="background:#F5F5F7;padding:1rem;border-radius:10px;">
                         <p style="font-weight:700;margin:0 0 0.75rem 0;font-size:0.85rem;">➕ Add car to queue</p>
                         <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:0.5rem;align-items:end;">
@@ -855,14 +870,13 @@ function renderSessionControl(room, listings) {
                 </div>
             </div>
 
-            <!-- RIGHT: LIVE CHAT FEED -->
             <div>
                 <div class="card" style="padding:0;">
                     <div style="padding:0.75rem 1rem;background:#101010;color:#fff;font-weight:800;font-size:0.85rem;letter-spacing:1px;border-radius:12px 12px 0 0;">
                         💬 LIVE CHAT
                     </div>
-                    <div id="adminLiveChatFeed" style="height:400px;overflow-y:auto;padding:0.75rem 1rem;background:#FAFAFA;">
-                        <p style="color:#999;font-size:0.85rem;text-align:center;">Chat will appear here when bidders join...</p>
+                    <div id="adminLiveChatFeed" class="admin-live-chat-feed">
+                        <p class="admin-live-chat-empty">Chat will appear here when bidders join...</p>
                     </div>
                 </div>
             </div>
@@ -977,7 +991,6 @@ async function removeItem(roomId, itemId) {
     if (result) { showToast('Removed', 'info'); renderQueueItems(activeLiveRoom); }
 }
 
-// Shortcut: Add car directly from Listings tab
 async function addToLiveQueue(listingId) {
     var data = await adminApi('/api/live/current');
     var room = data ? data.room : null;
@@ -1007,13 +1020,12 @@ async function startAdminCamera() {
         if (video) { video.srcObject = liveLocalStream; video.style.display = 'block'; }
         if (ph) ph.style.display = 'none';
 
-        // Notify viewers we're live
         if (adminSocket && activeLiveRoom) {
             adminSocket.emit('liveStartCamera', { roomId: activeLiveRoom.id });
-            // Send WebRTC offer to every connected viewer
-            broadcastToViewers();
+            // Tell all viewers to request the stream
+            adminSocket.emit('liveBroadcastOffer', { roomId: activeLiveRoom.id });
         }
-        showToast('📹 Camera started', 'info');
+        showToast('📹 Camera started — viewers will connect shortly', 'info');
     } catch (e) {
         showToast('Camera access denied: ' + e.message, 'error');
     }
@@ -1024,7 +1036,6 @@ function stopAdminCamera() {
         liveLocalStream.getTracks().forEach(t => t.stop());
         liveLocalStream = null;
     }
-    // Clean up peers
     Object.keys(livePeers).forEach(id => {
         try { livePeers[id].destroy(); } catch(e) {}
     });
@@ -1040,25 +1051,17 @@ function stopAdminCamera() {
     }
 }
 
-function broadcastToViewers() {
-    // Simple: emit an offer to all viewers in the room
-    // We use a single global peer approach for simplicity
-    // (For multi-viewer, each viewer needs their own peer)
-    // For v1, we assume 1 auctioneer camera shared across all viewers via
-    // a mesh (each viewer gets its own peer).
-    // We don't know viewer socket IDs directly here,
-    // so we emit a "broadcast offer" event and viewers reply.
-    if (!adminSocket || !activeLiveRoom) return;
-
-    // Emit a special event that triggers all viewers to request a peer connection
-    adminSocket.emit('liveBroadcastOffer', { roomId: activeLiveRoom.id });
-}
-
 // ============================================================
 // LIVE SOCKET (Admin side)
 // ============================================================
-function attachLiveSocketListeners() {
-    if (adminSocket) return; // already attached
+function ensureAdminSocket() {
+    if (adminSocket && adminSocket.connected) return;
+
+    // If a socket already exists but is disconnected, destroy it and start fresh
+    if (adminSocket) {
+        try { adminSocket.disconnect(); } catch(e) {}
+        adminSocket = null;
+    }
 
     var token = getToken();
     adminSocket = io({ auth: { token: token || '' } });
@@ -1073,9 +1076,12 @@ function attachLiveSocketListeners() {
     adminSocket.on('liveChatMessage', (msg) => {
         var feed = document.getElementById('adminLiveChatFeed');
         if (!feed) return;
+        var empty = feed.querySelector('.admin-live-chat-empty');
+        if (empty) empty.remove();
+
         var html = msg.isSystem
-            ? `<div style="margin:0.35rem 0;font-size:0.8rem;color:#E30613;font-weight:700;text-align:center;">${esc(msg.message)}</div>`
-            : `<div style="margin:0.4rem 0;font-size:0.85rem;"><span style="font-weight:800;">${esc(msg.userName)}:</span> <span style="color:#444;">${esc(msg.message)}</span></div>`;
+            ? `<div class="admin-live-chat-system">${esc(msg.message)}</div>`
+            : `<div class="admin-live-chat-msg"><strong>${esc(msg.userName)}:</strong> ${esc(msg.message)}</div>`;
         feed.innerHTML += html;
         feed.scrollTop = feed.scrollHeight;
         while (feed.children.length > 100) feed.removeChild(feed.firstChild);
@@ -1086,17 +1092,23 @@ function attachLiveSocketListeners() {
         if (el) el.textContent = data.count;
     });
 
-    adminSocket.on('liveBidUpdate', (data) => {
-        // Refresh queue display
+    adminSocket.on('liveBidUpdate', () => {
         if (activeLiveRoom) renderQueueItems(activeLiveRoom);
     });
 
-    // WebRTC: viewer requests peer connection
+    // ===== WebRTC: Viewer ready → admin creates offer =====
     adminSocket.on('liveViewerReady', async (data) => {
-        // Viewer is ready — create a peer for them and send offer
-        if (!liveLocalStream) return;
+        if (!liveLocalStream) {
+            console.log('Viewer ready but camera is off');
+            return;
+        }
         var viewerId = data.from;
         if (!viewerId) return;
+
+        // Don't double-up
+        if (livePeers[viewerId] && !livePeers[viewerId].destroyed) return;
+
+        console.log('Creating peer for viewer', viewerId);
 
         var peer = new SimplePeer({
             initiator: true,
@@ -1106,37 +1118,52 @@ function attachLiveSocketListeners() {
         });
 
         peer.on('signal', (signal) => {
+            if (!adminSocket) return;
             if (signal.type === 'offer') {
-                adminSocket.emit('liveVideoOffer', { roomId: activeLiveRoom.id, signal, to: viewerId });
+                adminSocket.emit('liveVideoOffer', {
+                    roomId: activeLiveRoom.id,
+                    signal: signal,
+                    to: viewerId
+                });
             } else if (signal.candidate) {
-                adminSocket.emit('liveVideoCandidate', { roomId: activeLiveRoom.id, candidate: signal, to: viewerId });
+                adminSocket.emit('liveVideoCandidate', {
+                    roomId: activeLiveRoom.id,
+                    candidate: signal,
+                    to: viewerId
+                });
             }
         });
 
-        peer.on('error', (err) => {
-            console.warn('Peer error with', viewerId, err.message);
-        });
-
+        peer.on('connect', () => console.log('Peer connected to', viewerId));
+        peer.on('error', (err) => console.warn('Peer error with', viewerId, err.message));
         peer.on('close', () => {
+            console.log('Peer closed for', viewerId);
             delete livePeers[viewerId];
         });
 
         livePeers[viewerId] = peer;
     });
 
+    // ===== WebRTC: Viewer answers =====
     adminSocket.on('liveVideoAnswer', async (data) => {
         var peer = livePeers[data.from];
         if (peer && !peer.destroyed) {
-            try { await peer.signal(data.signal); } catch(e) {}
+            try { await peer.signal(data.signal); } catch(e) { console.warn('Answer signal error:', e.message); }
         }
     });
 
+    // ===== WebRTC: Viewer ICE candidate =====
     adminSocket.on('liveVideoCandidate', async (data) => {
         var peer = livePeers[data.from];
         if (peer && !peer.destroyed && data.candidate) {
             try { await peer.signal(data.candidate); } catch(e) {}
         }
     });
+}
+
+// Legacy name kept for compatibility
+function attachLiveSocketListeners() {
+    ensureAdminSocket();
 }
 
 // ============================================================
@@ -1198,11 +1225,11 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
     loadAdminData();
-    // Pre-connect socket for live control
-    attachLiveSocketListeners();
+    // Pre-connect socket so it's ready when we hit Live Control
+    ensureAdminSocket();
 });
 
-console.log('✅ CM Admin loaded (with Live Control)');
+console.log('✅ CM Admin loaded (v3 — WebRTC fixed)');
 </script>
 </body>
 </html>

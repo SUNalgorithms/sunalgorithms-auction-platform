@@ -110,37 +110,15 @@ function requireLogin(actionLabel) {
     return false;
 }
 
-// ---------- NAV MENU TOGGLE (mobile) ----------
-function toggleNavMenu() {
-    const dd = document.getElementById('navDropdown');
-    const icon = document.getElementById('navMenuIcon');
-    if (!dd) return;
-    const isOpen = dd.style.display === 'block';
-    dd.style.display = isOpen ? 'none' : 'block';
-    if (icon) {
-        icon.className = isOpen ? 'fas fa-bars' : 'fas fa-times';
-    }
-}
-
-function closeNavMenu() {
-    const dd = document.getElementById('navDropdown');
-    const icon = document.getElementById('navMenuIcon');
-    if (dd) dd.style.display = 'none';
-    if (icon) icon.className = 'fas fa-bars';
-}
-
 // ============================================================
 // ========== NAVIGATION ======================================
 // ============================================================
 function navigate(page) {
-    closeNavMenu();
-
     if (!app.user && ['dashboard', 'createListing', 'kyc', 'profile', 'adminDashboard'].includes(page)) {
         showToast('Please login to access this page', 'error');
         return showLogin();
     }
 
-    // Clear any live room state if navigating away
     if (app.currentPage === 'liveRoom' && page !== 'liveRoom') {
         cleanupLiveRoom();
     }
@@ -166,7 +144,6 @@ function navigate(page) {
 // ========== AUTH ============================================
 // ============================================================
 function showLogin() {
-    closeNavMenu();
     openModal(`
         <span class="close-modal" onclick="closeModal()">&times;</span>
         <h2>CM Central Market Login</h2>
@@ -222,7 +199,6 @@ async function handleLogin() {
 }
 
 function showRegister() {
-    closeNavMenu();
     openModal(`
         <span class="close-modal" onclick="closeModal()">&times;</span>
         <h2>Register for CM Central Market</h2>
@@ -355,7 +331,6 @@ async function handleRegister() {
 }
 
 function logout() {
-    closeNavMenu();
     if (app.socket) { app.socket.disconnect(); app.socket = null; }
     cleanupLiveRoom();
     app.user = null;
@@ -394,10 +369,11 @@ async function initApp() {
 
     if (navbar) navbar.style.display = 'flex';
 
-        // Helper: set display (with null check)
     const setBoth = (id, display) => {
         const el = document.getElementById(id);
         if (el) el.style.display = display;
+        const elM = document.getElementById(id + 'Mobile');
+        if (elM) elM.style.display = display;
     };
 
     if (app.user) {
@@ -408,20 +384,17 @@ async function initApp() {
         setBoth('adminDashBtn', isAdmin ? 'inline-flex' : 'none');
         setBoth('profileBtn', 'inline-flex');
 
-        // Show "+ Sell" button
         const sellBtn = document.getElementById('createListingBtn');
         if (sellBtn) {
             if (isSeller) sellBtn.classList.add('visible');
             else sellBtn.classList.remove('visible');
         }
 
-        // User display
         const ud = document.getElementById('userDisplayDesktop');
         if (ud) ud.textContent = `👤 ${esc(app.user.displayName || app.user.name)}`;
         const udm = document.getElementById('userDisplayMobile');
         if (udm) udm.textContent = `👤 ${esc(app.user.displayName || app.user.name)}`;
 
-        // Guest buttons off
         ['loginNavBtn', 'registerNavBtn'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.style.display = 'none';
@@ -429,13 +402,11 @@ async function initApp() {
             if (elM) elM.style.display = 'none';
         });
 
-        // Logout on
         const logoutBtn = document.getElementById('logoutNavBtn');
         if (logoutBtn) logoutBtn.style.display = 'inline-block';
         const logoutBtnM = document.getElementById('logoutNavBtnMobile');
         if (logoutBtnM) logoutBtnM.style.display = 'flex';
 
-        // Mobile dropdown dividers
         const d1 = document.getElementById('mobileDivider1');
         if (d1) d1.style.display = (isSeller || isAdmin) ? 'block' : 'none';
         const d2 = document.getElementById('mobileDivider2');
@@ -455,7 +426,6 @@ async function initApp() {
         const udm = document.getElementById('userDisplayMobile');
         if (udm) udm.textContent = '👤 Guest';
 
-        // Guest buttons on
         const loginBtn = document.getElementById('loginNavBtn');
         const registerBtn = document.getElementById('registerNavBtn');
         const loginBtnM = document.getElementById('loginNavBtnMobile');
@@ -465,7 +435,6 @@ async function initApp() {
         if (loginBtnM) loginBtnM.style.display = 'flex';
         if (registerBtnM) registerBtnM.style.display = 'flex';
 
-        // Logout off
         const logoutBtn = document.getElementById('logoutNavBtn');
         const logoutBtnM = document.getElementById('logoutNavBtnMobile');
         if (logoutBtn) logoutBtn.style.display = 'none';
@@ -491,7 +460,12 @@ async function initApp() {
 // ========== SOCKET.IO =======================================
 // ============================================================
 function connectSocket() {
-    if (app.socket) return;
+    if (app.socket && app.socket.connected) return;
+    if (app.socket) {
+        try { app.socket.disconnect(); } catch(e) {}
+        app.socket = null;
+    }
+
     try {
         app.socket = io({ auth: { token: app.token || '' } });
         app.socket.on('connect', () => console.log('Socket connected'));
@@ -552,7 +526,7 @@ function connectSocket() {
             refreshLiveRoom();
         });
 
-        // WebRTC signaling
+        // ===== WebRTC signaling (receiver side) =====
         app.socket.on('liveVideoOffer', async (data) => {
             await handleLiveVideoOffer(data);
         });
@@ -566,16 +540,28 @@ function connectSocket() {
                 try { await app.livePeer.signal(data.candidate); } catch (e) {}
             }
         });
+
+        // Auctioneer just turned camera on → request the stream
         app.socket.on('liveStreamStarted', () => {
             if (app.currentPage !== 'liveRoom') return;
             showToast('📹 Auctioneer is live', 'info');
             const ph = document.getElementById('liveVideoPlaceholder');
             if (ph) ph.style.display = 'none';
+            if (app.socket && app.liveRoom) {
+                app.socket.emit('liveViewerReady', { roomId: app.liveRoom.id });
+            }
         });
+
         app.socket.on('liveStreamEnded', () => {
             if (app.currentPage !== 'liveRoom') return;
             const ph = document.getElementById('liveVideoPlaceholder');
             if (ph) ph.style.display = 'flex';
+        });
+
+        // Admin emitted "camera is on, viewers please request"
+        app.socket.on('liveBroadcastOffer', () => {
+            if (app.currentPage !== 'liveRoom' || !app.liveRoom) return;
+            app.socket.emit('liveViewerReady', { roomId: app.liveRoom.id });
         });
     } catch (e) {
         console.warn('Socket connection failed:', e.message);
@@ -866,9 +852,9 @@ async function renderLiveRoom() {
             <div style="text-align:center;padding:2rem 1rem;">
                 <div class="live-dot" style="width:14px;height:14px;margin:0 auto 1rem auto;"></div>
                 <p style="font-size:0.75rem;color:#E30613;letter-spacing:3px;text-transform:uppercase;margin:0 0 0.5rem 0;font-weight:700;">🔴 Live Auction Room</p>
-                <h1 style="font-size:2rem;font-weight:900;color:#101010;margin:0 0 1rem 0;">Loading...</h1>
+                <h1 style="font-size:2rem;font-weight:900;color:#FFFFFF;margin:0 0 1rem 0;">Loading...</h1>
             </div>
-            <div style="text-align:center;color:#666;">Connecting to live room...</div>
+            <div style="text-align:center;color:#9CA3AF;">Connecting to live room...</div>
         </div>
     `;
     await refreshLiveRoom();
@@ -895,16 +881,16 @@ function renderNoLiveRoom() {
     const main = document.getElementById('mainContent');
     main.innerHTML = `
         <div style="max-width:800px;margin:0 auto;padding:2rem 1rem;text-align:center;">
-            <div style="background:white;border:1px solid #EAEAEA;border-radius:16px;padding:3rem 2rem;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+            <div style="background:#232323;border:1px solid #333;border-radius:16px;padding:3rem 2rem;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
                 <div class="live-dot" style="width:14px;height:14px;margin:0 auto 1rem auto;opacity:0.4;"></div>
-                <h2 style="font-size:1.5rem;font-weight:900;color:#101010;margin:0 0 0.5rem 0;">No Live Auction Right Now</h2>
-                <p style="color:#666;font-size:1rem;margin:0 0 2rem 0;">Check back soon — Tuesdays & Fridays 19:00.</p>
-                <div style="background:#FFF8F1;border:1px solid #FFE0C4;border-radius:12px;padding:1.5rem;margin-bottom:1.5rem;text-align:left;">
-                    <p style="margin:0 0 0.5rem 0;font-weight:700;color:#101010;">📅 Scheduled Sessions</p>
-                    <p style="margin:0;color:#666;font-size:0.9rem;">Tuesday 19:00 — Soweto Wheels Live</p>
-                    <p style="margin:0;color:#666;font-size:0.9rem;">Friday 19:00 — Weekend Special</p>
+                <h2 style="font-size:1.5rem;font-weight:900;color:#FFFFFF;margin:0 0 0.5rem 0;">No Live Auction Right Now</h2>
+                <p style="color:#9CA3AF;font-size:1rem;margin:0 0 2rem 0;">Check back soon — Tuesdays & Fridays 19:00.</p>
+                <div style="background:#1A1A1A;border:1px solid #333;border-radius:12px;padding:1.5rem;margin-bottom:1.5rem;text-align:left;">
+                    <p style="margin:0 0 0.5rem 0;font-weight:700;color:#FFFFFF;">📅 Scheduled Sessions</p>
+                    <p style="margin:0;color:#9CA3AF;font-size:0.9rem;">Tuesday 19:00 — Soweto Wheels Live</p>
+                    <p style="margin:0;color:#9CA3AF;font-size:0.9rem;">Friday 19:00 — Weekend Special</p>
                 </div>
-                <button onclick="navigate('marketplace')" class="btn btn-primary" style="background:#E30613;border:none;padding:0.75rem 1.5rem;">
+                <button onclick="navigate('marketplace')" class="btn btn-primary" style="background:#E30613;border:none;padding:0.75rem 1.5rem;color:#fff;">
                     Browse Marketplace Instead
                 </button>
             </div>
@@ -925,16 +911,16 @@ function renderLiveRoomUI() {
 
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem;">
                 <div>
-                    <h1 style="font-size:1.5rem;font-weight:900;color:#101010;margin:0;display:flex;align-items:center;gap:0.5rem;">
+                    <h1 style="font-size:1.5rem;font-weight:900;color:#FFFFFF;margin:0;display:flex;align-items:center;gap:0.5rem;">
                         ${isLive ? '<span class="live-dot"></span>' : ''}
                         ${esc(room.title || 'Live Auction Room')}
                     </h1>
-                    <p style="color:#666;font-size:0.85rem;margin:0.25rem 0 0 0;">
+                    <p style="color:#9CA3AF;font-size:0.85rem;margin:0.25rem 0 0 0;">
                         👁️ <span id="liveViewerCount">${room.viewerCount || 0}</span> watching
                         ${isLive ? '• 🔴 LIVE NOW' : '• Not started yet'}
                     </p>
                 </div>
-                <button onclick="navigate('marketplace')" class="btn btn-outline" style="border-color:#EAEAEA;color:#666;">
+                <button onclick="navigate('marketplace')" class="btn btn-outline" style="border-color:#3A3A3A;color:#9CA3AF;background:transparent;">
                     ← Back to Marketplace
                 </button>
             </div>
@@ -957,8 +943,8 @@ function renderLiveRoomUI() {
                     </div>
 
                     ${item ? renderLiveItemPanel(item) : `
-                        <div style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:1.5rem;margin-top:1rem;text-align:center;">
-                            <p style="color:#666;margin:0;font-size:0.95rem;">
+                        <div style="background:#232323;border:1px solid #333;border-radius:12px;padding:1.5rem;margin-top:1rem;text-align:center;">
+                            <p style="color:#9CA3AF;margin:0;font-size:0.95rem;">
                                 ${isLive ? 'Waiting for next item on the block...' : 'Auction starts soon — get ready!'}
                             </p>
                         </div>
@@ -966,28 +952,28 @@ function renderLiveRoomUI() {
                 </div>
 
                 <div class="live-right">
-                    <div style="background:white;border:1px solid #EAEAEA;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;flex:1;min-height:400px;max-height:600px;">
+                    <div style="background:#232323;border:1px solid #333;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;flex:1;min-height:400px;max-height:600px;">
                         <div style="padding:0.75rem 1rem;background:#101010;color:#fff;font-weight:800;font-size:0.85rem;letter-spacing:1px;">
                             💬 LIVE CHAT
                         </div>
-                        <div id="liveChatFeed" style="flex:1;overflow-y:auto;padding:0.75rem 1rem;background:#FAFAFA;">
+                        <div id="liveChatFeed" style="flex:1;overflow-y:auto;padding:0.75rem 1rem;background:#1A1A1A;color:#FFFFFF;">
                             ${renderChatMessages(room.recentMessages || [])}
                         </div>
-                        <div style="padding:0.6rem;border-top:1px solid #EAEAEA;display:flex;gap:0.5rem;">
-                            <input id="liveChatInput" placeholder="Type a message..." style="flex:1;padding:0.5rem 0.75rem;border:1px solid #EAEAEA;border-radius:8px;font-size:0.9rem;outline:none;" onkeydown="if(event.key==='Enter'){event.preventDefault();sendLiveChat();}">
+                        <div style="padding:0.6rem;border-top:1px solid #333;display:flex;gap:0.5rem;background:#232323;">
+                            <input id="liveChatInput" placeholder="Type a message..." style="flex:1;padding:0.5rem 0.75rem;border:1px solid #333;border-radius:8px;font-size:0.9rem;outline:none;background:#1A1A1A;color:#FFFFFF;" onkeydown="if(event.key==='Enter'){event.preventDefault();sendLiveChat();}">
                             <button onclick="sendLiveChat()" style="background:#E30613;color:#fff;border:none;border-radius:8px;padding:0.5rem 1rem;font-weight:800;cursor:pointer;font-size:0.85rem;">Send</button>
                         </div>
                     </div>
 
                     ${app.liveQueue && app.liveQueue.length > 0 ? `
-                        <div style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:1rem;margin-top:1rem;">
-                            <p style="font-weight:800;color:#101010;margin:0 0 0.75rem 0;font-size:0.85rem;letter-spacing:1px;">📋 UP NEXT</p>
+                        <div style="background:#232323;border:1px solid #333;border-radius:12px;padding:1rem;margin-top:1rem;">
+                            <p style="font-weight:800;color:#FFFFFF;margin:0 0 0.75rem 0;font-size:0.85rem;letter-spacing:1px;">📋 UP NEXT</p>
                             ${app.liveQueue.filter(q => q.status === 'PENDING').slice(0, 5).map((q, i) => `
-                                <div style="display:flex;gap:0.75rem;align-items:center;padding:0.5rem 0;${i < 4 ? 'border-bottom:1px solid #F0F0F0;' : ''}">
+                                <div style="display:flex;gap:0.75rem;align-items:center;padding:0.5rem 0;${i < 4 ? 'border-bottom:1px solid #333;' : ''}">
                                     <img src="${q.mainImageUrl || '/logo.jpeg'}" style="width:50px;height:50px;object-fit:cover;border-radius:8px;flex-shrink:0;" onerror="this.src='/logo.jpeg'">
                                     <div style="flex:1;min-width:0;">
-                                        <p style="margin:0;font-weight:700;font-size:0.85rem;color:#101010;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(q.title)}</p>
-                                        <p style="margin:0;font-size:0.75rem;color:#666;">Start: R${Number(q.startPrice).toLocaleString()}</p>
+                                        <p style="margin:0;font-weight:700;font-size:0.85rem;color:#FFFFFF;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(q.title)}</p>
+                                        <p style="margin:0;font-size:0.75rem;color:#9CA3AF;">Start: R${Number(q.startPrice).toLocaleString()}</p>
                                     </div>
                                 </div>
                             `).join('')}
@@ -1000,6 +986,10 @@ function renderLiveRoomUI() {
 
     if (app.socket) {
         app.socket.emit('liveJoin', { roomId: room.id });
+        if (isLive) {
+            // If auctioneer is already streaming, request video immediately
+            app.socket.emit('liveViewerReady', { roomId: room.id });
+        }
     }
 
     startLiveCountdownTicker();
@@ -1016,39 +1006,39 @@ function renderLiveItemPanel(item) {
     const isOwnListing = app.user && item.seller?.id === app.user.id;
 
     return `
-        <div style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:1.25rem;margin-top:1rem;">
+        <div style="background:#232323;border:1px solid #333;border-radius:12px;padding:1.25rem;margin-top:1rem;color:#FFFFFF;">
             <div style="display:grid;grid-template-columns:100px 1fr;gap:1rem;align-items:start;">
-                <img src="${esc(item.mainImageUrl || '/logo.jpeg')}" style="width:100px;height:100px;object-fit:cover;border-radius:8px;background:#F5F5F7;" onerror="this.src='/logo.jpeg'">
+                <img src="${esc(item.mainImageUrl || '/logo.jpeg')}" style="width:100px;height:100px;object-fit:cover;border-radius:8px;background:#1A1A1A;" onerror="this.src='/logo.jpeg'">
                 <div style="min-width:0;">
                     <p style="margin:0 0 0.25rem 0;font-size:0.7rem;color:#E30613;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;">🔴 ON THE BLOCK</p>
-                    <h3 style="margin:0 0 0.25rem 0;font-size:1.1rem;font-weight:800;color:#101010;line-height:1.2;">${esc(item.title || (item.listing?.title || 'Loading...'))}</h3>
-                    ${item.listing?.year || item.listing?.kilometers ? `<p style="margin:0;font-size:0.8rem;color:#666;">${item.listing?.year || ''} ${item.listing?.kilometers ? '• ' + Number(item.listing.kilometers).toLocaleString() + ' km' : ''}</p>` : ''}
+                    <h3 style="margin:0 0 0.25rem 0;font-size:1.1rem;font-weight:800;color:#FFFFFF;line-height:1.2;">${esc(item.title || (item.listing?.title || 'Loading...'))}</h3>
+                    ${item.listing?.year || item.listing?.kilometers ? `<p style="margin:0;font-size:0.8rem;color:#9CA3AF;">${item.listing?.year || ''} ${item.listing?.kilometers ? '• ' + Number(item.listing.kilometers).toLocaleString() + ' km' : ''}</p>` : ''}
                 </div>
             </div>
 
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-top:1.25rem;">
-                <div style="background:#F5F5F7;padding:0.75rem;border-radius:10px;text-align:center;">
-                    <p style="margin:0;font-size:0.7rem;color:#888;text-transform:uppercase;letter-spacing:1px;">Current Bid</p>
-                    <p id="liveCurrentBid" style="margin:0.2rem 0 0 0;font-size:1.6rem;font-weight:900;color:#101010;">R${Number(currentPrice).toLocaleString()}</p>
+                <div style="background:#1A1A1A;padding:0.75rem;border-radius:10px;text-align:center;">
+                    <p style="margin:0;font-size:0.7rem;color:#9CA3AF;text-transform:uppercase;letter-spacing:1px;">Current Bid</p>
+                    <p id="liveCurrentBid" style="margin:0.2rem 0 0 0;font-size:1.6rem;font-weight:900;color:#FFFFFF;">R${Number(currentPrice).toLocaleString()}</p>
                 </div>
-                <div style="background:#FFF3F3;padding:0.75rem;border-radius:10px;text-align:center;">
+                <div style="background:#2A1416;padding:0.75rem;border-radius:10px;text-align:center;border:1px solid #4A1A1D;">
                     <p style="margin:0;font-size:0.7rem;color:#E30613;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Countdown</p>
                     <p id="liveCountdown" style="margin:0.2rem 0 0 0;font-size:1.6rem;font-weight:900;color:#E30613;">${item.countdownEnds ? '10s' : '—'}</p>
                 </div>
             </div>
 
-            <div style="margin-top:0.75rem;display:flex;justify-content:space-between;align-items:center;font-size:0.8rem;color:#666;">
+            <div style="margin-top:0.75rem;display:flex;justify-content:space-between;align-items:center;font-size:0.8rem;color:#9CA3AF;">
                 <span id="liveBidderName">${item.currentBidderName ? `🏆 ${esc(item.currentBidderName)}` : 'No bids yet'}</span>
                 <span id="liveBidCount">${item.bidCount || 0} bids</span>
             </div>
 
             ${isOwnListing ? `
-                <div style="margin-top:1rem;background:#FFF3F3;padding:0.75rem;border-radius:8px;text-align:center;color:#E30613;font-weight:700;font-size:0.9rem;">
+                <div style="margin-top:1rem;background:#2A1416;padding:0.75rem;border-radius:8px;text-align:center;color:#E30613;font-weight:700;font-size:0.9rem;border:1px solid #4A1A1D;">
                     Your own listing
                 </div>
             ` : `
                 <div style="margin-top:1rem;display:flex;gap:0.5rem;">
-                    <input type="number" id="liveBidInput" value="${minNextBid}" style="flex:1;min-width:0;padding:0.85rem 1rem;border:1px solid #EAEAEA;border-radius:10px;font-size:1.1rem;font-weight:800;color:#101010;outline:none;">
+                    <input type="number" id="liveBidInput" value="${minNextBid}" style="flex:1;min-width:0;padding:0.85rem 1rem;border:1px solid #333;border-radius:10px;font-size:1.1rem;font-weight:800;color:#FFFFFF;outline:none;background:#1A1A1A;">
                     <button onclick="placeLiveBid('${item.id}')" class="live-bid-btn">BID NOW</button>
                 </div>
             `}
@@ -1058,7 +1048,7 @@ function renderLiveItemPanel(item) {
 
 function renderChatMessages(messages) {
     if (!messages || messages.length === 0) {
-        return `<p style="color:#999;font-size:0.85rem;text-align:center;padding:1rem;margin:0;">No messages yet. Say hello!</p>`;
+        return `<p style="color:#9CA3AF;font-size:0.85rem;text-align:center;padding:1rem;margin:0;">No messages yet. Say hello!</p>`;
     }
     return messages.map(m => {
         if (m.isSystem) {
@@ -1144,7 +1134,7 @@ async function handleLiveVideoOffer(data) {
 
     try {
         if (app.livePeer && !app.livePeer.destroyed) {
-            app.livePeer.destroy();
+            try { app.livePeer.destroy(); } catch(e) {}
         }
 
         app.livePeer = new SimplePeer({
@@ -1163,6 +1153,7 @@ async function handleLiveVideoOffer(data) {
         });
 
         app.livePeer.on('stream', (stream) => {
+            console.log('Received remote video stream');
             const video = document.getElementById('liveVideoPlayer');
             const ph = document.getElementById('liveVideoPlaceholder');
             if (video) {
@@ -1179,6 +1170,7 @@ async function handleLiveVideoOffer(data) {
         });
 
         app.livePeer.on('close', () => {
+            console.log('Live peer closed');
             app.liveRemoteStreamActive = false;
         });
 
@@ -1194,7 +1186,7 @@ function cleanupLiveRoom() {
         app.liveCountdownInterval = null;
     }
     if (app.livePeer && !app.livePeer.destroyed) {
-        app.livePeer.destroy();
+        try { app.livePeer.destroy(); } catch(e) {}
         app.livePeer = null;
     }
     if (app.socket && app.liveRoom) {
@@ -1875,4 +1867,4 @@ document.addEventListener('DOMContentLoaded', () => {
     initApp();
 });
 
-console.log('✅ CM app.js loaded (Live Auction Room + Mobile Nav)');
+console.log('✅ CM app.js loaded (v3 — WebRTC fixed)');

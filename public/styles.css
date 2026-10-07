@@ -1104,14 +1104,12 @@ body.live-theme #toast {
    ============================================================ */
 @media (max-width: 768px) {
 
-    /* ---------- NAVBAR: 2-row flex layout ---------- */
     #navbar {
         padding: 0.55rem 0.75rem !important;
         gap: 0.5rem 0.75rem !important;
         align-items: flex-start;
     }
 
-    /* Logo row gets its own line */
     .nav-logo {
         flex: 0 0 100%;
         padding-bottom: 0.4rem;
@@ -1122,7 +1120,6 @@ body.live-theme #toast {
     .nav-logo-market { font-size: 10px; letter-spacing: 1.2px; }
     .nav-logo-sub { font-size: 7px; letter-spacing: 2.5px; }
 
-    /* Nav links: full width, wrap as needed */
     .nav-links {
         flex: 0 0 100%;
         justify-content: flex-start;
@@ -1138,15 +1135,12 @@ body.live-theme #toast {
     }
     .nav-user { font-size: 0.8rem; }
 
-    /* Switch to short labels for PRIVATE SOURCE and LIVE ROOM */
     .label-full { display: none !important; }
     .label-short { display: inline !important; }
 
-    /* ---------- MAIN CONTENT ---------- */
     #mainContent { padding: 1rem 0.75rem; }
     .listing-detail-page { padding: 0.75rem; }
 
-    /* ---------- LISTING DETAIL: mobile order ---------- */
     .listing-detail-grid {
         display: flex !important;
         flex-direction: column !important;
@@ -1178,7 +1172,6 @@ body.live-theme #toast {
         padding: 0.9rem;
     }
 
-    /* Specs: 3 per row, ellipsis */
     .specs-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
         gap: 0.4rem !important;
@@ -1202,7 +1195,6 @@ body.live-theme #toast {
         display: block;
     }
 
-    /* Gallery smaller */
     .gallery-nav-btn {
         width: 34px !important;
         height: 34px !important;
@@ -1213,18 +1205,14 @@ body.live-theme #toast {
         height: 64px !important;
     }
 
-    /* Marketplace: single column */
     .marketplace-grid { grid-template-columns: 1fr !important; }
     #marketplaceSearch { min-width: 0 !important; flex: 1 !important; }
 
-    /* Dashboard stats */
     .dash-stat { padding: 1rem; }
     .dash-stat .value { font-size: 1.5rem; }
 
-    /* Seller profile */
     .seller-profile-header { flex-direction: column; text-align: center; }
 
-    /* Live theme mobile */
     body.live-theme #mainContent { padding: 0.75rem 0.5rem; }
     .live-bid-btn { width: 100%; }
     .live-chat-bubble-user { font-size: 0.8rem; }
@@ -1263,6 +1251,61 @@ body.live-theme #toast {
         padding: 0.3rem 0.8rem;
         font-size: 0.8rem;
     }
+}
+
+/* ============================================================
+   ========== 22. LIVE ROOM: FORCE DARK PANELS ================
+   ========== Fixes white-on-white text in live room ==========
+   ============================================================ */
+
+/* Any inline white/grey panel inside live grid → dark */
+body.live-theme .live-grid [style*="background:white"],
+body.live-theme .live-grid [style*="background:#FAFAFA"],
+body.live-theme .live-grid [style*="background: white"],
+body.live-theme .live-grid [style*="background: #FAFAFA"] {
+    background: #232323 !important;
+    border-color: #333 !important;
+    color: #FFFFFF !important;
+}
+
+/* Inputs inside live grid */
+body.live-theme .live-grid input,
+body.live-theme .live-grid select,
+body.live-theme .live-grid textarea {
+    background: #1A1A1A !important;
+    border: 1px solid #333 !important;
+    color: #FFFFFF !important;
+}
+
+/* Force chat feed dark */
+body.live-theme #liveChatFeed {
+    background: #1A1A1A !important;
+    color: #FFFFFF !important;
+}
+
+/* Placeholder text in live inputs */
+body.live-theme .live-grid input::placeholder {
+    color: #666 !important;
+}
+
+/* Any heading/label inside live theme that might be dark → ensure visible */
+body.live-theme .live-grid h1,
+body.live-theme .live-grid h2,
+body.live-theme .live-grid h3,
+body.live-theme .live-grid h4,
+body.live-theme .live-grid p,
+body.live-theme .live-grid span,
+body.live-theme .live-grid strong {
+    /* Only override if the element has no explicit darker color */
+    color: inherit;
+}
+
+/* The "No Live Auction" empty-state card */
+body.live-theme .live-grid .empty-state,
+body.live-theme #mainContent > div > div[style*="background:white"] {
+    background: #232323 !important;
+    color: #FFFFFF !important;
+    border-color: #333 !important;
 }
 
 /* ============================================================

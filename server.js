@@ -983,13 +983,11 @@ app.get('/api/seller/ratings/:sellerId', async (req, res) => {
 });
 
 // ============================================================
-// ========== LIVE AUCTION ROOM (NEW) =========================
+// ========== LIVE AUCTION ROOM ===============================
 // ============================================================
 
-// ---------- GET CURRENT LIVE ROOM (public) ----------
 app.get('/api/live/current', async (req, res) => {
     try {
-        // Find any LIVE room, or the next SCHEDULED one
         let room = await prisma.liveRoom.findFirst({
             where: { status: 'LIVE' },
             include: {
@@ -1018,7 +1016,6 @@ app.get('/api/live/current', async (req, res) => {
             return res.json({ live: false, room: null });
         }
 
-        // Get the currently active item (if any)
         let currentItem = null;
         if (room.currentItemId) {
             currentItem = room.items.find(i => i.id === room.currentItemId) || null;
@@ -1058,7 +1055,6 @@ app.get('/api/live/current', async (req, res) => {
     }
 });
 
-// ---------- GET SINGLE LIVE ROOM (public) ----------
 app.get('/api/live/:id', async (req, res) => {
     try {
         const room = await prisma.liveRoom.findUnique({
@@ -1095,7 +1091,6 @@ app.get('/api/live/:id', async (req, res) => {
     }
 });
 
-// ---------- ADMIN: CREATE LIVE ROOM ----------
 app.post('/api/admin/live/create', authenticate, adminOnly, async (req, res) => {
     try {
         const { title, scheduledFor } = req.body;
@@ -1113,14 +1108,12 @@ app.post('/api/admin/live/create', authenticate, adminOnly, async (req, res) => 
     }
 });
 
-// ---------- ADMIN: START LIVE ----------
 app.post('/api/admin/live/:id/start', authenticate, adminOnly, async (req, res) => {
     try {
         const room = await prisma.liveRoom.update({
             where: { id: req.params.id },
             data: { status: 'LIVE', startedAt: new Date() }
         });
-        // Auto-start first PENDING item if none active
         const firstItem = await prisma.liveRoomItem.findFirst({
             where: { liveRoomId: room.id, status: 'PENDING' },
             orderBy: { order: 'asc' }
@@ -1142,7 +1135,6 @@ app.post('/api/admin/live/:id/start', authenticate, adminOnly, async (req, res) 
     }
 });
 
-// ---------- ADMIN: END LIVE ----------
 app.post('/api/admin/live/:id/end', authenticate, adminOnly, async (req, res) => {
     try {
         const room = await prisma.liveRoom.update({
@@ -1156,7 +1148,6 @@ app.post('/api/admin/live/:id/end', authenticate, adminOnly, async (req, res) =>
     }
 });
 
-// ---------- ADMIN: ADD ITEM TO QUEUE ----------
 app.post('/api/admin/live/:id/add-item', authenticate, adminOnly, async (req, res) => {
     try {
         const { listingId, startPrice } = req.body;
@@ -1185,7 +1176,6 @@ app.post('/api/admin/live/:id/add-item', authenticate, adminOnly, async (req, re
     }
 });
 
-// ---------- ADMIN: REMOVE ITEM ----------
 app.post('/api/admin/live/:id/remove-item/:itemId', authenticate, adminOnly, async (req, res) => {
     try {
         await prisma.liveRoomItem.delete({ where: { id: req.params.itemId } });
@@ -1196,7 +1186,6 @@ app.post('/api/admin/live/:id/remove-item/:itemId', authenticate, adminOnly, asy
     }
 });
 
-// ---------- ADMIN: START ITEM (put on the block) ----------
 app.post('/api/admin/live/item/:id/start', authenticate, adminOnly, async (req, res) => {
     try {
         const item = await prisma.liveRoomItem.update({
@@ -1224,7 +1213,6 @@ app.post('/api/admin/live/item/:id/start', authenticate, adminOnly, async (req, 
     }
 });
 
-// ---------- ADMIN: MARK SOLD ----------
 app.post('/api/admin/live/item/:id/sold', authenticate, adminOnly, async (req, res) => {
     try {
         const item = await prisma.liveRoomItem.update({
@@ -1237,7 +1225,6 @@ app.post('/api/admin/live/item/:id/sold', authenticate, adminOnly, async (req, r
         });
 
         if (item.currentBidderId && item.currentBid) {
-            // Create system message
             await prisma.liveMessage.create({
                 data: {
                     liveRoomId: item.liveRoomId,
@@ -1246,14 +1233,13 @@ app.post('/api/admin/live/item/:id/sold', authenticate, adminOnly, async (req, r
                     isSystem: true
                 }
             });
-            // Mark the listing as sold
             await prisma.listing.update({
                 where: { id: item.listingId },
                 data: {
                     status: 'AWAITING_PAYMENT',
                     winnerId: item.currentBidderId,
                     finalPrice: item.currentBid,
-                    paymentDeadline: new Date(Date.now() + 2 * 60 * 60 * 1000) // 2 hours
+                    paymentDeadline: new Date(Date.now() + 2 * 60 * 60 * 1000)
                 }
             }).catch(e => console.warn('Listing update failed:', e.message));
         }
@@ -1264,7 +1250,6 @@ app.post('/api/admin/live/item/:id/sold', authenticate, adminOnly, async (req, r
             finalPrice: item.currentBid
         });
 
-        // Auto-advance to next item
         const nextItem = await prisma.liveRoomItem.findFirst({
             where: { liveRoomId: item.liveRoomId, status: 'PENDING' },
             orderBy: { order: 'asc' }
@@ -1295,7 +1280,6 @@ app.post('/api/admin/live/item/:id/sold', authenticate, adminOnly, async (req, r
     }
 });
 
-// ---------- ADMIN: MARK PASSED ----------
 app.post('/api/admin/live/item/:id/pass', authenticate, adminOnly, async (req, res) => {
     try {
         const item = await prisma.liveRoomItem.update({
@@ -1311,7 +1295,6 @@ app.post('/api/admin/live/item/:id/pass', authenticate, adminOnly, async (req, r
             }
         });
 
-        // Advance
         const nextItem = await prisma.liveRoomItem.findFirst({
             where: { liveRoomId: item.liveRoomId, status: 'PENDING' },
             orderBy: { order: 'asc' }
@@ -1866,15 +1849,12 @@ function startTimedListingCron() {
 
 // ============================================================
 // ========== LIVE ROOM COUNTDOWN MANAGER =====================
-// Runs every 1 second, checks active items for countdown expiry
-// Also handles anti-snipe extension
 // ============================================================
 function startLiveCountdownManager() {
     console.log('⏱️ Starting Live Room countdown manager (every 1s)');
     setInterval(async () => {
         try {
             const now = new Date();
-            // Find active items with countdown that has expired
             const expired = await prisma.liveRoomItem.findMany({
                 where: {
                     status: 'ACTIVE',
@@ -1884,7 +1864,6 @@ function startLiveCountdownManager() {
             });
 
             for (const item of expired) {
-                // Auto-mark as SOLD
                 await prisma.liveRoomItem.update({
                     where: { id: item.id },
                     data: {
@@ -1904,7 +1883,6 @@ function startLiveCountdownManager() {
                         }
                     });
 
-                    // Update listing
                     await prisma.listing.update({
                         where: { id: item.listingId },
                         data: {
@@ -1922,7 +1900,6 @@ function startLiveCountdownManager() {
                     finalPrice: item.currentBid
                 });
 
-                // Auto-advance
                 const nextItem = await prisma.liveRoomItem.findFirst({
                     where: { liveRoomId: item.liveRoomId, status: 'PENDING' },
                     orderBy: { order: 'asc' }
@@ -1948,7 +1925,7 @@ function startLiveCountdownManager() {
                 }
             }
         } catch (err) {
-            // Silent fail — no spam
+            // Silent fail
         }
     }, 1000);
 }
@@ -1959,7 +1936,6 @@ function startLiveCountdownManager() {
 io.use((socket, next) => {
     const token = socket.handshake.auth.token;
     if (!token) {
-        // Allow guests for live room watching (read-only)
         socket.user = null;
         return next();
     }
@@ -1973,7 +1949,7 @@ io.use((socket, next) => {
 });
 
 const socketBidLimits = {};
-const liveRoomViewers = {}; // { roomId: Set<socketId> }
+const liveRoomViewers = {};
 
 io.on('connection', (socket) => {
     console.log(`Socket connected: ${socket.id} (user: ${socket.user ? socket.user.id : 'guest'})`);
@@ -2023,7 +1999,6 @@ io.on('connection', (socket) => {
 
     // ===== LIVE AUCTION ROOM =====
 
-    // Join live room
     socket.on('liveJoin', async (data) => {
         const roomId = data.roomId;
         if (!roomId) return;
@@ -2032,7 +2007,6 @@ io.on('connection', (socket) => {
         if (!liveRoomViewers[roomId]) liveRoomViewers[roomId] = new Set();
         liveRoomViewers[roomId].add(socket.id);
 
-        // Update viewer count
         try {
             const count = liveRoomViewers[roomId].size;
             await prisma.liveRoom.update({
@@ -2043,7 +2017,6 @@ io.on('connection', (socket) => {
         } catch (e) {}
     });
 
-    // Leave live room
     socket.on('liveLeave', async (data) => {
         const roomId = data.roomId;
         if (!roomId) return;
@@ -2062,7 +2035,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Place live bid
     socket.on('liveBid', async (data) => {
         if (!socket.user) return socket.emit('error', { message: 'Login required to bid' });
         const { itemId, amount } = data;
@@ -2090,13 +2062,11 @@ io.on('connection', (socket) => {
                 return;
             }
 
-            // Anti-snipe: if within last 10 seconds, extend +15 sec
             const now = new Date();
-            let newCountdownEnds = new Date(now.getTime() + 10 * 1000); // fresh 10s countdown
+            let newCountdownEnds = new Date(now.getTime() + 10 * 1000);
             let extendedCount = item.extendedCount;
 
             if (item.countdownEnds && new Date(item.countdownEnds).getTime() - now.getTime() < 10000) {
-                // Extend from current end
                 newCountdownEnds = new Date(new Date(item.countdownEnds).getTime() + 15 * 1000);
                 extendedCount++;
             }
@@ -2153,7 +2123,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Send chat message
     socket.on('liveChat', async (data) => {
         if (!socket.user) return socket.emit('error', { message: 'Login to chat' });
         const { roomId, message } = data;
@@ -2185,18 +2154,40 @@ io.on('connection', (socket) => {
         }
     });
 
-    // WebRTC signaling for live video
-    socket.on('liveVideoOffer', (data) => {
-        socket.to(`live_${data.roomId}`).emit('liveVideoOffer', { ...data, from: socket.id });
-    });
-    socket.on('liveVideoAnswer', (data) => {
-        socket.to(`live_${data.roomId}`).emit('liveVideoAnswer', { ...data, from: socket.id });
-    });
-    socket.on('liveVideoCandidate', (data) => {
-        socket.to(`live_${data.roomId}`).emit('liveVideoCandidate', { ...data, from: socket.id });
+    // ===== WebRTC signaling (FIXED) =====
+    // Route to a specific socket when `to` is provided; otherwise broadcast to room.
+    const routeSignal = (eventName) => (data) => {
+        if (data.to) {
+            io.to(data.to).emit(eventName, { ...data, from: socket.id });
+        } else if (data.roomId) {
+            socket.to(`live_${data.roomId}`).emit(eventName, { ...data, from: socket.id });
+        }
+    };
+    socket.on('liveVideoOffer', routeSignal('liveVideoOffer'));
+    socket.on('liveVideoAnswer', routeSignal('liveVideoAnswer'));
+    socket.on('liveVideoCandidate', routeSignal('liveVideoCandidate'));
+
+    // Viewer signals "I'm ready to receive" → notify admin in room
+    socket.on('liveViewerReady', (data) => {
+        if (!data.roomId) return;
+        socket.join(`live_${data.roomId}`);
+        socket.to(`live_${data.roomId}`).emit('liveViewerReady', {
+            from: socket.id,
+            roomId: data.roomId
+        });
     });
 
-    // Admin: camera ready
+    // Admin broadcasts "camera is on, viewers please request"
+    socket.on('liveBroadcastOffer', (data) => {
+        if (!socket.user || socket.user.role !== 'ADMIN') return;
+        if (!data.roomId) return;
+        socket.to(`live_${data.roomId}`).emit('liveBroadcastOffer', {
+            from: socket.id,
+            roomId: data.roomId
+        });
+    });
+
+    // Admin: camera on/off
     socket.on('liveStartCamera', (data) => {
         if (!socket.user || socket.user.role !== 'ADMIN') return;
         io.to(`live_${data.roomId}`).emit('liveStreamStarted', { roomId: data.roomId });
@@ -2207,10 +2198,8 @@ io.on('connection', (socket) => {
         io.to(`live_${data.roomId}`).emit('liveStreamEnded', { roomId: data.roomId });
     });
 
-    // Disconnect cleanup
     socket.on('disconnect', () => {
         delete socketBidLimits[socket.id];
-        // Remove from all live room viewer sets
         for (const roomId in liveRoomViewers) {
             if (liveRoomViewers[roomId].has(socket.id)) {
                 liveRoomViewers[roomId].delete(socket.id);
