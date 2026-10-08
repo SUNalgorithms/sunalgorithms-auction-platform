@@ -2218,7 +2218,7 @@ io.on('connection', (socket) => {
 // ============================================================
 // ========== SERVER START ====================================
 // ============================================================
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ CM Central Market running on port ${PORT}`);
     console.log(`💎 Private Sourcing enabled (CIPC: ${CIPC_NUMBER})`);
     console.log(`🔴 Live Auction Room ready`);
