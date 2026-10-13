@@ -159,6 +159,10 @@ function showLogin() {
         <p style="margin-top:1rem;text-align:center;color:#888;">
             Don't have an account? <span style="color:#E30613;cursor:pointer;" onclick="closeModal();showRegister();">Register</span>
         </p>
+        <p style="margin-top:0.75rem;text-align:center;color:#888;font-size:0.75rem;">
+            By logging in you accept our
+            <a href="/terms.html" target="_blank" style="color:#E30613;font-weight:600;">Terms</a>.
+        </p>
     `);
 }
 
@@ -236,7 +240,11 @@ function showRegister() {
             <div id="regSelfiePreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
         </div>
         <button class="btn btn-primary" style="width:100%;margin-top:1rem;background:#E30613;border:none;" onclick="handleRegister()">Register</button>
-        <p style="margin-top:1rem;text-align:center;color:#888;">
+        <p style="margin-top:0.75rem;text-align:center;color:#888;font-size:0.8rem;">
+            By registering you agree to our
+            <a href="/terms.html" target="_blank" style="color:#E30613;font-weight:600;">Terms & Conditions</a>.
+        </p>
+        <p style="margin-top:0.75rem;text-align:center;color:#888;">
             Already have an account? <span style="color:#E30613;cursor:pointer;" onclick="closeModal();showLogin();">Login</span>
         </p>
     `);
@@ -1711,9 +1719,28 @@ function renderCreateListing() {
         if (!mainInput.files || mainInput.files.length === 0) return showToast('Main image required', 'error');
 
         const fd = new FormData();
-        ['title', 'category', 'condition', 'year', 'kilometers', 'color', 'engineSize', 'transmission', 'listingType', 'description', 'vinNumber', 'engineNumber', 'startingPrice', 'reservePrice', 'price', 'duration'].forEach(k => {
-            const el = document.getElementById('listing' + k.charAt(0).toUpperCase() + k.slice(1));
-            if (el && el.value) fd.append(k, el.value);
+        // Explicit mapping — do NOT use dynamic ID guessing
+        const mapping = {
+            title:          'listingTitle',
+            category:       'listingCategory',
+            condition:      'listingCondition',
+            year:           'listingYear',
+            kilometers:     'listingKm',
+            color:          'listingColor',
+            engineSize:     'listingEngine',
+            transmission:   'listingTrans',
+            listingType:    'listingType',
+            description:    'listingDescription',
+            vinNumber:      'listingVin',
+            engineNumber:   'listingEngineNo',
+            startingPrice:  'listingStartPrice',
+            reservePrice:   'listingReservePrice',
+            price:          'listingPrice',
+            duration:       'listingDuration'
+        };
+        Object.keys(mapping).forEach(field => {
+            const el = document.getElementById(mapping[field]);
+            if (el && el.value) fd.append(field, el.value);
         });
         fd.append('mainImage', mainInput.files[0]);
         const compInput = document.getElementById('compartmentImageInput');
