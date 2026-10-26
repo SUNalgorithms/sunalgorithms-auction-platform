@@ -1307,7 +1307,58 @@ body.live-theme #mainContent > div > div[style*="background:white"] {
     color: #FFFFFF !important;
     border-color: #333 !important;
 }
+/* ============================================================
+   ========== 23. CARS vs PARTS TOGGLE ========================
+   ============================================================ */
 
+/* Marketplace Toggle */
+.marketplace-toggle-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1.25rem;
+    padding-top: 1rem;
+    width: 100%;
+}
+.marketplace-toggle-wrap {
+    display: flex;
+    gap: 0.5rem;
+    width: 100%;
+    max-width: 500px;
+}
+.toggle-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    font-weight: 800;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: 0.2s;
+    border: 1px solid #EAEAEA;
+}
+.toggle-btn.active {
+    background: #1976D2; /* Blue from mockup */
+    color: white;
+    border-color: #1976D2;
+    box-shadow: 0 4px 12px rgba(25, 118, 210, 0.2);
+}
+.toggle-btn.inactive {
+    background: white;
+    color: #666;
+}
+.toggle-btn.inactive:hover {
+    background: #F5F5F7;
+}
+
+/* Sell Form Item Type Toggle */
+.item-type-btn.active {
+    background: white !important;
+    color: #101010 !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
 /* ============================================================
    ========== END OF STYLES.CSS ===============================
    ============================================================ */

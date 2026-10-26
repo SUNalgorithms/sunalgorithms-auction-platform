@@ -43,7 +43,8 @@ const app = {
         category: 'ALL',
         search: '',
         verifiedOnly: false,
-        sort: 'recent'
+        sort: 'recent',
+        itemType: 'VEHICLE' // NEW: Vehicle or Part
     },
     currentPage: 'marketplace',
     filterPanelVisible: false
@@ -595,7 +596,7 @@ async function fetchMarketplace(filters = {}) {
 async function renderMarketplace() {
     const main = document.getElementById('mainContent');
     if (!app._marketplaceFilters) {
-        app._marketplaceFilters = { filter: 'ALL', category: 'ALL', search: '', verifiedOnly: false, sort: 'recent' };
+        app._marketplaceFilters = { filter: 'ALL', category: 'ALL', search: '', verifiedOnly: false, sort: 'recent', itemType: 'VEHICLE' };
     }
     const filters = app._marketplaceFilters;
 
@@ -603,7 +604,8 @@ async function renderMarketplace() {
         filter: filters.filter,
         category: filters.category === 'ALL' ? '' : filters.category,
         search: filters.search || '',
-        verifiedOnly: filters.verifiedOnly ? 'true' : ''
+        verifiedOnly: filters.verifiedOnly ? 'true' : '',
+        itemType: filters.itemType // Send to backend
     });
     const filtered = app.listings || [];
     const categories = ['ALL', 'Vehicles', 'Motorcycles', 'TLB/Machinery', 'Electronics', 'Other'];
@@ -634,8 +636,21 @@ async function renderMarketplace() {
 
     main.innerHTML = `
         <div style="max-width:1400px;margin:0 auto;padding:0 1rem;background:#F5F5F7;min-height:100vh;">
+            
+            <!-- VEHICLE vs PART TOGGLE -->
+            <div class="marketplace-toggle-container">
+                <div class="marketplace-toggle-wrap">
+                    <button onclick="setMarketplaceFilter('itemType', 'VEHICLE')" class="toggle-btn ${filters.itemType === 'VEHICLE' ? 'active' : 'inactive'}">
+                        🚗 Cars
+                    </button>
+                    <button onclick="setMarketplaceFilter('itemType', 'PART')" class="toggle-btn ${filters.itemType === 'PART' ? 'active' : 'inactive'}">
+                        🔧 Parts & Tools
+                    </button>
+                </div>
+            </div>
+
             <div style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:0.75rem 1rem;display:flex;gap:0.5rem;margin-bottom:0.75rem;box-shadow:0 2px 8px rgba(0,0,0,0.05);flex-wrap:wrap;align-items:center;">
-                <input id="marketplaceSearch" value="${esc(filters.search)}" placeholder="Search bike, car, TLB..." style="flex:1;min-width:160px;padding:0.6rem 1rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;font-size:0.95rem;outline:none;">
+                <input id="marketplaceSearch" value="${esc(filters.search)}" placeholder="Search ${filters.itemType === 'PART' ? 'parts, tools...' : 'cars, bikes...'}" style="flex:1;min-width:160px;padding:0.6rem 1rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;font-size:0.95rem;outline:none;">
                 <button onclick="applyMarketplaceFilters()" style="background:#E30613;color:#fff;padding:0.6rem 1.2rem;border:none;border-radius:8px;font-weight:700;cursor:pointer;">Search</button>
                 <button onclick="toggleFilterPanel()" style="background:#101010;color:#fff;padding:0.6rem 1rem;border:none;border-radius:8px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
                     <i class="fas fa-sliders-h"></i> Filter
@@ -649,12 +664,12 @@ async function renderMarketplace() {
             </div>
             ${filterChipsHtml}
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem;">
-                <p style="font-size:0.9rem;color:#666;">${filtered.length} listings • From CM agents + private sellers</p>
+                <p style="font-size:0.9rem;color:#666;">${filtered.length} ${filters.itemType === 'PART' ? 'parts' : 'listings'} • From CM agents + private sellers</p>
             </div>
             <div class="marketplace-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.25rem;">
                 ${filtered.length > 0 ? filtered.map(item => renderAuctionCard(item)).join('') : `
                     <div style="grid-column:1/-1;text-align:center;padding:3rem 0;">
-                        <p style="font-size:1.2rem;font-weight:600;color:#666;">No listings found</p>
+                        <p style="font-size:1.2rem;font-weight:600;color:#666;">No ${filters.itemType === 'PART' ? 'parts' : 'listings'} found</p>
                     </div>
                 `}
             </div>
@@ -667,7 +682,7 @@ function toggleFilterPanel() {
     renderMarketplace();
 }
 function setMarketplaceFilter(key, value) {
-    if (!app._marketplaceFilters) app._marketplaceFilters = { filter: 'ALL', category: 'ALL', search: '', verifiedOnly: false, sort: 'recent' };
+    if (!app._marketplaceFilters) app._marketplaceFilters = { filter: 'ALL', category: 'ALL', search: '', verifiedOnly: false, sort: 'recent', itemType: 'VEHICLE' };
     app._marketplaceFilters[key] = value;
     renderMarketplace();
 }
@@ -1209,6 +1224,7 @@ function cleanupLiveRoom() {
 // ============================================================
 function renderAuctionCard(item) {
     const isAuction = item.listingType === 'AUCTION';
+    const isPart = item.itemType === 'PART'; // NEW
     const endTime = item.endTime || null;
     const isLive = isAuction && (!endTime || new Date(endTime) > new Date());
     const isEnded = isAuction && endTime && new Date(endTime) <= new Date();
@@ -1236,14 +1252,15 @@ function renderAuctionCard(item) {
         <div class="auction-card-item" onclick="viewListingDetail('${item.id}')" style="background:white;border:1px solid #EAEAEA;border-radius:12px;overflow:hidden;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
             <div style="position:relative;aspect-ratio:4/3;background:#F5F5F7;overflow:hidden;">
                 <img src="${imageUrl}" alt="${title}" style="width:100%;height:100%;object-fit:cover;" onerror="this.src='/logo.jpeg'">
-                ${isAuction && isLive ? `<span style="position:absolute;top:0.75rem;left:0.75rem;background:#E30613;color:#fff;font-size:0.7rem;font-weight:700;padding:0.15rem 0.6rem;border-radius:4px;text-transform:uppercase;">LIVE</span>` : ''}
-                ${isAuction && isEnded ? `<span style="position:absolute;top:0.75rem;left:0.75rem;background:#666;color:#fff;font-size:0.7rem;font-weight:700;padding:0.15rem 0.6rem;border-radius:4px;text-transform:uppercase;">ENDED</span>` : ''}
-                ${!isAuction ? `<span style="position:absolute;top:0.75rem;left:0.75rem;background:#101010;color:#fff;font-size:0.7rem;font-weight:700;padding:0.15rem 0.6rem;border-radius:4px;text-transform:uppercase;">FIXED</span>` : ''}
+                ${isPart ? `<span style="position:absolute;top:0.75rem;left:0.75rem;background:#4dabf7;color:#fff;font-size:0.7rem;font-weight:700;padding:0.15rem 0.6rem;border-radius:4px;text-transform:uppercase;">🔧 PART</span>` : ''}
+                ${!isPart && isAuction && isLive ? `<span style="position:absolute;top:0.75rem;left:0.75rem;background:#E30613;color:#fff;font-size:0.7rem;font-weight:700;padding:0.15rem 0.6rem;border-radius:4px;text-transform:uppercase;">LIVE</span>` : ''}
+                ${!isPart && isAuction && isEnded ? `<span style="position:absolute;top:0.75rem;left:0.75rem;background:#666;color:#fff;font-size:0.7rem;font-weight:700;padding:0.15rem 0.6rem;border-radius:4px;text-transform:uppercase;">ENDED</span>` : ''}
+                ${!isPart && !isAuction ? `<span style="position:absolute;top:0.75rem;left:0.75rem;background:#101010;color:#fff;font-size:0.7rem;font-weight:700;padding:0.15rem 0.6rem;border-radius:4px;text-transform:uppercase;">FIXED</span>` : ''}
                 ${isAuction && isLive && item.isVerified ? `<span style="position:absolute;top:0.75rem;right:0.75rem;background:#28a745;color:#fff;font-size:0.7rem;font-weight:700;padding:0.15rem 0.6rem;border-radius:4px;">✓ VERIFIED</span>` : ''}
             </div>
             <div style="padding:0.75rem 1rem;background:white;">
                 <h3 style="font-size:0.95rem;font-weight:700;margin:0 0 0.2rem 0;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#101010;">${title}${verifiedBadge}</h3>
-                ${specLine ? `<p style="font-size:0.8rem;color:#666;margin:0 0 0.3rem 0;">${esc(specLine)}</p>` : `<p style="font-size:0.8rem;color:#666;margin:0 0 0.3rem 0;">${esc(item.category || 'General')}</p>`}
+                ${!isPart && specLine ? `<p style="font-size:0.8rem;color:#666;margin:0 0 0.3rem 0;">${esc(specLine)}</p>` : `<p style="font-size:0.8rem;color:#666;margin:0 0 0.3rem 0;">${esc(item.category || 'General')}</p>`}
                 <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:0.4rem;">
                     <div>
                         <p style="font-size:0.7rem;color:#888;text-transform:uppercase;margin:0;">${isAuction ? 'Current Bid' : 'Price'}</p>
@@ -1297,6 +1314,7 @@ async function viewListingDetail(listingId) {
 function renderListingDetail(listing) {
     const main = document.getElementById('mainContent');
     const isAuction = listing.listingType === 'AUCTION';
+    const isPart = listing.itemType === 'PART'; // NEW
     const isOwnListing = app.user && app.user.id === listing.seller?.id;
 
     const specs = [
@@ -1342,7 +1360,7 @@ function renderListingDetail(listing) {
                             <img id="mainGalleryImage" src="${galleryImages[0]}" style="width:100%;height:100%;object-fit:contain;">
                             <button onclick="changeGalleryImage(-1)" class="gallery-nav-btn gallery-nav-left">‹</button>
                             <button onclick="changeGalleryImage(1)" class="gallery-nav-btn gallery-nav-right">›</button>
-                            <div class="gallery-badge-type">${isAuction ? '● LIVE AUCTION' : 'FIXED PRICE'}</div>
+                            <div class="gallery-badge-type">${isPart ? '🔧 PART / TOOL' : (isAuction ? '● LIVE AUCTION' : 'FIXED PRICE')}</div>
                             ${listing.isVerified ? `<div class="gallery-badge-verified">✓ CM VERIFIED</div>` : `<div class="gallery-badge-unverified">UNVERIFIED</div>`}
                             <div id="galleryCounter" class="gallery-counter">1 / ${galleryImages.length}</div>
                         </div>
@@ -1350,12 +1368,14 @@ function renderListingDetail(listing) {
                     <div class="thumbnails-container">${thumbnailHTML}</div>
                 </div>
 
+                ${!isPart ? `
                 <div class="listing-specs-block">
                     <h4 class="block-title">Vehicle Specs</h4>
                     <div class="specs-grid">
                         ${specs.map(spec => `<div class="spec-item"><p class="spec-label">${esc(spec.label)}</p><p class="spec-value">${esc(spec.value)}</p></div>`).join('')}
                     </div>
                 </div>
+                ` : ''}
 
                 <div class="listing-description-block">
                     <h4 class="block-title">Description</h4>
@@ -1503,7 +1523,7 @@ async function renderDashboard() {
             <div style="max-width:1200px;margin:0 auto;padding:1rem;">
                 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
                     <h2 style="margin:0;font-weight:900;">Welcome, ${esc(app.user.displayName || app.user.name)}</h2>
-                    <button onclick="navigate('createListing')" style="background:#E30613;color:white;border:none;padding:0.7rem 1.2rem;border-radius:8px;font-weight:800;cursor:pointer;">+ Sell Vehicle</button>
+                    <button onclick="navigate('createListing')" style="background:#E30613;color:white;border:none;padding:0.7rem 1.2rem;border-radius:8px;font-weight:800;cursor:pointer;">+ Sell Item</button>
                 </div>
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:2rem;">
                     <div class="dash-stat"><p class="label">Active</p><p class="value">${myActive.filter(l => l.status === 'ACTIVE').length}</p></div>
@@ -1626,15 +1646,23 @@ function renderCreateListing() {
         <div style="max-width:700px;margin:0 auto;padding:1rem;">
             <h2>Sell Something</h2>
             <form id="createListingForm" enctype="multipart/form-data" style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:1.5rem;margin-top:1rem;">
+                
+                <!-- NEW: Item Type Toggle -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;padding:0.25rem;background:#F5F5F7;border-radius:12px;margin-bottom:1rem;">
+                    <button type="button" class="item-type-btn active" data-itemtype="VEHICLE" style="padding:0.6rem;border:none;border-radius:8px;font-weight:700;background:white;cursor:pointer;">🚗 Vehicle</button>
+                    <button type="button" class="item-type-btn" data-itemtype="PART" style="padding:0.6rem;border:none;border-radius:8px;font-weight:700;background:transparent;cursor:pointer;">🔧 Part / Tool</button>
+                </div>
+                <input type="hidden" id="listingItemType" value="VEHICLE">
+
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;padding:0.25rem;background:#F5F5F7;border-radius:12px;margin-bottom:1rem;">
                     <button type="button" class="listing-type-btn active" data-type="AUCTION" style="padding:0.6rem;border:none;border-radius:8px;font-weight:700;background:white;cursor:pointer;">🔨 Auction</button>
                     <button type="button" class="listing-type-btn" data-type="FIXED_PRICE" style="padding:0.6rem;border:none;border-radius:8px;font-weight:700;background:transparent;cursor:pointer;">🏷️ Fixed Price</button>
                 </div>
                 <input type="hidden" id="listingType" value="AUCTION">
 
-                <div class="form-group"><label>Title *</label><input id="listingTitle" placeholder="Toyota Hilux 2021"></div>
+                <div class="form-group"><label>Title *</label><input id="listingTitle" placeholder="Toyota Hilux 2021 or Corolla Brake Pads"></div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-                    <div class="form-group"><label>Category</label><select id="listingCategory"><option>Vehicles</option><option>Motorcycles</option><option>TLB/Machinery</option><option>Other</option></select></div>
+                    <div class="form-group"><label>Category</label><select id="listingCategory"><option>Vehicles</option><option>Motorcycles</option><option>TLB/Machinery</option><option>Parts</option><option>Tools</option><option>Other</option></select></div>
                     <div class="form-group"><label>Condition</label><select id="listingCondition"><option>USED</option><option>NEW</option><option>FOR_PARTS</option></select></div>
                 </div>
 
@@ -1648,26 +1676,29 @@ function renderCreateListing() {
                     </div>
                     <div class="form-group">
                         <label>Additional Photos (up to 5)</label>
-                        <div class="drag-area" id="compartmentImageDrop"><i class="fas fa-images"></i><p>Engine, interior, etc.</p></div>
+                        <div class="drag-area" id="compartmentImageDrop"><i class="fas fa-images"></i><p>More details</p></div>
                         <input type="file" id="compartmentImageInput" accept="image/*" multiple hidden>
                         <div id="compartmentImagePreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
                     </div>
-                    <div class="form-group">
-                        <label>Odometer Video</label>
+                    <div class="form-group" id="vehicleOdometerVideo">
+                        <label>Odometer Video (Vehicles Only)</label>
                         <div class="drag-area" id="videoDrop"><i class="fas fa-video"></i><p>10-second video</p></div>
                         <input type="file" id="videoInput" accept="video/*" hidden>
                         <div id="videoPreview" style="margin-top:0.3rem;font-size:0.8rem;color:#E30613;"></div>
                     </div>
                 </div>
 
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-                    <div class="form-group"><label>Year</label><input id="listingYear" type="number" placeholder="2021"></div>
-                    <div class="form-group"><label>Kilometers</label><input id="listingKm" type="number" placeholder="85000"></div>
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;">
-                    <div class="form-group"><label>Color</label><input id="listingColor" placeholder="White"></div>
-                    <div class="form-group"><label>Engine</label><input id="listingEngine" placeholder="2.8L"></div>
-                    <div class="form-group"><label>Transmission</label><select id="listingTrans"><option>Manual</option><option>Automatic</option></select></div>
+                <!-- VEHICLE SPECS ONLY -->
+                <div id="vehicleSpecsFields">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                        <div class="form-group"><label>Year</label><input id="listingYear" type="number" placeholder="2021"></div>
+                        <div class="form-group"><label>Kilometers</label><input id="listingKm" type="number" placeholder="85000"></div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;">
+                        <div class="form-group"><label>Color</label><input id="listingColor" placeholder="White"></div>
+                        <div class="form-group"><label>Engine</label><input id="listingEngine" placeholder="2.8L"></div>
+                        <div class="form-group"><label>Transmission</label><select id="listingTrans"><option>Manual</option><option>Automatic</option></select></div>
+                    </div>
                 </div>
 
                 <div id="auctionFields">
@@ -1683,8 +1714,9 @@ function renderCreateListing() {
 
                 <div class="form-group"><label>Description</label><textarea id="listingDescription" rows="4"></textarea></div>
 
-                <div style="background:#FFF3F3;border:1px solid #FFCFCF;padding:1rem;border-radius:12px;margin-bottom:1rem;">
-                    <h4 style="color:#E30613;margin-bottom:0.8rem;">CM Verification</h4>
+                <!-- VEHICLE VERIFICATION ONLY -->
+                <div id="vehicleVerificationFields" style="background:#FFF3F3;border:1px solid #FFCFCF;padding:1rem;border-radius:12px;margin-bottom:1rem;">
+                    <h4 style="color:#E30613;margin-bottom:0.8rem;">CM Verification (Vehicles Only)</h4>
                     <div class="form-group"><label>VIN</label><input id="listingVin" placeholder="17 characters"></div>
                     <div class="form-group"><label>Engine Number</label><input id="listingEngineNo"></div>
                     <label style="font-size:0.8rem;display:flex;gap:8px;margin-top:8px;">
@@ -1710,16 +1742,34 @@ function renderCreateListing() {
         });
     });
 
+    // NEW: Item Type Toggle Logic
+    document.querySelectorAll('.item-type-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const type = this.dataset.itemtype;
+            document.getElementById('listingItemType').value = type;
+            document.querySelectorAll('.item-type-btn').forEach(b => { b.style.background = 'transparent'; b.classList.remove('active'); });
+            this.style.background = 'white'; this.classList.add('active');
+            
+            // Hide/Show vehicle specific fields
+            document.getElementById('vehicleSpecsFields').style.display = type === 'VEHICLE' ? 'block' : 'none';
+            document.getElementById('vehicleVerificationFields').style.display = type === 'VEHICLE' ? 'block' : 'none';
+            document.getElementById('vehicleOdometerVideo').style.display = type === 'VEHICLE' ? 'block' : 'none';
+        });
+    });
+
     document.getElementById('createListingForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        if (!document.getElementById('listingDeclare').checked) return showToast('You must declare', 'error');
+        const isPart = document.getElementById('listingItemType').value === 'PART';
+        
+        if (!isPart && !document.getElementById('listingDeclare').checked) return showToast('You must declare the vehicle is not stolen.', 'error');
         const vin = document.getElementById('listingVin').value.trim();
-        if (vin && vin.length !== 17) return showToast('VIN must be 17 chars', 'error');
+        if (!isPart && vin && vin.length !== 17) return showToast('VIN must be 17 chars', 'error');
+        
         const mainInput = document.getElementById('mainImageInput');
         if (!mainInput.files || mainInput.files.length === 0) return showToast('Main image required', 'error');
 
         const fd = new FormData();
-        // Explicit mapping — do NOT use dynamic ID guessing
+        // Explicit mapping
         const mapping = {
             title:          'listingTitle',
             category:       'listingCategory',
@@ -1730,6 +1780,7 @@ function renderCreateListing() {
             engineSize:     'listingEngine',
             transmission:   'listingTrans',
             listingType:    'listingType',
+            itemType:       'listingItemType', // NEW
             description:    'listingDescription',
             vinNumber:      'listingVin',
             engineNumber:   'listingEngineNo',
@@ -1742,11 +1793,13 @@ function renderCreateListing() {
             const el = document.getElementById(mapping[field]);
             if (el && el.value) fd.append(field, el.value);
         });
+        
         fd.append('mainImage', mainInput.files[0]);
         const compInput = document.getElementById('compartmentImageInput');
         if (compInput.files) for (let i = 0; i < Math.min(compInput.files.length, 5); i++) fd.append('compartmentImages', compInput.files[i]);
+        
         const videoInput = document.getElementById('videoInput');
-        if (videoInput.files && videoInput.files.length > 0) fd.append('odometerVideo', videoInput.files[0]);
+        if (!isPart && videoInput.files && videoInput.files.length > 0) fd.append('odometerVideo', videoInput.files[0]);
 
         try {
             const res = await fetch('/api/listings', {
@@ -1894,4 +1947,4 @@ document.addEventListener('DOMContentLoaded', () => {
     initApp();
 });
 
-console.log('✅ CM app.js loaded (v3 — WebRTC fixed)');
+console.log('✅ CM app.js loaded (v4 — Parts & Tools)');

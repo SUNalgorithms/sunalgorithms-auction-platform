@@ -448,8 +448,12 @@ app.post('/api/kyc/upgrade', authenticate, async (req, res) => {
 // ============================================================
 app.get('/api/marketplace', async (req, res) => {
     try {
-        const { filter, category, search, verifiedOnly } = req.query;
+        const { filter, category, search, verifiedOnly, itemType } = req.query;
         const where = { status: 'ACTIVE', isPrivate: false };
+        
+        // NEW: Filter by Vehicle or Part
+        if (itemType && itemType !== 'ALL') where.itemType = itemType;
+
         if (category && category !== 'ALL') where.category = category;
         if (filter === 'AUCTION') where.listingType = 'AUCTION';
         if (filter === 'FIXED_PRICE') where.listingType = 'FIXED_PRICE';
@@ -472,6 +476,7 @@ app.get('/api/marketplace', async (req, res) => {
             return {
                 id: l.id,
                 title: l.title,
+                itemType: l.itemType, // NEW: Send to frontend
                 price: l.price || null,
                 currentBid: l.currentBid || null,
                 startingPrice: l.startingPrice || null,
@@ -554,6 +559,7 @@ app.get('/api/private/collection/:id', async (req, res) => {
             id: l.id,
             title: l.title,
             description: cleanDesc,
+            itemType: l.itemType || 'VEHICLE', // NEW: Send to frontend
             mainImageUrl: l.mainImageUrl,
             imageUrls: l.imageUrls || [],
             odometerVideoUrl: l.odometerVideoUrl,
@@ -761,6 +767,7 @@ app.post('/api/listings', authenticate, memoryUpload.fields([
             category: data.category || 'Other',
             condition: data.condition || 'USED',
             listingType: data.listingType || 'FIXED_PRICE',
+            itemType: data.itemType || 'VEHICLE', // NEW: Save to DB
             startingPrice: data.startingPrice ? parseFloat(data.startingPrice) : null,
             reservePrice: data.reservePrice ? parseFloat(data.reservePrice) : null,
             price: data.price ? parseFloat(data.price) : null,

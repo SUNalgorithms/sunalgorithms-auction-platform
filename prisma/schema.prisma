@@ -30,7 +30,10 @@ enum ListingType {
   AUCTION
   FIXED_PRICE
 }
-
+enum ItemType {
+  VEHICLE
+  PART
+}
 enum ListingStatus {
   ACTIVE
   ENDED
@@ -140,7 +143,7 @@ model Listing {
   images                Json?
 
   listingType           ListingType     @default(FIXED_PRICE)
-
+  itemType              ItemType        @default(VEHICLE)
   // Auction fields
   startingPrice         Float?
   reservePrice          Float?
