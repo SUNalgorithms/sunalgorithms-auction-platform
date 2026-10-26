@@ -635,37 +635,44 @@ async function renderMarketplace() {
     `;
 
     main.innerHTML = `
-        <div style="max-width:1400px;margin:0 auto;padding:0 1rem;background:#F5F5F7;min-height:100vh;">
+        <div style="max-width:1400px;margin:0 auto;padding:0 1rem;background:#F5F5F7;min-height:100vh;padding-top:1rem;">
             
-            <!-- VEHICLE vs PART TOGGLE -->
-            <div class="marketplace-toggle-container">
-                <div class="marketplace-toggle-wrap">
-                    <button onclick="setMarketplaceFilter('itemType', 'VEHICLE')" class="toggle-btn ${filters.itemType === 'VEHICLE' ? 'active' : 'inactive'}">
+            <!-- SEARCH & FILTER FRAME (With Toggle Inside) -->
+            <div style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:1rem;margin-bottom:0.75rem;box-shadow:0 2px 8px rgba(0,0,0,0.05);display:flex;flex-direction:column;gap:0.75rem;">
+                
+                <!-- Row 1: Search & Filter -->
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+                    <input id="marketplaceSearch" value="${esc(filters.search)}" placeholder="Search ${filters.itemType === 'PART' ? 'parts, tools...' : 'cars, bikes...'}" style="flex:1;min-width:160px;padding:0.6rem 1rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;font-size:0.95rem;outline:none;">
+                    <button onclick="applyMarketplaceFilters()" style="background:#E30613;color:#fff;padding:0.6rem 1.2rem;border:none;border-radius:8px;font-weight:700;cursor:pointer;">Search</button>
+                    <button onclick="toggleFilterPanel()" style="background:#101010;color:#fff;padding:0.6rem 1rem;border:none;border-radius:8px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+                        <i class="fas fa-sliders-h"></i> Filter
+                    </button>
+                    <select onchange="setMarketplaceFilter('sort', this.value)" style="padding:0.5rem 0.8rem;border-radius:8px;background:white;border:1px solid #EAEAEA;color:#101010;font-size:0.9rem;">
+                        <option value="recent" ${filters.sort === 'recent' ? 'selected' : ''}>Most Recent</option>
+                        <option value="price_low" ${filters.sort === 'price_low' ? 'selected' : ''}>Price: Low to High</option>
+                        <option value="price_high" ${filters.sort === 'price_high' ? 'selected' : ''}>Price: High to Low</option>
+                        <option value="ending" ${filters.sort === 'ending' ? 'selected' : ''}>Ending Soon</option>
+                    </select>
+                </div>
+
+                <!-- Row 2: Cars vs Parts Toggle -->
+                <div style="display:flex;gap:0.5rem;width:100%;">
+                    <button onclick="setMarketplaceFilter('itemType', 'VEHICLE')" style="flex:1; padding:0.65rem; border:none; border-radius:8px; font-weight:800; cursor:pointer; background:${filters.itemType === 'VEHICLE' ? '#1976D2' : '#FFFFFF'}; color:${filters.itemType === 'VEHICLE' ? '#FFFFFF' : '#555555'}; border:1px solid ${filters.itemType === 'VEHICLE' ? '#1976D2' : '#D1D5DB'}; transition:0.2s; display:flex; align-items:center; justify-content:center; gap:8px; font-size:0.95rem;">
                         🚗 Cars
                     </button>
-                    <button onclick="setMarketplaceFilter('itemType', 'PART')" class="toggle-btn ${filters.itemType === 'PART' ? 'active' : 'inactive'}">
+                    <button onclick="setMarketplaceFilter('itemType', 'PART')" style="flex:1; padding:0.65rem; border:none; border-radius:8px; font-weight:800; cursor:pointer; background:${filters.itemType === 'PART' ? '#1976D2' : '#FFFFFF'}; color:${filters.itemType === 'PART' ? '#FFFFFF' : '#555555'}; border:1px solid ${filters.itemType === 'PART' ? '#1976D2' : '#D1D5DB'}; transition:0.2s; display:flex; align-items:center; justify-content:center; gap:8px; font-size:0.95rem;">
                         🔧 Parts & Tools
                     </button>
                 </div>
+
             </div>
 
-            <div style="background:white;border:1px solid #EAEAEA;border-radius:12px;padding:0.75rem 1rem;display:flex;gap:0.5rem;margin-bottom:0.75rem;box-shadow:0 2px 8px rgba(0,0,0,0.05);flex-wrap:wrap;align-items:center;">
-                <input id="marketplaceSearch" value="${esc(filters.search)}" placeholder="Search ${filters.itemType === 'PART' ? 'parts, tools...' : 'cars, bikes...'}" style="flex:1;min-width:160px;padding:0.6rem 1rem;border-radius:8px;background:#F5F5F7;border:1px solid #EAEAEA;color:#101010;font-size:0.95rem;outline:none;">
-                <button onclick="applyMarketplaceFilters()" style="background:#E30613;color:#fff;padding:0.6rem 1.2rem;border:none;border-radius:8px;font-weight:700;cursor:pointer;">Search</button>
-                <button onclick="toggleFilterPanel()" style="background:#101010;color:#fff;padding:0.6rem 1rem;border:none;border-radius:8px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
-                    <i class="fas fa-sliders-h"></i> Filter
-                </button>
-                <select onchange="setMarketplaceFilter('sort', this.value)" style="padding:0.5rem 0.8rem;border-radius:8px;background:white;border:1px solid #EAEAEA;color:#101010;font-size:0.9rem;">
-                    <option value="recent" ${filters.sort === 'recent' ? 'selected' : ''}>Most Recent</option>
-                    <option value="price_low" ${filters.sort === 'price_low' ? 'selected' : ''}>Price: Low to High</option>
-                    <option value="price_high" ${filters.sort === 'price_high' ? 'selected' : ''}>Price: High to Low</option>
-                    <option value="ending" ${filters.sort === 'ending' ? 'selected' : ''}>Ending Soon</option>
-                </select>
-            </div>
             ${filterChipsHtml}
+            
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem;">
                 <p style="font-size:0.9rem;color:#666;">${filtered.length} ${filters.itemType === 'PART' ? 'parts' : 'listings'} • From CM agents + private sellers</p>
             </div>
+            
             <div class="marketplace-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.25rem;">
                 ${filtered.length > 0 ? filtered.map(item => renderAuctionCard(item)).join('') : `
                     <div style="grid-column:1/-1;text-align:center;padding:3rem 0;">
