@@ -1666,6 +1666,12 @@ app.get('/api/seller/analytics/:listingId', authenticate, async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+// ============================================================
+// ========== HEALTH CHECK (For UptimeRobot) ==================
+// ============================================================
+app.get('/health', (req, res) => {
+    res.status(200).send('OK');
+});
 
 // ============================================================
 // ========== STATIC + CATCH-ALL ==============================
